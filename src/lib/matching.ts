@@ -58,7 +58,7 @@ export function jdEmbedText(jd: Jd): string {
     .join("\n");
 }
 
-function scoreSkills(
+export function scoreSkills(
   required: string[],
   candidateSkills: { normalizedName: string; confirmed: boolean }[],
   similarity: number,
@@ -79,7 +79,7 @@ function scoreSkills(
   return Math.round(Math.min(1, exact * 0.75 + similarity * 0.25) * 100);
 }
 
-function scoreRate(rate: number | null, min: number | null, max: number | null): number {
+export function scoreRate(rate: number | null, min: number | null, max: number | null): number {
   if (rate == null || min == null || max == null) return 60;
   if (rate <= max && rate >= min) return 100;
   if (rate < min) return 95; // under budget is a win for the employer, not a penalty
@@ -89,7 +89,7 @@ function scoreRate(rate: number | null, min: number | null, max: number | null):
   return 0;
 }
 
-function scoreOverlap(availability: string, committed: number, hoursNeeded: number | null): number {
+export function scoreOverlap(availability: string, committed: number, hoursNeeded: number | null): number {
   const free = Math.max(0, 40 - committed);
   if (availability === "booked") return 10;
   if (!hoursNeeded) return availability === "open" ? 100 : 70;
@@ -97,7 +97,7 @@ function scoreOverlap(availability: string, committed: number, hoursNeeded: numb
   return Math.round((free / hoursNeeded) * 100);
 }
 
-function scoreExperience(years: number, confirmedEngagements: number): number {
+export function scoreExperience(years: number, confirmedEngagements: number): number {
   const base = Math.min(1, years / 5) * 80;
   const proof = Math.min(20, confirmedEngagements * 10);
   return Math.round(base + proof);
