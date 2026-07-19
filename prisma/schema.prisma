@@ -411,6 +411,13 @@ model Referral {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Where to send the money. Nullable because an affiliate exists long before
+  // they have anything to be paid. payoutAccountNumber is the sensitive one:
+  // never logged, never in an audit meta blob, masked to the last 4 in admin.
+  payoutMethod        String? // gcash | bank
+  payoutAccountName   String?
+  payoutAccountNumber String?
+
   user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   clicks      ReferralClick[]
   conversions ReferralConversion[]
@@ -444,10 +451,17 @@ model ReferralConversion {
   qualifiedAt  DateTime?
   createdAt    DateTime  @default(now())
 
-  referral Referral @relation(fields: [referralId], references: [id], onDelete: Cascade)
-  user     User     @relation("ReferredUser", fields: [userId], references: [id], onDelete: Cascade)
+  // Set when a payout covering this conversion is requested, cleared if that
+  // payout is rejected. Null on a qualified row means "still owed" — that is
+  // the whole unpaid balance calculation, no arithmetic across payouts.
+  payoutId String?
+
+  referral Referral        @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  user     User            @relation("ReferredUser", fields: [userId], references: [id], onDelete: Cascade)
+  payout   ReferralPayout? @relation(fields: [payoutId], references: [id], onDelete: SetNull)
 
   @@index([referralId, status])
+  @@index([payoutId])
 }
 
 model ReferralPayout {
@@ -462,7 +476,8 @@ model ReferralPayout {
   createdAt DateTime  @default(now())
   paidAt    DateTime?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversions ReferralConversion[]
 
   @@index([userId, status])
 }

@@ -66,21 +66,43 @@ export default async function AdminReports() {
               </p>
               <p className="mt-2 text-sm leading-relaxed text-ink-soft">{r.detail}</p>
 
-              {r.evidenceKeys.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {r.evidenceKeys.map((key) => (
-                    <span
-                      key={key}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 text-xs text-ink-soft"
-                    >
-                      <FileText className="h-3 w-3" strokeWidth={1.75} /> {key}
-                    </span>
-                  ))}
+              {r.evidence.length > 0 && (
+                <div className="mt-3">
+                  <div className="flex flex-wrap gap-2">
+                    {r.evidence.map((e, i) =>
+                      e.url ? (
+                        <a
+                          key={e.key}
+                          href={e.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 text-xs text-ink-soft transition-colors hover:border-brand hover:text-brand"
+                        >
+                          <FileText className="h-3 w-3" strokeWidth={1.75} /> Evidence {i + 1}
+                        </a>
+                      ) : (
+                        <span
+                          key={e.key}
+                          title={e.key}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 text-xs text-ink-faint"
+                        >
+                          <FileText className="h-3 w-3" strokeWidth={1.75} /> Unavailable
+                        </span>
+                      ),
+                    )}
+                  </div>
+                  <p className="mt-2 text-xs text-ink-faint">
+                    Links are signed for this page load and expire in ten minutes.
+                  </p>
                 </div>
               )}
 
               {r.status === "open" ? (
-                <ReportActions reportId={r.id} />
+                <ReportActions
+                  reportId={r.id}
+                  targetName={r.against.name}
+                  targetStatus={r.against.status}
+                />
               ) : (
                 <div className="mt-4 border-t border-line pt-4">
                   <p className="text-xs text-ink-faint">Resolution</p>

@@ -52,6 +52,27 @@ Keep the pairs matched or every delivery 401s:
 
 **Resend** — verify the `shortlisted.ph` domain before any user-facing email. Sending from `newmachine.ph` while the mail claims to be shortlisted.ph reads as phishing and hurts deliverability. Until `RESEND_API_KEY` and `EMAIL_FROM` are both set, `lib/email.ts` logs each skipped send and carries on — password reset will appear to work and deliver nothing.
 
+## Testing email locally
+
+Resend talks HTTPS to a hosted API, so it can't deliver to your machine. For local work, run [Mailpit](https://mailpit.axllent.org/) and point the app at it over SMTP:
+
+```bash
+docker run -d --name mailpit -p 1025:1025 -p 8025:8025 axllent/mailpit
+```
+
+Then in `.env.local`:
+
+```
+SMTP_HOST=localhost
+SMTP_PORT=1025
+```
+
+Every outbound message now lands in Mailpit instead of a real inbox — open **http://localhost:8025** to read it, headers and HTML included. `curl http://localhost:8025/api/v1/messages` works too if you want to assert on it from a script.
+
+`SMTP_HOST` is the only switch. Set, everything goes to Mailpit; unset, `lib/email.ts` uses Resend exactly as in production. It's keyed off that variable rather than `NODE_ENV` so the path can be exercised deliberately — and so a stray `NODE_ENV` in a deployed environment can't silently reroute real user mail into a container that doesn't exist there.
+
+**Leave `SMTP_HOST` unset in Vercel.** Mailpit needs no auth and no TLS, so no credentials are involved.
+
 ## Admin account
 
 ```

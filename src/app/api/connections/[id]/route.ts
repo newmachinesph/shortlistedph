@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
+import { notify } from "@/lib/notify";
 import { HttpError, requireRole } from "@/lib/session";
 
 const Body = z.object({ decision: z.enum(["consent", "decline"]) });
@@ -44,14 +45,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     });
 
     const employerUserId = connection.slateEntry.snapshot.jd.employer.userId;
-    await db.notification.create({
-      data: {
-        userId: employerUserId,
-        type: decision === "consent" ? "connection_accepted" : "connection_declined",
-        payload: {
-          connectionId: connection.id,
-          jobTitle: connection.slateEntry.snapshot.jd.title,
-        },
+    await notify({
+      userId: employerUserId,
+      type: decision === "consent" ? "connection_accepted" : "connection_declined",
+      payload: {
+        connectionId: connection.id,
+        jobTitle: connection.slateEntry.snapshot.jd.title,
       },
     });
 

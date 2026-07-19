@@ -1,5 +1,9 @@
 import "server-only";
 import { db } from "./db";
+import { buildSlate } from "./matching";
+import { notify } from "./notify";
+import { presignDownload } from "./r2";
+import { HttpError } from "./session";
 
 /**
  * Back-office read models. Server components call these directly.
@@ -11,6 +15,12 @@ import { db } from "./db";
  */
 
 const PAID = "paid";
+
+/** A slate only counts as delivered once its JD reached the employer. */
+const DELIVERED_JD_STATUSES = ["slate_ready", "closed"];
+
+/** JD statuses an operator can act on from the slates page. */
+export const STUCK_JD_STATUSES = ["matching", "rematching", "failed"];
 
 /** "5h ago", "Jul 17". Rendered on the server, so no hydration drift. */
 export function timeAgo(date: Date): string {
@@ -78,12 +88,15 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     db.talentProfile.count(),
     db.talentProfile.count({ where: { publishedAt: { not: null } } }),
     db.employerAccount.count(),
-    db.slate.count(),
+    // "Delivered" means the shortlist actually reached the employer. A slate
+    // whose JD was since re-matched, marked failed, or never finished is not
+    // delivered — counting those inflated the figure the label promised.
+    db.slate.count({ where: { jd: { status: { in: DELIVERED_JD_STATUSES } } } }),
     db.slate.count({ where: { status: "unlocked" } }),
     db.payment.groupBy({ by: ["currency"], where: { status: PAID }, _sum: { amount: true } }),
     db.report.count({ where: { status: "open" } }),
     db.slate.count({ where: { status: "preview" } }),
-    db.jobDescription.count({ where: { status: "matching" } }),
+    db.jobDescription.count({ where: { status: { in: ["matching", "rematching"] } } }),
     db.auditLog.findMany({
       orderBy: { createdAt: "desc" },
       take: 12,
@@ -144,6 +157,238 @@ export async function getAdminOverview(): Promise<AdminOverview> {
   };
 }
 
+// ─── Enforcement ─────────────────────────────────────────────────────────
+
+export type UserStatus = "active" | "suspended" | "banned";
+
+/** States where the other side is still waiting on this person. */
+const LIVE_CONNECTION_STATES = ["requested", "consented"];
+
+export type EnforcementResult = {
+  id: string;
+  status: UserStatus;
+  from: string;
+  sessionsRevoked: number;
+  unpublished: boolean;
+  counterpartiesNotified: number;
+};
+
+/**
+ * The one implementation of "make an account inactive".
+ *
+ * Setting User.status alone was cosmetic: requireUser() rejects the next
+ * request, but the live session row still existed, the talent profile stayed
+ * in the matching pool, and whoever was mid-conversation with them heard
+ * nothing. All four facts move together here, in one transaction, so a report
+ * resolution and a direct ban cannot drift apart.
+ *
+ * Reactivating deliberately does NOT republish a profile. Publishing is the
+ * talent's act of consent to be shown to employers; an operator restoring
+ * access is not the same as the person choosing to be visible again.
+ */
+export async function applyUserStatus(args: {
+  actorId: string;
+  userId: string;
+  status: UserStatus;
+  action: string;
+  meta?: Record<string, string | number>;
+}): Promise<EnforcementResult> {
+  const target = await db.user.findUnique({
+    where: { id: args.userId },
+    select: { id: true, status: true, talentProfile: { select: { id: true, publishedAt: true } } },
+  });
+  if (!target) throw new HttpError(404, "User not found");
+  if (target.id === args.actorId) throw new HttpError(409, "You cannot change your own status");
+
+  const inactive = args.status !== "active";
+  const willUnpublish = inactive && target.talentProfile?.publishedAt != null;
+
+  // Read before the write: once the profile is unpublished and sessions are
+  // gone, the people owed a heads-up are harder to find.
+  const live = inactive ? await liveCounterparties(args.userId) : [];
+
+  const sessionsRevoked = await db.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: target.id }, data: { status: args.status } });
+
+    // Kick them out now. Without this the account stays usable for the life
+    // of the existing session cookie.
+    const { count } = inactive
+      ? await tx.session.deleteMany({ where: { userId: target.id } })
+      : { count: 0 };
+
+    if (willUnpublish) {
+      await tx.talentProfile.update({
+        where: { id: target.talentProfile!.id },
+        data: { publishedAt: null },
+      });
+    }
+
+    await tx.auditLog.create({
+      data: {
+        actorId: args.actorId,
+        action: args.action,
+        target: target.id,
+        meta: {
+          ...args.meta,
+          from: target.status,
+          to: args.status,
+          sessionsRevoked: count,
+          unpublished: willUnpublish,
+        },
+      },
+    });
+
+    return count;
+  });
+
+  // Post-commit. notify() swallows its own failures — a bell icon that did not
+  // light up must not undo a ban that did.
+  for (const c of live) {
+    await notify({
+      userId: c.counterpartyUserId,
+      type: "counterparty_unavailable",
+      payload: { connectionId: c.connectionId, jobTitle: c.jobTitle },
+    });
+  }
+
+  return {
+    id: target.id,
+    status: args.status,
+    from: target.status,
+    sessionsRevoked,
+    unpublished: willUnpublish,
+    counterpartiesNotified: live.length,
+  };
+}
+
+/** Whoever is on the other end of this user's still-open connections. */
+async function liveCounterparties(userId: string) {
+  const rows = await db.connection.findMany({
+    where: {
+      state: { in: LIVE_CONNECTION_STATES },
+      OR: [
+        { slateEntry: { snapshot: { profile: { userId } } } },
+        { slateEntry: { slate: { jd: { employer: { userId } } } } },
+      ],
+    },
+    select: {
+      id: true,
+      slateEntry: {
+        select: {
+          snapshot: {
+            select: {
+              profile: { select: { userId: true } },
+              jd: { select: { title: true, employer: { select: { userId: true } } } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return rows.map((r) => {
+    const snap = r.slateEntry.snapshot;
+    const talentUserId = snap.profile.userId;
+    return {
+      connectionId: r.id,
+      jobTitle: snap.jd.title,
+      counterpartyUserId: talentUserId === userId ? snap.jd.employer.userId : talentUserId,
+    };
+  });
+}
+
+/**
+ * Operator takedown of published profile content. Only ever unpublishes:
+ * republishing is the talent's call, made from their own dashboard.
+ */
+export async function unpublishProfile(args: { actorId: string; userId: string }) {
+  const profile = await db.talentProfile.findUnique({
+    where: { userId: args.userId },
+    select: { id: true, publishedAt: true },
+  });
+  if (!profile) throw new HttpError(404, "This account has no talent profile");
+  if (!profile.publishedAt) throw new HttpError(409, "Profile is already unpublished");
+
+  await db.$transaction([
+    db.talentProfile.update({ where: { id: profile.id }, data: { publishedAt: null } }),
+    db.auditLog.create({
+      data: {
+        actorId: args.actorId,
+        action: "admin.profile.unpublish",
+        target: args.userId,
+        meta: { profileId: profile.id, publishedAt: profile.publishedAt.toISOString() },
+      },
+    }),
+  ]);
+
+  return { id: args.userId, unpublished: true };
+}
+
+// ─── Stuck-JD recovery ───────────────────────────────────────────────────
+
+/**
+ * Re-run matching for a JD that never came back.
+ *
+ * The claim is the lock: flipping "matching" → "rematching" in one conditional
+ * UPDATE means a second operator (or a double-click) loses the race and gets a
+ * 409 instead of a second slate. buildSlate sets the terminal status itself, so
+ * "rematching" only persists while a run is genuinely in flight.
+ *
+ * ponytail: status-as-lock, released by restoring "matching" if buildSlate
+ * throws. A run killed mid-flight (deploy, timeout) leaves the JD on
+ * "rematching" — the operator's other lever, mark-failed, accepts that state.
+ * Swap for a queue with a lease when matching moves off the request path.
+ */
+export async function rematchJd(args: { actorId: string; jdId: string }) {
+  const claimed = await db.jobDescription.updateMany({
+    where: { id: args.jdId, status: "matching" },
+    data: { status: "rematching" },
+  });
+  if (claimed.count !== 1) {
+    const jd = await db.jobDescription.findUnique({
+      where: { id: args.jdId },
+      select: { status: true },
+    });
+    if (!jd) throw new HttpError(404, "Job description not found");
+    throw new HttpError(409, `Cannot re-run matching for a job description that is "${jd.status}"`);
+  }
+
+  await db.auditLog.create({
+    data: { actorId: args.actorId, action: "admin.jd.rematch", target: args.jdId },
+  });
+
+  try {
+    return await buildSlate(args.jdId);
+  } catch (e) {
+    // Hand the lock back so the JD stays retryable rather than wedged again.
+    await db.jobDescription.updateMany({
+      where: { id: args.jdId, status: "rematching" },
+      data: { status: "matching" },
+    });
+    throw e;
+  }
+}
+
+/** Give up on a JD nobody can rescue. Terminal, and says so to the employer. */
+export async function failJd(args: { actorId: string; jdId: string; note?: string }) {
+  const { count } = await db.jobDescription.updateMany({
+    where: { id: args.jdId, status: { in: ["matching", "rematching"] } },
+    data: { status: "failed" },
+  });
+  if (count !== 1) throw new HttpError(409, "Only a job description still matching can be marked failed");
+
+  await db.auditLog.create({
+    data: {
+      actorId: args.actorId,
+      action: "admin.jd.fail",
+      target: args.jdId,
+      meta: args.note ? { note: args.note } : undefined,
+    },
+  });
+
+  return { id: args.jdId, status: "failed" };
+}
+
 export const USERS_PAGE_SIZE = 25;
 
 export async function listUsers(opts: { q?: string; page?: number }) {
@@ -181,14 +426,64 @@ export async function listUsers(opts: { q?: string; page?: number }) {
   return { users, total, page, pageCount: Math.max(1, Math.ceil(total / USERS_PAGE_SIZE)) };
 }
 
+/**
+ * Evidence lives in R2 under opaque object keys. Rendering the key is not
+ * evidence — the operator has to be able to open the file before deciding.
+ * URLs are signed per request and expire, so nothing durable leaks into
+ * browser history or a screenshot of the page.
+ */
+const EVIDENCE_TTL_SECONDS = 600;
+
+export type Evidence = { key: string; url: string | null };
+
+async function signEvidence(keys: string[]): Promise<Evidence[]> {
+  return Promise.all(
+    keys.map(async (key) => {
+      try {
+        return { key, url: await presignDownload(key, EVIDENCE_TTL_SECONDS) };
+      } catch (e) {
+        // R2 unconfigured or the key is gone: show the key, not a 500. The
+        // rest of the report is still adjudicable.
+        console.error("[admin] could not sign evidence", key, e);
+        return { key, url: null };
+      }
+    }),
+  );
+}
+
 export async function listReports(status?: string) {
-  return db.report.findMany({
+  const reports = await db.report.findMany({
     where: status ? { status } : {},
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     take: 100,
     include: {
       filedBy: { select: { id: true, name: true, email: true, role: true } },
       against: { select: { id: true, name: true, email: true, role: true, status: true } },
+    },
+  });
+
+  return Promise.all(
+    reports.map(async (r) => ({ ...r, evidence: await signEvidence(r.evidenceKeys) })),
+  );
+}
+
+/**
+ * JDs that never made it out of matching. publish/route.ts runs buildSlate
+ * inline, so a request that dies mid-run leaves the JD wedged with no lever —
+ * these are the rows the operator needs a lever for.
+ */
+export async function listStuckJds() {
+  return db.jobDescription.findMany({
+    where: { status: { in: STUCK_JD_STATUSES } },
+    orderBy: { publishedAt: "desc" },
+    take: 50,
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      publishedAt: true,
+      createdAt: true,
+      employer: { select: { companyName: true } },
     },
   });
 }

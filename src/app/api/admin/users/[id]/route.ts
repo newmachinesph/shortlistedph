@@ -1,37 +1,45 @@
 import { z } from "zod";
-import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
-import { HttpError, requireAdmin } from "@/lib/session";
+import { applyUserStatus, unpublishProfile } from "@/lib/admin";
+import { requireAdmin } from "@/lib/session";
 
-const Body = z.object({ status: z.enum(["active", "suspended", "banned"]) });
+const Body = z.union([
+  z.object({ status: z.enum(["active", "suspended", "banned"]) }),
+  z.object({ unpublish: z.literal(true) }),
+]);
 
 /**
- * Suspend, ban, or reactivate an account. requireUser() already rejects any
- * session whose status is not "active", so this is the whole kill switch.
+ * Suspend, ban, reactivate, or take a profile down.
+ *
+ * The enforcement itself lives in lib/admin.ts because resolving a report can
+ * apply the same action — one implementation, so the two paths cannot drift.
  */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const admin = await requireAdmin();
     const { id } = await params;
-    const { status } = await parseBody(req, Body);
+    const body = await parseBody(req, Body);
 
-    const target = await db.user.findUnique({ where: { id }, select: { id: true, status: true } });
-    if (!target) throw new HttpError(404, "User not found");
-    if (target.id === admin.id) throw new HttpError(409, "You cannot change your own status");
+    if ("unpublish" in body) {
+      return ok(await unpublishProfile({ actorId: admin.id, userId: id }));
+    }
 
-    await db.$transaction([
-      db.user.update({ where: { id }, data: { status } }),
-      db.auditLog.create({
-        data: {
-          actorId: admin.id,
-          action: `admin.user.${status}`,
-          target: id,
-          meta: { from: target.status, to: status },
-        },
-      }),
-    ]);
+    const result = await applyUserStatus({
+      actorId: admin.id,
+      userId: id,
+      status: body.status,
+      action: `admin.user.${body.status}`,
+    });
 
-    return ok({ id, status });
+    return ok({
+      ...result,
+      // Said out loud so the operator never assumes reactivating put someone
+      // back in front of employers. Only the talent can republish.
+      note:
+        body.status === "active"
+          ? "Access restored. Any talent profile stays unpublished until the person republishes it themselves."
+          : undefined,
+    });
   } catch (e) {
     return fail(e);
   }

@@ -1,16 +1,21 @@
+import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRight, Clock, Mail } from "lucide-react";
+import { ChevronRight, Mail } from "lucide-react";
+import { NOINDEX } from "@/lib/site";
+import { requirePageUser } from "@/lib/queries";
 
-const tickets = [{ subject: "Question about three-pack invoice", status: "Open", updated: "2h ago" }];
+export const metadata: Metadata = { title: "Support", ...NOINDEX };
 
 const faqs = [
   { label: "Billing & credits", href: "/employer/billing" },
   { label: "Re-slate policy", href: "/employer/briefs" },
-  { label: "Report a candidate", href: "mailto:support@shortlisted.ph" },
+  { label: "Report a candidate", href: "mailto:support@shortlisted.ph?subject=Report%20a%20candidate" },
   { label: "Code of Conduct", href: "/conduct" },
 ];
 
-export default function EmployerSupportPage() {
+export default async function EmployerSupportPage() {
+  await requirePageUser("employer");
+
   return (
     <>
       <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Support</h1>
@@ -22,7 +27,7 @@ export default function EmployerSupportPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-soft">
-              <Mail className="h-5 w-5 text-brand" />
+              <Mail className="h-5 w-5 text-brand" strokeWidth={1.75} />
             </span>
             <div>
               <p className="font-medium text-ink">support@shortlisted.ph</p>
@@ -36,25 +41,9 @@ export default function EmployerSupportPage() {
             Email support
           </a>
         </div>
-      </div>
-
-      <h2 className="mt-9 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
-        Your tickets
-      </h2>
-      <div className="rounded-2xl border border-line bg-white p-6">
-        {tickets.map((t) => (
-          <div key={t.subject} className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="font-medium text-ink">{t.subject}</p>
-              <p className="mt-0.5 flex items-center gap-1 text-xs text-ink-faint">
-                <Clock className="h-3 w-3" /> <span>Updated {t.updated}</span>
-              </p>
-            </div>
-            <span className="rounded-full bg-ember-soft px-2.5 py-1 text-[11px] font-medium text-ember">
-              {t.status}
-            </span>
-          </div>
-        ))}
+        <p className="mt-4 text-xs leading-relaxed text-ink-faint">
+          Support runs over email — there is no ticket queue in the app, so nothing to track here.
+        </p>
       </div>
 
       <h2 className="mt-9 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
@@ -69,7 +58,7 @@ export default function EmployerSupportPage() {
               i < faqs.length - 1 ? "border-b border-line" : ""
             }`}
           >
-            {f.label} <ChevronRight className="h-4 w-4 text-ink-faint" />
+            {f.label} <ChevronRight className="h-4 w-4 text-ink-faint" strokeWidth={1.75} />
           </Link>
         ))}
       </div>

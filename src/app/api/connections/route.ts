@@ -2,6 +2,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
 import { mail } from "@/lib/email";
+import { notify } from "@/lib/notify";
 import { HttpError, requireEmployer, requireRole } from "@/lib/session";
 
 const Body = z.object({
@@ -45,15 +46,13 @@ export async function POST(req: Request) {
       select: { userId: true, user: { select: { email: true, name: true } } },
     });
     if (profile) {
-      await db.notification.create({
-        data: {
-          userId: profile.userId,
-          type: "connection_requested",
-          payload: {
-            connectionId: connection.id,
-            company: employer.companyName,
-            jobTitle: entry.snapshot.jd.title,
-          },
+      await notify({
+        userId: profile.userId,
+        type: "connection_requested",
+        payload: {
+          connectionId: connection.id,
+          company: employer.companyName,
+          jobTitle: entry.snapshot.jd.title,
         },
       });
 

@@ -1,5 +1,7 @@
 import "server-only";
 import { Resend } from "resend";
+import { render, toPlainText } from "@react-email/components";
+import nodemailer from "nodemailer";
 import type { ReactElement } from "react";
 import {
   ConnectionRequested,
@@ -52,14 +54,61 @@ function sender(stream: Stream): string | undefined {
   return process.env.EMAIL_FROM;
 }
 
+/**
+ * Dev mail goes to Mailpit over SMTP; production goes to Resend over HTTPS.
+ *
+ * Keyed off SMTP_HOST rather than NODE_ENV so the local path can be exercised
+ * deliberately — and so a stray NODE_ENV in a deployed environment can never
+ * silently reroute real user mail into a container that isn't there.
+ *
+ * Mailpit accepts anything: no auth, no TLS. Sending credentials to it would
+ * only mean shipping them somewhere they aren't needed.
+ */
+function smtp() {
+  const host = process.env.SMTP_HOST;
+  if (!host) return null;
+  return nodemailer.createTransport({
+    host,
+    port: Number(process.env.SMTP_PORT ?? 1025),
+    secure: false,
+    ignoreTLS: true,
+  });
+}
+
+async function sendViaSmtp(
+  transport: nodemailer.Transporter,
+  from: string,
+  to: string,
+  subject: string,
+  react: ReactElement,
+): Promise<boolean> {
+  try {
+    // render() is async in this version; toPlainText() takes the rendered HTML,
+    // so the text alternative always matches what was actually sent.
+    const html = await render(react);
+    await transport.sendMail({ from, to, subject, html, text: toPlainText(html) });
+    console.info(`[email:smtp] sent "${subject}" to ${to} via ${process.env.SMTP_HOST}`);
+    return true;
+  } catch (e) {
+    console.error(`[email:smtp] failed "${subject}" to ${to}`, e);
+    return false;
+  }
+}
+
 async function send(
   to: string,
   subject: string,
   react: ReactElement,
   stream: Stream = "transactional",
 ): Promise<boolean> {
-  const api = resend();
   const from = sender(stream);
+
+  const transport = smtp();
+  if (transport && from) {
+    return sendViaSmtp(transport, from, to, subject, react);
+  }
+
+  const api = resend();
 
   if (!api || !from) {
     // Local dev without keys: say so once, out loud, rather than pretending
@@ -71,9 +120,10 @@ async function send(
   try {
     const { error } = await api.emails.send({ from, to, subject, react });
     if (error) {
-      console.error(`[email] send failed "${subject}" to ${to}`, error);
+      console.error(`[email:resend] send failed "${subject}" to ${to}`, error);
       return false;
     }
+    console.info(`[email:resend] sent "${subject}" to ${to}`);
     return true;
   } catch (e) {
     console.error(`[email] threw sending "${subject}" to ${to}`, e);
@@ -127,6 +177,6 @@ export const mail = {
 
   payoutSent: (
     to: string,
-    args: { name: string; amount: number; method: string; reference: string },
+    args: { name: string; amount: number; currency: string; method: string; reference: string },
   ) => send(to, "Your referral payout is on its way", PayoutSent(args), "program"),
 };

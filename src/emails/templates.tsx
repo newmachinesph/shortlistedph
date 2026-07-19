@@ -216,19 +216,30 @@ export function ReferralConverted({
 export function PayoutSent({
   name,
   amount,
+  currency,
   method,
   reference,
 }: {
   name: string;
   amount: number;
+  /** The currency the payout was REQUESTED in — not necessarily what was sent. */
+  currency: string;
   method: string;
   reference: string;
 }) {
+  // Requests are recorded in the currency the reward was earned in; the actual
+  // transfer is pesos at the operator's rate on the day. Naming the requested
+  // currency and saying the peso figure is separate is the only honest wording
+  // available without an FX rate in the system.
+  const requested = new Intl.NumberFormat("en-PH", { style: "currency", currency }).format(amount);
   return (
     <Shell preview="Your referral payout is on its way">
       <Text style={s.heading}>Payout sent</Text>
       <Text style={s.text}>
-        Hi {name}, we sent ₱{amount.toFixed(2)} to your {method} account.
+        Hi {name}, we sent your {requested} payout to your {method} account
+        {currency === "PHP"
+          ? "."
+          : ", converted to pesos at the rate on the day it was transferred."}
       </Text>
       <Section style={s.card}>
         <Text style={s.label}>Reference</Text>

@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "./db";
 import { mail } from "./email";
+import { notify } from "./notify";
 import { PRODUCTS, type ProductId } from "./payments";
 import { qualifyConversion } from "./referral";
 
@@ -110,6 +111,17 @@ async function afterFulfillment(input: {
       select: { email: true, name: true },
     });
     if (!user) return;
+
+    await notify({
+      userId: input.userId,
+      type: "payment_received",
+      payload: {
+        amount: input.amount,
+        currency: input.currency,
+        description: PRODUCTS[input.productId].label,
+        reference: input.providerRef,
+      },
+    });
 
     await mail.paymentReceipt(user.email, {
       name: user.name,

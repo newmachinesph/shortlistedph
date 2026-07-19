@@ -27,9 +27,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       throw new HttpError(422, "A transfer reference is required to mark a payout paid");
     }
 
-    const updated = await db.referralPayout.update({
-      where: { id },
-      data: { status, reference, note, paidAt: status === "paid" ? new Date() : null },
+    const updated = await db.$transaction(async (tx) => {
+      const row = await tx.referralPayout.update({
+        where: { id },
+        data: { status, reference, note, paidAt: status === "paid" ? new Date() : null },
+      });
+      // Rejecting releases the conversions this request had claimed, so the
+      // balance shows as owed again and can be re-requested. Marking it paid
+      // leaves them attached — that link is what "already paid" means.
+      if (status === "rejected") {
+        await tx.referralConversion.updateMany({
+          where: { payoutId: id },
+          data: { payoutId: null },
+        });
+      }
+      return row;
     });
 
     await db.auditLog.create({
@@ -45,6 +57,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       await mail.payoutSent(payout.user.email, {
         name: payout.user.name,
         amount: payout.amount,
+        currency: payout.currency,
         method: payout.method,
         reference: reference!,
       });

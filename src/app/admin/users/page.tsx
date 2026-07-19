@@ -113,7 +113,11 @@ export default async function AdminUsers({
               >
                 {u.status}
               </span>
-              <UserStatusActions userId={u.id} status={u.status} />
+              <UserStatusActions
+                userId={u.id}
+                status={u.status}
+                published={u.talentProfile?.publishedAt != null}
+              />
             </div>
           ))
         )}
