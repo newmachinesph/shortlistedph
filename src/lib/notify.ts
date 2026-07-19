@@ -110,6 +110,11 @@ export function renderNotification(
         href: jdId ? `/employer/briefs/${jdId}` : "/employer/briefs",
       };
     }
+    case "counterparty_unavailable":
+      return {
+        text: `The other party for ${jobTitle} is no longer available on shortlisted.ph.`,
+        href: `/${side}/connections`,
+      };
     case "agreement_active":
       return { text: `The agreement for ${jobTitle} is active.`, href: `/${side}/agreements` };
     case "payment_received": {

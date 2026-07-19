@@ -240,6 +240,130 @@ export async function qualifyConversion(
   });
 }
 
+// ─── Payouts ──────────────────────────────────────────────────────────────
+
+export const PAYOUT_METHODS = ["gcash", "bank"] as const;
+export type PayoutMethod = (typeof PAYOUT_METHODS)[number];
+
+/**
+ * A requested payout is stored in the currency the rewards were EARNED in —
+ * USD, because REFERRAL_REWARD.amount is a flat $9.99 and nothing here has an
+ * FX rate to turn that into pesos honestly. ReferralPayout.currency defaults
+ * to PHP for older rows; requests written by this code always set it
+ * explicitly. The operator converts at the rate on the day they transfer, and
+ * both the affiliate UI and the admin UI say so rather than implying the
+ * number is what lands in the bank.
+ */
+export type OwedBalance = { currency: string; amount: number };
+
+/** Two decimal places, so 9.99 * 3 does not become 29.970000000000002. */
+function round2(n: number) {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * Qualified conversions not yet attached to a payout, grouped by currency.
+ * This is the single definition of "owed" — the affiliate page and the
+ * request-payout route both read it, so the button and the number agree.
+ */
+export async function getOwed(referralId: string): Promise<OwedBalance[]> {
+  const rows = await db.referralConversion.groupBy({
+    by: ["currency"],
+    where: { referralId, status: "qualified", payoutId: null },
+    _sum: { rewardAmount: true },
+  });
+  return rows
+    .map((r) => ({
+      currency: r.currency ?? REFERRAL_REWARD.currency,
+      amount: round2(r._sum.rewardAmount ?? 0),
+    }))
+    .filter((r) => r.amount > 0)
+    .sort((a, b) => a.currency.localeCompare(b.currency));
+}
+
+export function hasPayoutDetails(r: {
+  payoutMethod: string | null;
+  payoutAccountName: string | null;
+  payoutAccountNumber: string | null;
+}) {
+  return Boolean(r.payoutMethod && r.payoutAccountName && r.payoutAccountNumber);
+}
+
+/** Last 4 only. The stored number never reaches a page or a log in full. */
+export function maskAccount(number: string | null): string {
+  if (!number) return "—";
+  const tail = number.slice(-4);
+  return tail.length < 4 ? "••••" : `•••• ${tail}`;
+}
+
+export async function savePayoutDetails(
+  userId: string,
+  d: { method: PayoutMethod; accountName: string; accountNumber: string },
+) {
+  await getOrCreateReferral(userId, "");
+  await db.referral.update({
+    where: { userId },
+    data: {
+      payoutMethod: d.method,
+      payoutAccountName: d.accountName.trim(),
+      payoutAccountNumber: d.accountNumber.trim(),
+    },
+  });
+}
+
+/**
+ * Creates the pending ReferralPayout an affiliate is asking for and links the
+ * conversions it covers, so the balance cannot be requested twice.
+ *
+ * The amount is recomputed here from the conversions themselves — the client
+ * sends nothing but the intent to be paid.
+ */
+export async function requestPayout(userId: string) {
+  const referral = await db.referral.findUnique({ where: { userId } });
+  if (!referral) throw new HttpError(404, "No referral link yet");
+  if (!hasPayoutDetails(referral)) {
+    throw new HttpError(422, "Add your payout details before requesting a payout");
+  }
+
+  return db.$transaction(async (tx) => {
+    const pending = await tx.referralPayout.findFirst({ where: { userId, status: "pending" } });
+    if (pending) throw new HttpError(409, "You already have a payout request waiting");
+
+    const owed = await tx.referralConversion.findMany({
+      where: { referralId: referral.id, status: "qualified", payoutId: null },
+      select: { id: true, rewardAmount: true, currency: true },
+    });
+    if (owed.length === 0) throw new HttpError(409, "Nothing is owed right now");
+
+    // Every reward is written at REFERRAL_REWARD.currency, so a second
+    // currency here means a rule changed underneath us. Refuse rather than
+    // invent a rate to add them together.
+    const currencies = new Set(owed.map((c) => c.currency ?? REFERRAL_REWARD.currency));
+    if (currencies.size > 1) {
+      throw new HttpError(409, "Your balance spans several currencies — contact support to settle it");
+    }
+    const currency = [...currencies][0];
+    const amount = round2(owed.reduce((sum, c) => sum + (c.rewardAmount ?? 0), 0));
+
+    const payout = await tx.referralPayout.create({
+      data: { userId, amount, currency, method: referral.payoutMethod as string },
+    });
+
+    // The payoutId: null guard is what makes a double-click safe: the second
+    // request links zero rows and takes its payout row back out.
+    // ponytail: relies on the transaction plus this guard rather than a lock.
+    const linked = await tx.referralConversion.updateMany({
+      where: { id: { in: owed.map((c) => c.id) }, payoutId: null },
+      data: { payoutId: payout.id },
+    });
+    if (linked.count !== owed.length) {
+      throw new HttpError(409, "That balance was just claimed by another request");
+    }
+
+    return payout;
+  });
+}
+
 export type AffiliateStats = Awaited<ReturnType<typeof getAffiliateStats>>;
 
 /** Gross qualified earnings per currency. Never summed across currencies. */
@@ -252,8 +376,13 @@ const EMPTY_STATS = {
   otherSignups: 0,
   qualified: 0,
   earned: [] as EarnedByCurrency,
-  paidPhp: 0,
-  unpaidPhp: 0 as number | null,
+  paid: [] as EarnedByCurrency,
+  owed: [] as OwedBalance[],
+  hasPayoutDetails: false,
+  payoutMethod: null as string | null,
+  payoutAccountName: null as string | null,
+  payoutAccountMasked: null as string | null,
+  hasPendingRequest: false,
   activity: [] as {
     id: string;
     name: string;
@@ -272,7 +401,7 @@ export async function getAffiliateStats(userId: string) {
   if (!referral) return EMPTY_STATS;
 
   const live = { referralId: referral.id, NOT: { status: "void" } };
-  const [clicks, companies, otherSignups, byCurrency, activity, payouts] = await Promise.all([
+  const [clicks, companies, otherSignups, byCurrency, activity, payouts, owed] = await Promise.all([
     db.referralClick.count({ where: { referralId: referral.id } }),
     // Only companies can ever earn, so the two are counted apart. A single
     // "signups" number next to zero earnings reads as broken tracking.
@@ -295,6 +424,7 @@ export async function getAffiliateStats(userId: string) {
       },
     }),
     db.referralPayout.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
+    getOwed(referral.id),
   ]);
 
   const earned: EarnedByCurrency = byCurrency
@@ -305,19 +435,15 @@ export async function getAffiliateStats(userId: string) {
     .filter((e) => e.amount > 0)
     .sort((a, b) => a.currency.localeCompare(b.currency));
 
-  const paidPhp = payouts
-    .filter((p) => p.status === "paid")
-    .reduce((sum, p) => sum + p.amount, 0);
-
-  // Payouts are PHP and settle earnings in every currency, so once a non-PHP
-  // reward exists there is no rate here that could turn this into one honest
-  // number. null means "the operator works it out at payout time" — better
-  // than a confidently wrong balance.
-  const phpEarned = earned.find((e) => e.currency === REFERRAL_REWARD.payoutCurrency)?.amount ?? 0;
-  const unpaidPhp =
-    earned.every((e) => e.currency === REFERRAL_REWARD.payoutCurrency)
-      ? Math.round((phpEarned - paidPhp) * 100) / 100
-      : null;
+  // Settled payouts, grouped by the currency each was requested in. Still
+  // never summed across currencies — the grouping is the whole point.
+  const paidBy = new Map<string, number>();
+  for (const p of payouts.filter((p) => p.status === "paid")) {
+    paidBy.set(p.currency, (paidBy.get(p.currency) ?? 0) + p.amount);
+  }
+  const paid: EarnedByCurrency = [...paidBy.entries()]
+    .map(([currency, amount]) => ({ currency, amount: round2(amount) }))
+    .sort((a, b) => a.currency.localeCompare(b.currency));
 
   return {
     code: referral.code,
@@ -326,8 +452,17 @@ export async function getAffiliateStats(userId: string) {
     otherSignups,
     qualified: byCurrency.reduce((n, g) => n + g._count._all, 0),
     earned,
-    paidPhp,
-    unpaidPhp,
+    paid,
+    // Unpaid is a real number again: qualified conversions with no payout
+    // attached, rather than earned-minus-paid across incompatible currencies.
+    owed,
+    hasPayoutDetails: hasPayoutDetails(referral),
+    payoutMethod: referral.payoutMethod,
+    payoutAccountName: referral.payoutAccountName,
+    payoutAccountMasked: referral.payoutAccountNumber
+      ? maskAccount(referral.payoutAccountNumber)
+      : null,
+    hasPendingRequest: payouts.some((p) => p.status === "pending"),
     activity: activity.map((c) => ({
       id: c.id,
       // Show the company, not the person who signed up for it.

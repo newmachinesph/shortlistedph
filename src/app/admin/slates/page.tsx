@@ -1,13 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ListChecks } from "lucide-react";
+import { ListChecks, Loader } from "lucide-react";
 import { NOINDEX } from "@/lib/site";
-import { listSlates } from "@/lib/admin";
+import { listSlates, listStuckJds, timeAgo } from "@/lib/admin";
+import { StuckJdActions } from "./actions";
 
 export const metadata: Metadata = { title: "Admin · Slates", ...NOINDEX };
 
+const jdChip: Record<string, string> = {
+  matching: "bg-ember-soft text-ember",
+  rematching: "bg-brand-soft text-brand",
+  failed: "bg-line text-ink-soft",
+};
+
 export default async function AdminSlates() {
-  const slates = await listSlates();
+  const [slates, stuck] = await Promise.all([listSlates(), listStuckJds()]);
 
   return (
     <>
@@ -15,6 +22,45 @@ export default async function AdminSlates() {
       <p className="mt-1 text-sm text-ink-soft">
         Every shortlist delivered, newest first. Unlocked means the employer paid.
       </p>
+
+      {stuck.length > 0 && (
+        <section className="mt-7">
+          <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
+            Briefs still matching
+          </h2>
+          <div className="overflow-hidden rounded-2xl border border-line bg-white">
+            {stuck.map((jd, i) => (
+              <div
+                key={jd.id}
+                className={`flex flex-wrap items-center gap-4 px-6 py-4 ${
+                  i < stuck.length - 1 ? "border-b border-line" : ""
+                }`}
+              >
+                <Loader className="h-4 w-4 shrink-0 text-ink-faint" strokeWidth={1.75} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-ink">{jd.title}</p>
+                  <p className="truncate text-xs text-ink-faint">
+                    {jd.employer.companyName} · published{" "}
+                    {timeAgo(jd.publishedAt ?? jd.createdAt)}
+                  </p>
+                </div>
+                <span
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
+                    jdChip[jd.status] ?? jdChip.matching
+                  }`}
+                >
+                  {jd.status}
+                </span>
+                <StuckJdActions jdId={jd.id} status={jd.status} />
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-ink-faint">
+            Matching runs inside the publish request. A brief sitting here means that request never
+            finished — re-run it, or mark it failed so the employer stops waiting.
+          </p>
+        </section>
+      )}
 
       <div className="mt-7 overflow-hidden rounded-2xl border border-line bg-white">
         {slates.length === 0 ? (

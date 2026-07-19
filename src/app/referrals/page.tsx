@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ArrowLeft, Gift } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { ReferralLink } from "@/components/referral-link";
+import { ReferralPayout } from "@/components/referral-payout";
 import { getSessionUser } from "@/lib/session";
 import { NOINDEX, SITE_URL } from "@/lib/site";
 import {
@@ -156,19 +157,49 @@ export default async function ReferralsPage() {
               />
             ))
           )}
-          <Stat label="Paid out" value={peso.format(stats.paidPhp)} />
-          <Stat
-            label="Unpaid"
-            value={stats.unpaidPhp === null ? "—" : peso.format(stats.unpaidPhp)}
-            sub={stats.unpaidPhp === null ? "Settled at payout" : undefined}
-          />
+          {stats.paid.length === 0 ? (
+            <Stat label="Paid out" value={money(0, REFERRAL_REWARD.currency)} />
+          ) : (
+            stats.paid.map((p) => (
+              <Stat
+                key={p.currency}
+                label={`Paid out (${p.currency})`}
+                value={money(p.amount, p.currency)}
+              />
+            ))
+          )}
+          {stats.owed.length === 0 ? (
+            <Stat label="Unpaid" value={money(0, REFERRAL_REWARD.currency)} />
+          ) : (
+            stats.owed.map((o) => (
+              <Stat
+                key={o.currency}
+                label={`Unpaid (${o.currency})`}
+                value={money(o.amount, o.currency)}
+                sub="Not yet requested"
+              />
+            ))
+          )}
         </div>
 
         <p className="mt-3 text-xs leading-relaxed text-ink-faint">
-          Earnings are held in the currency the company paid in. Payouts are always sent in pesos —
-          anything earned in another currency is converted at the rate on the day it is paid, so the
-          peso amount you receive will not match the figure above exactly.
+          Earnings are held in the currency the company paid in, and payout requests are recorded in
+          that same currency. Transfers are sent in pesos, converted at the rate on the day they are
+          paid, so the peso amount you receive will not match the figure above exactly.
         </p>
+
+        <section className="mt-5 rounded-2xl border border-line bg-white p-6">
+          <ReferralPayout
+            method={stats.payoutMethod}
+            accountName={stats.payoutAccountName}
+            accountMasked={stats.payoutAccountMasked}
+            owed={stats.owed.map((o) => ({
+              currency: o.currency,
+              formatted: money(o.amount, o.currency),
+            }))}
+            hasPendingRequest={stats.hasPendingRequest}
+          />
+        </section>
 
         <section className="mt-5 overflow-hidden rounded-2xl border border-line bg-white">
           <h2 className="border-b border-line px-6 py-4 text-sm font-medium uppercase tracking-wider text-ink-faint">
@@ -222,7 +253,9 @@ export default async function ReferralsPage() {
                 <tbody>
                   {stats.payouts.map((p, i) => (
                     <tr key={p.id} className={i > 0 ? "border-t border-line" : ""}>
-                      <td className="px-6 py-3.5 font-medium text-ink">{peso.format(p.amount)}</td>
+                      <td className="px-6 py-3.5 font-medium text-ink">
+                        {money(p.amount, p.currency)}
+                      </td>
                       <td className="px-3 py-3.5 text-xs uppercase text-ink-faint">{p.method}</td>
                       <td className="px-3 py-3.5 text-xs text-ink-faint">{p.reference ?? "—"}</td>
                       <td className="px-3 py-3.5 text-xs text-ink-faint">
