@@ -1,3 +1,8 @@
+import type { Metadata } from "next";
+import { NOINDEX } from "@/lib/site";
+
+export const metadata: Metadata = { title: "Sign in", ...NOINDEX };
+
 import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { isGoogleEnabled } from "@/lib/auth";

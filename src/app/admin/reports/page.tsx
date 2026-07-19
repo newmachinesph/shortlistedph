@@ -1,3 +1,8 @@
+import type { Metadata } from "next";
+import { NOINDEX } from "@/lib/site";
+
+export const metadata: Metadata = { title: "Admin · Reports", ...NOINDEX };
+
 import { AlertTriangle, FileText } from "lucide-react";
 
 type Report = {

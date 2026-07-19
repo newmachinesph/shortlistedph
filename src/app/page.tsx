@@ -1,7 +1,51 @@
 import Link from "next/link";
 import { ArrowRight, EyeOff, Camera, Lock, FileCheck } from "lucide-react";
 import { LogoMark } from "@/components/logo";
-import { PublicFooter, PublicHeader } from "@/components/public-chrome";
+import { PublicPage } from "@/components/public-chrome";
+import { JsonLd } from "@/components/json-ld";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
+
+const orgSchema = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${SITE_URL}/#organization`,
+      name: SITE_NAME,
+      url: SITE_URL,
+      logo: `${SITE_URL}/icon.svg`,
+      description: SITE_DESCRIPTION,
+      areaServed: { "@type": "Country", name: "Philippines" },
+      knowsAbout: [
+        "remote hiring",
+        "Philippine remote talent sourcing",
+        "candidate identity verification",
+      ],
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
+      url: SITE_URL,
+      name: SITE_NAME,
+      description: SITE_DESCRIPTION,
+      publisher: { "@id": `${SITE_URL}/#organization` },
+      inLanguage: "en-PH",
+    },
+    {
+      "@type": "Service",
+      name: "Automated candidate shortlisting",
+      provider: { "@id": `${SITE_URL}/#organization` },
+      serviceType: "Recruitment sourcing",
+      areaServed: { "@type": "Country", name: "Philippines" },
+      offers: {
+        "@type": "Offer",
+        price: "49",
+        priceCurrency: "USD",
+        description: "Unlock one ranked shortlist. Previewing the ranked slate is free.",
+      },
+    },
+  ],
+};
 
 const antiGaming = [
   {
@@ -12,7 +56,7 @@ const antiGaming = [
   {
     icon: Camera,
     title: "Profiles are snapshots",
-    body: "Employers see each profile as it existed when their brief was posted. Editing after the fact changes nothing.",
+    body: "Employers see each profile as it existed when their job description was posted. Editing after the fact changes nothing.",
   },
   {
     icon: FileCheck,
@@ -28,8 +72,9 @@ const antiGaming = [
 
 export default function Home() {
   return (
-    <div className="bg-paper">
-      <PublicHeader />
+    <>
+      <JsonLd data={orgSchema} />
+      <PublicPage>
 
       <section className="mx-auto w-full max-w-6xl px-5 pt-16 pb-20 sm:px-8 sm:pt-24">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-ember">
@@ -42,7 +87,7 @@ export default function Home() {
         </h1>
         <p className="mt-6 max-w-xl text-lg leading-relaxed text-ink-soft">
           Tell us who you need. Our matching engine ranks 500+ Filipino remote
-          professionals against your brief and hands you the top candidates. No job ads, no application spam.
+          professionals against your job description and hands you the top candidates. No job ads, no application spam.
         </p>
         <div className="mt-9 flex flex-wrap items-center gap-4">
           <Link
@@ -63,7 +108,7 @@ export default function Home() {
             ["500+", "profiles ready to match"],
             ["40+", "remote roles covered"],
             ["₱0", "to join and get hired"],
-            ["~24h", "brief to shortlist"],
+            ["~24h", "description to shortlist"],
           ].map(([v, l]) => (
             <div key={l}>
               <dt className="sr-only">{l}</dt>
@@ -114,7 +159,7 @@ export default function Home() {
               {[
                 ["Upload your resume once", "We build your standing profile from it. Review it, fix what's wrong, done in minutes."],
                 ["Your profile does the work", "Every new job is matched against you automatically, while you sleep."],
-                ["Get shortlisted", "When an employer wants to talk, you see the full brief and decide. Nothing is shared without your consent."],
+                ["Get shortlisted", "When an employer wants to talk, you see the full job description and decide. Nothing is shared without your consent."],
               ].map(([t, b], i) => (
                 <li key={t} className="flex gap-4">
                   <span className="font-display flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ember-soft text-sm font-semibold text-ember">
@@ -185,7 +230,7 @@ export default function Home() {
         </div>
       </section>
 
-      <PublicFooter />
-    </div>
+      </PublicPage>
+    </>
   );
 }

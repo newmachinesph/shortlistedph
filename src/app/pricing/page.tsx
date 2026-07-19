@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
-import { PublicFooter, PublicHeader } from "@/components/public-chrome";
+import { PublicPage } from "@/components/public-chrome";
+import { JsonLd } from "@/components/json-ld";
+import { pageMeta } from "@/lib/site";
 
-export const metadata: Metadata = {
-  title: "Pricing — shortlisted.ph",
+export const metadata: Metadata = pageMeta({
+  title: "Pricing",
   description:
     "Employers pay per shortlist. Talent pays nothing to be listed, matched or hired. No job ads, no per-hire fees, no salary handling.",
-};
+  path: "/pricing",
+});
 
 const tiers = [
   {
@@ -77,10 +80,22 @@ const faqs = [
   ],
 ];
 
+/** Generated from the same array the page renders, so the two can't drift. */
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqs.map(([question, answer]) => ({
+    "@type": "Question",
+    name: question,
+    acceptedAnswer: { "@type": "Answer", text: answer },
+  })),
+};
+
 export default function PricingPage() {
   return (
-    <div className="bg-paper">
-      <PublicHeader />
+    <>
+      <JsonLd data={faqSchema} />
+      <PublicPage>
 
       <section className="mx-auto w-full max-w-6xl px-5 pt-14 pb-16 text-center sm:px-8">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-ember">Pricing</p>
@@ -107,11 +122,11 @@ export default function PricingPage() {
                   : "border border-line bg-white"
               }`}
             >
-              <h2 className={`text-sm font-medium uppercase tracking-wider ${t.highlight ? "text-white/70" : "text-ink-faint"}`}>
+              <h2 className={`text-sm font-medium uppercase tracking-wider ${t.highlight ? "text-white/80" : "text-ink-faint"}`}>
                 {t.name}
               </h2>
               <p className="font-display mt-3 text-4xl font-semibold">{t.price}</p>
-              <p className={`mt-1 text-sm ${t.highlight ? "text-white/70" : "text-ink-faint"}`}>{t.unit}</p>
+              <p className={`mt-1 text-sm ${t.highlight ? "text-white/80" : "text-ink-faint"}`}>{t.unit}</p>
               <ul className="mt-6 flex-1 space-y-2.5">
                 {t.features.map((f) => (
                   <li key={f} className="flex gap-2.5 text-sm leading-relaxed">
@@ -166,7 +181,7 @@ export default function PricingPage() {
         </dl>
       </section>
 
-      <PublicFooter />
-    </div>
+      </PublicPage>
+    </>
   );
 }

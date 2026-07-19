@@ -1,3 +1,8 @@
+import type { Metadata } from "next";
+import { NOINDEX } from "@/lib/site";
+
+export const metadata: Metadata = { title: "Admin · Users", ...NOINDEX };
+
 import { candidates, initials } from "@/data/candidates";
 
 const employers = [

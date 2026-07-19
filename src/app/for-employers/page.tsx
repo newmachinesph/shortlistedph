@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, BadgeCheck, Camera, FileWarning, Fingerprint, XCircle } from "lucide-react";
-import { PublicFooter, PublicHeader } from "@/components/public-chrome";
+import { PublicPage } from "@/components/public-chrome";
+import { pageMeta } from "@/lib/site";
 
-export const metadata: Metadata = {
-  title: "For employers — shortlisted.ph",
+export const metadata: Metadata = pageMeta({
+  title: "For employers",
   description:
     "Write a job description nobody can read but us. Get a ranked shortlist of Filipino remote talent, free to preview. Honest detail on what identity verification proves and what it can't.",
-};
+  path: "/for-employers",
+});
 
 const proves: [string, string][] = [
   [
@@ -45,8 +47,7 @@ const doesNotProve: [string, string][] = [
 
 export default function ForEmployersPage() {
   return (
-    <div className="bg-paper">
-      <PublicHeader />
+    <PublicPage>
 
       <section className="mx-auto w-full max-w-6xl px-5 pt-14 pb-16 sm:px-8">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand">For employers</p>
@@ -245,7 +246,6 @@ export default function ForEmployersPage() {
         </div>
       </section>
 
-      <PublicFooter />
-    </div>
+      </PublicPage>
   );
 }

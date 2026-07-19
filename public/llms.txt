@@ -1,0 +1,36 @@
+# shortlisted.ph
+
+> A sourcing platform for Philippine remote talent. Employers write a job description that candidates never see; a matching engine ranks standing talent profiles against it and returns a shortlist of at most five people. We are not an employer, agency, escrow, or payroll provider.
+
+## How it works
+
+- Employers post a **hidden job description**, including real budget and dealbreakers. Candidates cannot browse or read job descriptions, so there is nothing to tailor a resume to.
+- Talent uploads a resume once. That becomes a **standing profile** — one profile, one rate — which is matched automatically against every new job description.
+- Profiles are **snapshot-frozen** at the moment a job description is published, so editing a profile afterwards cannot change how it ranked.
+- Ranking combines skill evidence, experience, rate fit and availability overlap. Skills are marked **confirmed** (both sides of a past engagement agreed) or **self-reported**, and weighted differently.
+- Employers see a full ranked slate free, with names and dossiers masked. Unlocking a shortlist costs $49.
+- Candidates consent before any contact. Nothing about a person is revealed without it.
+
+## Money
+
+- Employers pay per shortlist: $49 to unlock, $119 for three, $249/month for ten.
+- **Talent never pays to be listed, matched, shortlisted or hired.** Charging a Filipino worker a placement fee is prohibited under DOLE Department Order 141-14 and is the country's most common recruitment scam.
+- The only optional talent cost is identity verification at ₱60, which is the pass-through cost of the check. It buys the check, not a position or a placement.
+- We never hold, transfer, or take a percentage of salaries. There is no escrow.
+
+## Identity verification
+
+- Optional, run by Didit, and it never routes documents through us. We receive a pass or fail and a timestamp.
+- It proves: one human per account, a genuine document, presence in the Philippines at check time, and a dated attestation.
+- It does not prove: that the verified person does the work later, that the resume is true, or that the identity was not stolen.
+- We never store a PhilSys PSN, an NBI clearance, or a government ID. Storing a PSN without authority carries prison time under RA 11055.
+- There is no official public NBI clearance verification portal. Third-party sites claiming to be one are not run by the Bureau. Ask the candidate for the clearance directly.
+
+## Pages
+
+- [Home](https://shortlisted.ph/): what the platform does and who it is for.
+- [For employers](https://shortlisted.ph/for-employers): what a verified candidate proves and what it cannot, plus how to ask for an NBI clearance.
+- [For talent](https://shortlisted.ph/for-talent): how matching works from the candidate side, and what we refuse to store.
+- [Why it works](https://shortlisted.ph/why-it-works): the anti-gaming design — hidden descriptions, frozen snapshots, standing rates.
+- [Pricing](https://shortlisted.ph/pricing): tiers, and the questions we are asked most.
+- [Code of conduct](https://shortlisted.ph/conduct), [Terms](https://shortlisted.ph/terms), [Privacy](https://shortlisted.ph/privacy).

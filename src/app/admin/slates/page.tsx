@@ -1,3 +1,8 @@
+import type { Metadata } from "next";
+import { NOINDEX } from "@/lib/site";
+
+export const metadata: Metadata = { title: "Admin · Slates", ...NOINDEX };
+
 import Link from "next/link";
 import { RefreshCw, ScanSearch } from "lucide-react";
 import { briefs, slates } from "@/data/briefs";

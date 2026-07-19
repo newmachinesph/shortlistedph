@@ -1,3 +1,8 @@
+import type { Metadata } from "next";
+import { NOINDEX } from "@/lib/site";
+
+export const metadata: Metadata = { title: "Admin", ...NOINDEX };
+
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 

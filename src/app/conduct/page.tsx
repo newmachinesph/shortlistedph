@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
+import { pageMeta } from "@/lib/site";
 import Link from "next/link";
 import { PublicFooter, PublicHeader } from "@/components/public-chrome";
 
-export const metadata: Metadata = { title: "Code of Conduct — shortlisted.ph" };
+export const metadata: Metadata = pageMeta({
+  title: "Code of Conduct",
+  description:
+    "One human, one account, one reputation. The rules both sides agree to on shortlisted.ph, and how to report anyone charging Filipino workers to be placed.",
+  path: "/conduct",
+});
 
 const sections: [string, string][] = [
   [

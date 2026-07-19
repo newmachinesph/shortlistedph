@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
+import { pageMeta } from "@/lib/site";
 import Link from "next/link";
 import { PublicFooter, PublicHeader } from "@/components/public-chrome";
 
-export const metadata: Metadata = { title: "Terms of Service — shortlisted.ph" };
+export const metadata: Metadata = pageMeta({
+  title: "Terms of Service",
+  description:
+    "shortlisted.ph is sourcing only. We are not an employer, staffing agency, or payroll provider, and we never hold or take a cut of salaries.",
+  path: "/terms",
+});
 
 const sections: [string, string][] = [
   [

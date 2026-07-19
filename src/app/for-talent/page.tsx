@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, BadgeCheck, Clock, Lock, ShieldOff, Wallet } from "lucide-react";
-import { PublicFooter, PublicHeader } from "@/components/public-chrome";
+import { PublicPage } from "@/components/public-chrome";
 import { DiditMockup } from "@/components/didit-mockup";
+import { pageMeta } from "@/lib/site";
 
-export const metadata: Metadata = {
-  title: "For talent — shortlisted.ph",
+export const metadata: Metadata = pageMeta({
+  title: "For talent",
   description:
     "Upload your resume once. Every hidden job description gets matched against your standing profile automatically. Verification is optional, your documents stay yours, and you never pay us for placement.",
-};
+  path: "/for-talent",
+});
 
 const neverStore: [string, string][] = [
   [
@@ -27,8 +29,7 @@ const neverStore: [string, string][] = [
 
 export default function ForTalentPage() {
   return (
-    <div className="bg-paper">
-      <PublicHeader />
+    <PublicPage>
 
       <section className="mx-auto w-full max-w-6xl px-5 pt-14 pb-16 sm:px-8">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-ember">For talent</p>
@@ -195,7 +196,6 @@ export default function ForTalentPage() {
         </div>
       </section>
 
-      <PublicFooter />
-    </div>
+      </PublicPage>
   );
 }
