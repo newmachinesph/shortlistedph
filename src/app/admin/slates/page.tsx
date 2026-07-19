@@ -32,26 +32,28 @@ export default async function AdminSlates() {
             {stuck.map((jd, i) => (
               <div
                 key={jd.id}
-                className={`flex flex-wrap items-center gap-4 px-6 py-4 ${
+                className={`flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 sm:px-6 ${
                   i < stuck.length - 1 ? "border-b border-line" : ""
                 }`}
               >
                 <Loader className="h-4 w-4 shrink-0 text-ink-faint" strokeWidth={1.75} />
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 basis-48">
                   <p className="truncate text-sm font-medium text-ink">{jd.title}</p>
                   <p className="truncate text-xs text-ink-faint">
                     {jd.employer.companyName} · published{" "}
                     {timeAgo(jd.publishedAt ?? jd.createdAt)}
                   </p>
                 </div>
-                <span
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
-                    jdChip[jd.status] ?? jdChip.matching
-                  }`}
-                >
-                  {jd.status}
-                </span>
-                <StuckJdActions jdId={jd.id} status={jd.status} />
+                <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+                  <span
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${
+                      jdChip[jd.status] ?? jdChip.matching
+                    }`}
+                  >
+                    {jd.status}
+                  </span>
+                  <StuckJdActions jdId={jd.id} status={jd.status} />
+                </div>
               </div>
             ))}
           </div>
@@ -75,11 +77,11 @@ export default async function AdminSlates() {
           slates.map((s, i) => (
             <div
               key={s.id}
-              className={`flex flex-wrap items-center gap-4 px-6 py-4 ${
+              className={`flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 sm:px-6 ${
                 i < slates.length - 1 ? "border-b border-line" : ""
               }`}
             >
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 basis-48">
                 <p className="truncate text-sm font-medium text-ink">{s.jd.title}</p>
                 <p className="truncate text-xs text-ink-faint">
                   {s.jd.employer.companyName} · {s._count.entries} candidate
@@ -94,19 +96,21 @@ export default async function AdminSlates() {
                     : ""}
                 </p>
               </div>
-              <span
-                className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
-                  s.status === "unlocked" ? "bg-brand-soft text-brand" : "bg-ember-soft text-ember"
-                }`}
-              >
-                {s.status}
-              </span>
-              <Link
-                href={`/employer/briefs/${s.jd.id}`}
-                className="rounded-xl px-3 py-1.5 text-xs font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper"
-              >
-                Open
-              </Link>
+              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+                <span
+                  className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${
+                    s.status === "unlocked" ? "bg-brand-soft text-brand" : "bg-ember-soft text-ember"
+                  }`}
+                >
+                  {s.status}
+                </span>
+                <Link
+                  href={`/employer/briefs/${s.jd.id}`}
+                  className="inline-flex min-h-11 items-center rounded-xl px-3 py-1.5 text-xs font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper sm:min-h-0"
+                >
+                  Open
+                </Link>
+              </div>
             </div>
           ))
         )}

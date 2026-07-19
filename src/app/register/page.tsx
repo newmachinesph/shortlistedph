@@ -66,7 +66,7 @@ export default function RegisterPage() {
           <button
             type="button"
             onClick={() => setRole("employer")}
-            className="rounded-2xl border border-line bg-white p-7 text-left transition hover:ring-2 hover:ring-brand/30"
+            className="rounded-2xl border border-line bg-white p-6 sm:p-7 text-left transition hover:ring-2 hover:ring-brand/30"
           >
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-soft">
               <Building2 className="h-5 w-5 text-brand" />
@@ -80,7 +80,7 @@ export default function RegisterPage() {
           <button
             type="button"
             onClick={() => setRole("talent")}
-            className="rounded-2xl border border-line bg-white p-7 text-left transition hover:ring-2 hover:ring-brand/30"
+            className="rounded-2xl border border-line bg-white p-6 sm:p-7 text-left transition hover:ring-2 hover:ring-brand/30"
           >
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-ember-soft">
               <UserRound className="h-5 w-5 text-ember" />
@@ -111,7 +111,7 @@ export default function RegisterPage() {
       <Link href="/">
         <Logo />
       </Link>
-      <form onSubmit={handleSubmit} className="mt-10 w-full max-w-sm rounded-2xl border border-line bg-white p-7">
+      <form onSubmit={handleSubmit} className="mt-10 w-full max-w-sm rounded-2xl border border-line bg-white p-6 sm:p-7">
         <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">
           {role === "talent" ? "Create your talent account" : "Create your hiring account"}
         </h1>
@@ -124,7 +124,7 @@ export default function RegisterPage() {
           required
           value={form.name}
           onChange={set("name")}
-          className="mt-1.5 w-full rounded-xl border border-line bg-paper px-4 py-3 text-sm text-ink focus:outline-2 focus:outline-brand"
+          className="mt-1.5 w-full rounded-xl border border-line bg-paper px-4 py-3 text-base text-ink sm:text-sm focus:outline-2 focus:outline-brand"
         />
 
         {role === "employer" && (
@@ -135,7 +135,7 @@ export default function RegisterPage() {
               required
               value={form.companyName}
               onChange={set("companyName")}
-              className="mt-1.5 w-full rounded-xl border border-line bg-paper px-4 py-3 text-sm text-ink focus:outline-2 focus:outline-brand"
+              className="mt-1.5 w-full rounded-xl border border-line bg-paper px-4 py-3 text-base text-ink sm:text-sm focus:outline-2 focus:outline-brand"
             />
           </>
         )}
@@ -147,7 +147,7 @@ export default function RegisterPage() {
           required
           value={form.email}
           onChange={set("email")}
-          className="mt-1.5 w-full rounded-xl border border-line bg-paper px-4 py-3 text-sm text-ink focus:outline-2 focus:outline-brand"
+          className="mt-1.5 w-full rounded-xl border border-line bg-paper px-4 py-3 text-base text-ink sm:text-sm focus:outline-2 focus:outline-brand"
         />
 
         <label htmlFor="password" className="mt-4 block text-sm font-medium text-ink">Password</label>
@@ -158,14 +158,14 @@ export default function RegisterPage() {
           minLength={8}
           value={form.password}
           onChange={set("password")}
-          className="mt-1.5 w-full rounded-xl border border-line bg-paper px-4 py-3 text-sm text-ink focus:outline-2 focus:outline-brand"
+          className="mt-1.5 w-full rounded-xl border border-line bg-paper px-4 py-3 text-base text-ink sm:text-sm focus:outline-2 focus:outline-brand"
         />
         <p className="mt-1.5 text-xs text-ink-faint">At least 8 characters.</p>
 
         <button
           type="submit"
           disabled={isBusy}
-          className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:opacity-60"
+          className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:opacity-60"
         >
           {isBusy && <Loader2 className="h-4 w-4 animate-spin" />}
           {isBusy ? "Creating account…" : "Create account"}
@@ -174,7 +174,7 @@ export default function RegisterPage() {
         <button
           type="button"
           onClick={() => setRole(null)}
-          className="mt-3 w-full rounded-xl px-4 py-2.5 text-sm font-medium text-ink-soft transition-colors hover:text-ink"
+          className="mt-3 w-full rounded-xl px-4 py-3 text-sm font-medium text-ink-soft transition-colors hover:text-ink"
         >
           ← Pick a different role
         </button>

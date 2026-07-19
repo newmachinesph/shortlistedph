@@ -99,7 +99,7 @@ export default function PricingPage() {
 
       <section className="mx-auto w-full max-w-6xl px-5 pt-14 pb-16 text-center sm:px-8">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-ember">Pricing</p>
-        <h1 className="font-display mx-auto mt-4 max-w-2xl text-4xl font-semibold tracking-tight text-ink sm:text-5xl">
+        <h1 className="font-display mx-auto mt-4 max-w-2xl text-[clamp(1.875rem,7vw,3rem)] font-semibold leading-[1.1] tracking-tight text-ink">
           Employers pay per shortlist.
           <br />
           Talent pays <span className="text-brand">nothing to get hired</span>.

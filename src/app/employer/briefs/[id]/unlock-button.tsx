@@ -16,7 +16,7 @@ export function UnlockButton({ slateId, credits }: { slateId: string; credits: n
     return (
       <Link
         href="/employer/billing"
-        className="rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-brand transition-colors hover:bg-brand-soft"
+        className="block w-full rounded-xl bg-white px-5 py-2.5 text-center text-sm font-semibold text-brand transition-colors hover:bg-brand-soft sm:w-auto"
       >
         Unlock shortlist — $49
       </Link>
@@ -36,12 +36,12 @@ export function UnlockButton({ slateId, credits }: { slateId: string; credits: n
   }
 
   return (
-    <div className="flex flex-col items-end gap-1.5">
+    <div className="flex w-full flex-col items-stretch gap-1.5 sm:w-auto sm:items-end">
       <button
         type="button"
         onClick={handleUnlock}
         disabled={isBusy}
-        className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-brand transition-colors hover:bg-brand-soft disabled:opacity-70"
+        className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-brand transition-colors hover:bg-brand-soft disabled:opacity-70"
       >
         {isBusy && <Loader2 className="h-4 w-4 animate-spin" />}
         {isBusy ? "Unlocking…" : `Use 1 credit to unlock (${credits} left)`}

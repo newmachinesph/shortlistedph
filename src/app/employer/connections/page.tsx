@@ -18,7 +18,7 @@ export default async function EmployerConnectionsPage() {
       </p>
 
       {connections.length === 0 ? (
-        <div className="mt-7 rounded-2xl border border-line bg-white p-10 text-center">
+        <div className="mt-7 rounded-2xl border border-line bg-white p-6 text-center sm:p-10">
           <Users className="mx-auto h-8 w-8 text-ink-faint" strokeWidth={1.5} />
           <h2 className="font-display mt-4 text-lg font-semibold text-ink">No connections yet</h2>
           <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-ink-soft">
@@ -41,9 +41,9 @@ export default async function EmployerConnectionsPage() {
             const contact = snap.profile.user;
 
             return (
-              <div key={c.id} className="rounded-2xl border border-line bg-white p-6">
+              <div key={c.id} className="rounded-2xl border border-line bg-white p-5 sm:p-6">
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
                     <span className="font-display flex h-11 w-11 items-center justify-center rounded-xl bg-brand-soft font-semibold text-brand">
                       {/* A declined candidate stays anonymous — the slot simply closed. */}
                       {declined ? "—" : initials(contact.name)}
@@ -77,8 +77,9 @@ export default async function EmployerConnectionsPage() {
 
                 {consented && (
                   <div className="mt-4 flex flex-wrap items-center gap-4 rounded-xl bg-brand-soft px-4 py-3">
-                    <span className="inline-flex items-center gap-2 text-sm font-medium text-brand">
-                      <Mail className="h-4 w-4" /> {contact.email}
+                    <span className="inline-flex min-w-0 max-w-full items-center gap-2 text-sm font-medium text-brand">
+                      <Mail className="h-4 w-4 shrink-0" />
+                      <span className="break-all">{contact.email}</span>
                     </span>
                     <span className="text-xs text-ink-soft">
                       Take it from here — we don&rsquo;t sit between you.

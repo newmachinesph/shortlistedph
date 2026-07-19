@@ -32,7 +32,7 @@ export function ConnectionDecision({ connectionId }: { connectionId: string }) {
           type="button"
           onClick={() => decide("consent")}
           disabled={isBusy}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:opacity-60"
+          className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:opacity-60 sm:w-auto sm:py-2.5"
         >
           {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
           Accept — share my contact details
@@ -41,7 +41,7 @@ export function ConnectionDecision({ connectionId }: { connectionId: string }) {
           type="button"
           onClick={() => decide("decline")}
           disabled={isBusy}
-          className="inline-flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper disabled:opacity-60"
+          className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl px-5 py-3 text-sm font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper disabled:opacity-60 sm:w-auto sm:py-2.5"
         >
           <X className="h-4 w-4" /> Decline
         </button>

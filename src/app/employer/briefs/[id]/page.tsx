@@ -64,7 +64,7 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
       </div>
 
       {jd.status === "no_matches" ? (
-        <div className="mt-6 rounded-2xl border border-line bg-white p-10 text-center">
+        <div className="mt-6 rounded-2xl border border-line bg-white p-6 text-center sm:p-10">
           <SearchX className="mx-auto h-8 w-8 text-ember" strokeWidth={1.5} />
           <h2 className="font-display mt-4 text-lg font-semibold text-ink">
             No one cleared the bar
@@ -85,7 +85,7 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
           </Link>
         </div>
       ) : !slate || slate.entries.length === 0 ? (
-        <div className="mt-6 rounded-2xl border border-line bg-white p-10 text-center">
+        <div className="mt-6 rounded-2xl border border-line bg-white p-6 text-center sm:p-10">
           <ScanSearch className="mx-auto h-8 w-8 text-ember" strokeWidth={1.5} />
           <h2 className="font-display mt-4 text-lg font-semibold text-ink">Matching in progress</h2>
           <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-ink-soft">
@@ -117,8 +117,8 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
 
           <ol className="space-y-4">
             {slate.entries.map((entry) => (
-              <li key={entry.id} className="rounded-2xl border border-line bg-white p-6">
-                <div className="flex flex-wrap gap-5">
+              <li key={entry.id} className="rounded-2xl border border-line bg-white p-5 sm:p-6">
+                <div className="flex flex-wrap gap-4 sm:gap-5">
                   <div className="flex items-start gap-4">
                     <span className="font-display text-lg font-semibold text-ink-faint">
                       {entry.rank}
@@ -131,7 +131,7 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
                       {entry.initials}
                     </span>
                   </div>
-                  <div className="min-w-0 flex-1">
+                  <div className="w-full min-w-0 sm:w-auto sm:flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className={`font-medium text-ink ${entry.locked ? "select-none blur-[4px]" : ""}`}>
                         {entry.name ?? "Candidate name hidden"}

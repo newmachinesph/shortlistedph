@@ -62,7 +62,7 @@ export default async function TalentMessagesPage({
     .join(" · ");
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] flex-col">
+    <div className="flex flex-col lg:h-[calc(100vh-8rem)]">
       <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Messages</h1>
       <p className="mt-1 text-sm text-ink-soft">
         Conversations only open after you accept a connection.
@@ -85,7 +85,7 @@ export default async function TalentMessagesPage({
         </div>
       ) : (
         <div className="mt-7 grid min-h-0 flex-1 overflow-hidden rounded-2xl border border-line bg-white lg:grid-cols-[18rem_1fr]">
-          <div className="min-h-0 overflow-y-auto border-line lg:border-r">
+          <div className="max-h-64 min-h-0 overflow-y-auto border-b border-line lg:max-h-none lg:border-b-0 lg:border-r">
             <p className="px-5 pt-5 pb-3 text-xs font-medium uppercase tracking-wider text-ink-faint">
               Conversations
             </p>
@@ -115,7 +115,7 @@ export default async function TalentMessagesPage({
           </div>
 
           <div className="flex min-h-0 flex-col">
-            <div className="flex items-center gap-3 border-b border-line px-6 py-4">
+            <div className="flex items-center gap-3 border-b border-line px-4 py-4 sm:px-6">
               <span className="font-display flex h-9 w-9 items-center justify-center rounded-lg bg-brand-soft font-semibold text-brand">
                 {initials(activeCompany)}
               </span>
@@ -125,7 +125,7 @@ export default async function TalentMessagesPage({
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-6">
+            <div className="min-h-[50vh] flex-1 space-y-4 overflow-y-auto px-4 py-6 sm:px-6 lg:min-h-0">
               {messages.length === 0 ? (
                 <p className="py-8 text-center text-sm text-ink-soft">
                   No messages yet. Say hello.
@@ -135,7 +135,7 @@ export default async function TalentMessagesPage({
                   const mine = m.senderId === user.id;
                   return (
                     <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                      <div className="max-w-sm">
+                      <div className="min-w-0 max-w-[85%] sm:max-w-sm">
                         <p
                           className={
                             mine

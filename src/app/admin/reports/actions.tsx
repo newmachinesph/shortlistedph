@@ -72,11 +72,11 @@ export function ReportActions({
         onChange={(e) => setResolution(e.target.value)}
         rows={2}
         placeholder="Resolution note — what you decided and why."
-        className="w-full rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none"
+        className="w-full rounded-xl border border-line bg-paper px-3 py-2 text-base text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none sm:text-sm"
       />
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className="text-xs text-ink-faint">Action on {targetName}:</span>
+        <span className="w-full text-xs text-ink-faint sm:w-auto">Action on {targetName}:</span>
         {ACTIONS.map((a) => (
           <button
             key={a.value}
@@ -86,7 +86,7 @@ export function ReportActions({
               setAction(a.value);
               setConfirming(null);
             }}
-            className={`rounded-xl px-3 py-1.5 text-xs font-medium ring-1 ring-inset transition-colors disabled:opacity-50 ${
+            className={`inline-flex min-h-11 items-center rounded-xl px-3 py-1.5 text-xs font-medium ring-1 ring-inset transition-colors disabled:opacity-50 sm:min-h-0 ${
               action === a.value
                 ? a.value === "none"
                   ? "bg-paper text-ink ring-line"
@@ -103,7 +103,7 @@ export function ReportActions({
       </div>
 
       {confirming && (
-        <p className="mt-3 text-xs text-ember">
+        <p className="mt-3 text-sm leading-relaxed text-ember sm:text-xs">
           This will {action} {targetName}, end their sessions, unpublish any talent profile, and tell
           anyone mid-conversation with them. Press {confirming === "resolved" ? "Resolve" : "Dismiss"}{" "}
           again to confirm.
@@ -115,7 +115,7 @@ export function ReportActions({
           type="button"
           disabled={disabled}
           onClick={() => decide("resolved")}
-          className="rounded-xl bg-ember px-4 py-2 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
+          className="inline-flex min-h-11 items-center rounded-xl bg-ember px-4 py-2 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
         >
           {confirming === "resolved" ? "Confirm resolve" : "Resolve"}
         </button>
@@ -123,12 +123,12 @@ export function ReportActions({
           type="button"
           disabled={disabled}
           onClick={() => decide("dismissed")}
-          className="rounded-xl px-4 py-2 text-sm font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper disabled:opacity-50"
+          className="inline-flex min-h-11 items-center rounded-xl px-4 py-2 text-sm font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper disabled:opacity-50"
         >
           {confirming === "dismissed" ? "Confirm dismiss" : "Dismiss"}
         </button>
-        {error && <span className="text-xs text-ember">{error}</span>}
-        <span className="ml-auto self-center text-xs text-ink-faint">
+        {error && <span className="w-full text-xs text-ember sm:w-auto">{error}</span>}
+        <span className="w-full self-center text-xs text-ink-faint sm:ml-auto sm:w-auto">
           Records preserved for lawful requests
         </span>
       </div>

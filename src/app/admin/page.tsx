@@ -73,11 +73,11 @@ export default async function AdminOverview() {
       <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Overview</h1>
       <p className="mt-1 text-sm text-ink-soft">Team of one. This page is your whole morning routine.</p>
 
-      <dl className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <dl className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map(([label, value]) => (
           <div key={label} className="rounded-2xl border border-line bg-white p-5">
             <dt className="text-xs text-ink-faint">{label}</dt>
-            <dd className="font-display mt-1.5 text-2xl font-semibold text-ink">{value}</dd>
+            <dd className="font-display mt-1.5 break-words text-2xl font-semibold text-ink">{value}</dd>
           </div>
         ))}
       </dl>
@@ -99,15 +99,19 @@ export default async function AdminOverview() {
             <Link
               key={p.label}
               href={p.href}
-              className={`flex items-center justify-between gap-3 px-6 py-4 text-sm hover:bg-paper ${
+              className={`flex min-h-14 items-center justify-between gap-3 px-4 py-4 text-sm hover:bg-paper sm:px-6 ${
                 i < pending.length - 1 ? "border-b border-line" : ""
               }`}
             >
-              <span className="flex items-center gap-2.5">
-                <span className={`h-2 w-2 rounded-full ${p.urgent ? "bg-ember" : "bg-line"}`} />
-                <span className={p.urgent ? "font-medium text-ink" : "text-ink-soft"}>{p.label}</span>
+              <span className="flex min-w-0 items-center gap-2.5">
+                <span
+                  className={`h-2 w-2 shrink-0 rounded-full ${p.urgent ? "bg-ember" : "bg-line"}`}
+                />
+                <span className={`min-w-0 break-words ${p.urgent ? "font-medium text-ink" : "text-ink-soft"}`}>
+                  {p.label}
+                </span>
               </span>
-              <ArrowRight className="h-4 w-4 text-ink-faint" />
+              <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
             </Link>
           ))
         )}
@@ -116,7 +120,7 @@ export default async function AdminOverview() {
       <h2 className="mt-10 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
         Recent activity
       </h2>
-      <div className="rounded-2xl border border-line bg-white p-6">
+      <div className="rounded-2xl border border-line bg-white p-4 sm:p-6">
         {activity.length === 0 ? (
           <p className="py-2 text-center text-sm text-ink-soft">No activity recorded yet.</p>
         ) : (
@@ -124,7 +128,7 @@ export default async function AdminOverview() {
             {activity.map((a, i) => (
               <li key={`${a.when.getTime()}-${i}`} className="text-sm leading-relaxed">
                 <span className="text-xs text-ink-faint">{timeAgo(a.when)}</span>
-                <p className="mt-0.5 text-ink-soft">{a.what}</p>
+                <p className="mt-0.5 break-words text-ink-soft">{a.what}</p>
               </li>
             ))}
           </ul>

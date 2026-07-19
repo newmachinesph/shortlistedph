@@ -55,11 +55,13 @@ export function StuckJdActions({ jdId, status }: { jdId: string; status: string 
   const canFail = status === "matching" || status === "rematching";
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
-      {error && <span className="text-[11px] text-ember">{error}</span>}
-      {result && <span className="text-[11px] text-ink-faint">{result}</span>}
+    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:justify-end">
+      {error && <span className="w-full text-xs text-ember sm:w-auto sm:text-[11px]">{error}</span>}
+      {result && (
+        <span className="w-full text-xs text-ink-faint sm:w-auto sm:text-[11px]">{result}</span>
+      )}
       {confirming && (
-        <span className="text-[11px] text-ember">
+        <span className="w-full text-xs leading-relaxed text-ember sm:w-auto sm:text-[11px]">
           Marks this brief failed for the employer. Click again to confirm.
         </span>
       )}
@@ -68,7 +70,7 @@ export function StuckJdActions({ jdId, status }: { jdId: string; status: string 
           type="button"
           disabled={disabled}
           onClick={() => run("rematch")}
-          className="rounded-xl px-3 py-1.5 text-xs font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper disabled:opacity-50"
+          className="inline-flex min-h-11 items-center rounded-xl px-3 py-1.5 text-xs font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper disabled:opacity-50 sm:min-h-0"
         >
           {busy ? "Matching…" : "Re-run matching"}
         </button>
@@ -78,7 +80,7 @@ export function StuckJdActions({ jdId, status }: { jdId: string; status: string 
           type="button"
           disabled={disabled}
           onClick={() => run("fail")}
-          className="rounded-xl px-3 py-1.5 text-xs font-medium text-ember ring-1 ring-inset ring-ember/30 transition-colors hover:bg-ember-soft disabled:opacity-50"
+          className="inline-flex min-h-11 items-center rounded-xl px-3 py-1.5 text-xs font-medium text-ember ring-1 ring-inset ring-ember/30 transition-colors hover:bg-ember-soft disabled:opacity-50 sm:min-h-0"
         >
           {confirming ? "Confirm mark failed" : "Mark failed"}
         </button>

@@ -42,7 +42,7 @@ export default async function TalentAgreementsPage() {
       </p>
 
       {agreements.length === 0 ? (
-        <div className="mt-7 rounded-2xl border border-line bg-white p-10 text-center">
+        <div className="mt-7 rounded-2xl border border-line bg-white p-6 text-center sm:p-10">
           <FileSignature className="mx-auto h-8 w-8 text-ink-faint" strokeWidth={1.75} />
           <h2 className="font-display mt-4 text-lg font-semibold text-ink">No agreements yet</h2>
           <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-ink-soft">
