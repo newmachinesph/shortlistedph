@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   FileText,
@@ -16,12 +16,12 @@ import {
   Wallet,
   CreditCard,
   User,
-  ArrowLeftRight,
   LogOut,
   Search,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "./logo";
+import { signOut } from "@/lib/auth-client";
 
 type NavItem = { label: string; icon: LucideIcon; href: string };
 
@@ -53,23 +53,24 @@ const talentNav: NavItem[] = [
   { label: "Profile", icon: User, href: "/talent/profile" },
 ];
 
+export type Persona = { name: string; sub: string; initials: string };
+
 export function WorkspaceShell({
   role,
+  persona,
   children,
 }: {
   role: "employer" | "talent";
+  persona: Persona;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const nav = role === "employer" ? employerNav : talentNav;
   const base = role === "employer" ? "/employer" : "/talent";
-  const persona =
-    role === "employer"
-      ? { name: "Harbor Dental Group", sub: "Austin, TX", initials: "HD" }
-      : { name: "Kristine Bautista", sub: "Medical VA · Davao", initials: "KB" };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -178,23 +179,20 @@ export function WorkspaceShell({
                       >
                         <Bell className="h-4 w-4" strokeWidth={1.75} /> Notifications
                       </Link>
-                      <Link
-                        href={role === "employer" ? "/talent" : "/employer"}
-                        onClick={closeMenu}
-                        className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-soft hover:bg-paper hover:text-ink"
-                      >
-                        <ArrowLeftRight className="h-4 w-4" strokeWidth={1.75} />
-                        <span>Demo: view as {role === "employer" ? "talent" : "employer"}</span>
-                      </Link>
                     </nav>
                     <div className="border-t border-line py-1.5">
-                      <Link
-                        href="/login"
-                        onClick={closeMenu}
-                        className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-soft hover:bg-paper hover:text-ink"
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          closeMenu();
+                          await signOut();
+                          router.push("/login");
+                          router.refresh();
+                        }}
+                        className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-ink-soft hover:bg-paper hover:text-ink"
                       >
                         <LogOut className="h-4 w-4" strokeWidth={1.75} /> Sign out
-                      </Link>
+                      </button>
                     </div>
                   </div>
                 </>

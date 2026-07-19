@@ -2,65 +2,105 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, EyeOff, Plus, Sparkles, X } from "lucide-react";
+import { ArrowRight, EyeOff, Loader2, Plus, Sparkles, X } from "lucide-react";
+import { api } from "@/lib/auth-client";
 
-const draft = {
-  title: "Medical VA for a growing dental group",
-  budget: "$8 – $11 / hr",
-  hours: "40h / week",
-  overlap: "≥ 4h EST overlap",
-  mustHaves: ["US dental practice experience", "Insurance verification", "Practice management software", "Phone-heavy comfort"],
+type Stage = "compose" | "drafting" | "review" | "publishing" | "posted";
+
+type Draft = {
+  title: string;
+  budgetMin: number | null;
+  budgetMax: number | null;
+  hoursPerWeek: number | null;
+  overlap: string | null;
+  mustHaves: string[];
+  niceToHaves: string[];
 };
-
-type Stage = "compose" | "drafting" | "review" | "posted";
 
 const fieldCls =
   "mt-1 w-full rounded-xl border border-line bg-paper px-3.5 py-2.5 text-sm text-ink focus:outline-2 focus:outline-brand";
 
-export default function NewBriefPage() {
+export default function NewJobDescriptionPage() {
   const [stage, setStage] = useState<Stage>("compose");
   const [text, setText] = useState("");
-  const [title, setTitle] = useState(draft.title);
-  const [budget, setBudget] = useState(draft.budget);
-  const [hours, setHours] = useState(draft.hours);
-  const [overlap, setOverlap] = useState(draft.overlap);
-  const [mustHaves, setMustHaves] = useState(draft.mustHaves);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ jdId: string; scanned: number; entries: number } | null>(null);
+
+  const [draft, setDraft] = useState<Draft>({
+    title: "",
+    budgetMin: null,
+    budgetMax: null,
+    hoursPerWeek: null,
+    overlap: null,
+    mustHaves: [],
+    niceToHaves: [],
+  });
   const [newMustHave, setNewMustHave] = useState("");
 
-  const handleDraft = () => {
+  async function handleDraft() {
+    setError(null);
     setStage("drafting");
-    setTimeout(() => setStage("review"), 1400);
-  };
+    try {
+      const { draft } = await api<{ draft: Draft }>("/api/jds/draft", {
+        method: "POST",
+        body: JSON.stringify({ text }),
+      });
+      setDraft(draft);
+      setStage("review");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not draft that");
+      setStage("compose");
+    }
+  }
+
+  async function handlePublish() {
+    setError(null);
+    setStage("publishing");
+    try {
+      const { jd } = await api<{ jd: { id: string } }>("/api/jds", {
+        method: "POST",
+        body: JSON.stringify(draft),
+      });
+      const matched = await api<{ scanned: number; entries: number }>(`/api/jds/${jd.id}/publish`, {
+        method: "POST",
+      });
+      setResult({ jdId: jd.id, ...matched });
+      setStage("posted");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not publish");
+      setStage("review");
+    }
+  }
 
   const removeMustHave = (m: string) =>
-    setMustHaves((prev) => prev.filter((x) => x !== m));
+    setDraft((d) => ({ ...d, mustHaves: d.mustHaves.filter((x) => x !== m) }));
 
   const addMustHave = () => {
     const v = newMustHave.trim();
-    if (!v || mustHaves.includes(v)) return;
-    setMustHaves((prev) => [...prev, v]);
+    if (!v || draft.mustHaves.includes(v)) return;
+    setDraft((d) => ({ ...d, mustHaves: [...d.mustHaves, v] }));
     setNewMustHave("");
   };
 
-  if (stage === "posted") {
+  if (stage === "posted" && result) {
     return (
       <div className="mx-auto max-w-lg pt-16 text-center">
-        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand-soft">
+        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-soft">
           <EyeOff className="h-6 w-6 text-brand" />
         </span>
         <h1 className="font-display mt-5 text-2xl font-semibold tracking-tight text-ink">
           Posted — and hidden.
         </h1>
         <p className="mt-3 leading-relaxed text-ink-soft">
-          No candidate will ever see it. We&rsquo;re matching it against 512
-          standing profiles now; your ranked shortlist lands in roughly 24
-          hours.
+          No candidate will ever see it. We scanned {result.scanned}{" "}
+          {result.scanned === 1 ? "profile" : "profiles"} and ranked{" "}
+          {result.entries} for your shortlist.
         </p>
         <Link
-          href="/employer/briefs/medical-va-dental"
+          href={`/employer/briefs/${result.jdId}`}
           className="mt-7 inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-dark"
         >
-          Preview a finished slate <ArrowRight className="h-4 w-4" />
+          See your shortlist <ArrowRight className="h-4 w-4" />
         </Link>
       </div>
     );
@@ -68,16 +108,17 @@ export default function NewBriefPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">New job description</h1>
+      <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">
+        New job description
+      </h1>
       <p className="mt-1.5 flex items-center gap-1.5 text-sm text-ink-soft">
         <EyeOff className="h-4 w-4" />
-        <span>
-          Job descriptions are never shown to candidates. Be blunt — real
-          budget, real dealbreakers.
-        </span>
+        <span>Never shown to candidates. Be blunt — real budget, real dealbreakers.</span>
       </p>
 
-      {stage !== "review" ? (
+      {error && <p className="mt-4 rounded-xl bg-ember-soft px-4 py-3 text-sm text-ember">{error}</p>}
+
+      {stage === "compose" || stage === "drafting" ? (
         <div className="mt-6 rounded-2xl border border-line bg-white p-6">
           <label htmlFor="brief" className="text-sm font-medium text-ink">
             Describe who you need
@@ -93,12 +134,13 @@ export default function NewBriefPage() {
             className="mt-3 w-full resize-none rounded-xl border border-line bg-paper px-4 py-3 text-sm leading-relaxed text-ink placeholder:text-ink-faint focus:outline-2 focus:outline-brand"
           />
           <button
+            type="button"
             onClick={handleDraft}
-            disabled={stage === "drafting"}
+            disabled={stage === "drafting" || text.trim().length < 20}
             className="mt-4 inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <Sparkles className="h-4 w-4" />
-            {stage === "drafting" ? "Structuring your job description…" : "Draft with AI"}
+            {stage === "drafting" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {stage === "drafting" ? "Structuring…" : "Draft with AI"}
           </button>
         </div>
       ) : (
@@ -112,35 +154,63 @@ export default function NewBriefPage() {
                 <label htmlFor="title" className="text-xs text-ink-faint">Title</label>
                 <input
                   id="title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  value={draft.title}
+                  onChange={(e) => setDraft({ ...draft, title: e.target.value })}
                   className={`${fieldCls} font-medium`}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 <div>
-                  <label htmlFor="budget" className="text-xs text-ink-faint">Budget band</label>
-                  <input id="budget" value={budget} onChange={(e) => setBudget(e.target.value)} className={fieldCls} />
+                  <label htmlFor="min" className="text-xs text-ink-faint">Budget min $/hr</label>
+                  <input
+                    id="min"
+                    type="number"
+                    value={draft.budgetMin ?? ""}
+                    onChange={(e) => setDraft({ ...draft, budgetMin: e.target.value ? Number(e.target.value) : null })}
+                    className={fieldCls}
+                  />
                 </div>
                 <div>
-                  <label htmlFor="hours" className="text-xs text-ink-faint">Hours</label>
-                  <input id="hours" value={hours} onChange={(e) => setHours(e.target.value)} className={fieldCls} />
+                  <label htmlFor="max" className="text-xs text-ink-faint">Budget max $/hr</label>
+                  <input
+                    id="max"
+                    type="number"
+                    value={draft.budgetMax ?? ""}
+                    onChange={(e) => setDraft({ ...draft, budgetMax: e.target.value ? Number(e.target.value) : null })}
+                    className={fieldCls}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="hours" className="text-xs text-ink-faint">Hours / week</label>
+                  <input
+                    id="hours"
+                    type="number"
+                    value={draft.hoursPerWeek ?? ""}
+                    onChange={(e) => setDraft({ ...draft, hoursPerWeek: e.target.value ? Number(e.target.value) : null })}
+                    className={fieldCls}
+                  />
                 </div>
                 <div>
                   <label htmlFor="overlap" className="text-xs text-ink-faint">Overlap</label>
-                  <input id="overlap" value={overlap} onChange={(e) => setOverlap(e.target.value)} className={fieldCls} />
+                  <input
+                    id="overlap"
+                    value={draft.overlap ?? ""}
+                    onChange={(e) => setDraft({ ...draft, overlap: e.target.value || null })}
+                    className={fieldCls}
+                  />
                 </div>
               </div>
               <div>
-                <span className="text-xs text-ink-faint">Must-haves</span>
+                <span className="text-xs text-ink-faint">Must-haves — these are hard filters</span>
                 <div className="mt-1.5 flex flex-wrap gap-2">
-                  {mustHaves.map((m) => (
+                  {draft.mustHaves.map((m) => (
                     <span
                       key={m}
                       className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft py-1 pl-2.5 pr-1.5 text-xs font-medium text-brand"
                     >
                       {m}
                       <button
+                        type="button"
                         onClick={() => removeMustHave(m)}
                         aria-label={`Remove ${m}`}
                         className="rounded-full p-0.5 transition-colors hover:bg-brand hover:text-white"
@@ -154,12 +224,18 @@ export default function NewBriefPage() {
                   <input
                     value={newMustHave}
                     onChange={(e) => setNewMustHave(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addMustHave()}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addMustHave();
+                      }
+                    }}
                     placeholder="Add a must-have…"
                     aria-label="Add a must-have"
                     className="w-full max-w-64 rounded-xl border border-line bg-paper px-3.5 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-2 focus:outline-brand"
                   />
                   <button
+                    type="button"
                     onClick={addMustHave}
                     aria-label="Add must-have"
                     className="rounded-xl px-3 py-2 text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft"
@@ -170,14 +246,19 @@ export default function NewBriefPage() {
               </div>
             </div>
           </div>
+
           <div className="flex flex-wrap items-center gap-3">
             <button
-              onClick={() => setStage("posted")}
-              className="rounded-2xl bg-brand px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-colors hover:bg-brand-dark"
+              type="button"
+              onClick={handlePublish}
+              disabled={stage === "publishing" || !draft.title || draft.mustHaves.length === 0}
+              className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-colors hover:bg-brand-dark disabled:opacity-60"
             >
-              Post job description
+              {stage === "publishing" && <Loader2 className="h-4 w-4 animate-spin" />}
+              {stage === "publishing" ? "Matching the market…" : "Post and match"}
             </button>
             <button
+              type="button"
               onClick={() => setStage("compose")}
               className="rounded-2xl px-5 py-3 text-sm font-medium text-ink-soft transition-colors hover:text-ink"
             >
