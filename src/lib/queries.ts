@@ -100,13 +100,73 @@ export async function getSnapshotForEmployer(snapshotId: string, employerId: str
     where: { id: snapshotId, jd: { employerId } },
     include: {
       jd: { select: { id: true, title: true, publishedAt: true } },
-      entries: { select: { slate: { select: { status: true } } } },
+      entries: {
+        select: {
+          id: true,
+          connection: { select: { id: true } },
+          slate: { select: { status: true } },
+        },
+      },
       profile: { select: { user: { select: { name: true } } } },
     },
   });
   if (!snapshot) return null;
   const unlocked = snapshot.entries.some((e) => e.slate.status === "unlocked");
-  return { snapshot, unlocked };
+  const slateEntry = snapshot.entries.find((e) => e.slate.status === "unlocked") ?? null;
+  return { snapshot, unlocked, slateEntry };
+}
+
+/** Connections an employer has requested, newest first. */
+export async function listEmployerConnections(employerId: string) {
+  return db.connection.findMany({
+    where: { slateEntry: { slate: { jd: { employerId } } } },
+    orderBy: { createdAt: "desc" },
+    include: {
+      slateEntry: {
+        select: {
+          score: true,
+          snapshot: {
+            select: {
+              id: true,
+              frozenJson: true,
+              jd: { select: { id: true, title: true } },
+              profile: { select: { user: { select: { name: true, email: true } } } },
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+/** Requests awaiting this candidate's decision, plus ones already settled. */
+export async function listTalentConnections(userId: string) {
+  return db.connection.findMany({
+    where: { slateEntry: { snapshot: { profile: { userId } } } },
+    orderBy: { createdAt: "desc" },
+    include: {
+      slateEntry: {
+        select: {
+          score: true,
+          snapshot: {
+            select: {
+              jd: {
+                select: {
+                  title: true,
+                  budgetMin: true,
+                  budgetMax: true,
+                  hoursPerWeek: true,
+                  overlap: true,
+                  mustHaves: true,
+                  employer: { select: { companyName: true, blurb: true, location: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
 }
 
 /** Derived time values are computed here, not during render — render must stay pure. */
