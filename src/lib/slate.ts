@@ -1,5 +1,5 @@
 // Pure serialization — no secrets, no db, so it stays testable outside Next.
-export type Dims = { skills: number; rate: number; overlap: number; experience: number };
+import type { Dims } from "./scoring.ts";
 
 /**
  * The paywall lives HERE, not in CSS.
