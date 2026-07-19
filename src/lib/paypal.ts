@@ -58,8 +58,10 @@ export async function createOrder(input: {
       application_context: {
         brand_name: "shortlisted.ph",
         user_action: "PAY_NOW",
-        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/employer/billing?paid=1`,
-        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/employer/billing?cancelled=1`,
+        // requireEnv, not interpolation — an unset value would silently send
+        // buyers to "undefined/employer/billing" after paying.
+        return_url: `${requireEnv("NEXT_PUBLIC_APP_URL")}/employer/billing?paid=1`,
+        cancel_url: `${requireEnv("NEXT_PUBLIC_APP_URL")}/employer/billing?cancelled=1`,
       },
     }),
     cache: "no-store",
