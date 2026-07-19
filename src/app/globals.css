@@ -5,13 +5,17 @@
   --color-paper: #fafcfd;
   --color-ink: #17201b;
   --color-ink-soft: #51605a;
-  --color-ink-faint: #8b968f;
+  /* ink-faint and ember are darkened from the raw logo palette so small text
+     clears WCAG AA (4.5:1) on both paper and their own soft tints. */
+  --color-ink-faint: #67766e;
   --color-line: #e3e9e5;
   --color-brand: #306644;
   --color-brand-dark: #245034;
   --color-brand-soft: #eaf2ed;
-  --color-ember: #c96027;
+  --color-ember: #a4491a;
   --color-ember-soft: #f9ece3;
+  /* Lighter ember, for the mark on a brand-green field only. Never for text. */
+  --color-ember-light: #f4a27c;
 }
 
 @theme inline {

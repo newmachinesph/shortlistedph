@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
+import { pageMeta } from "@/lib/site";
 import Link from "next/link";
 import { PublicFooter, PublicHeader } from "@/components/public-chrome";
 
-export const metadata: Metadata = { title: "Privacy Policy — shortlisted.ph" };
+export const metadata: Metadata = pageMeta({
+  title: "Privacy Policy",
+  description:
+    "What shortlisted.ph collects, what it refuses to store, and who sees a profile. Government IDs and NBI clearances are never uploaded to us.",
+  path: "/privacy",
+});
 
 const sections: [string, string][] = [
   [

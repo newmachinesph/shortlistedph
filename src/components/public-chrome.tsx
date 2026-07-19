@@ -28,6 +28,20 @@ export function PublicHeader() {
   );
 }
 
+/**
+ * Standard frame for a public page. Owns the `<main>` landmark so screen
+ * readers get a skip target and no page has to remember one.
+ */
+export function PublicPage({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-paper">
+      <PublicHeader />
+      <main>{children}</main>
+      <PublicFooter />
+    </div>
+  );
+}
+
 export function PublicFooter() {
   return (
     <footer className="w-full border-t border-line">

@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Camera, EyeOff, FileCheck, Filter, Lock } from "lucide-react";
-import { PublicFooter, PublicHeader } from "@/components/public-chrome";
+import { PublicPage } from "@/components/public-chrome";
+import { pageMeta } from "@/lib/site";
 
-export const metadata: Metadata = {
-  title: "Why it works — shortlisted.ph",
+export const metadata: Metadata = pageMeta({
+  title: "Why it works",
   description:
     "Job boards reward whoever rewrites their resume best. Hidden job descriptions, snapshot profiles, standing rates and a quality floor remove the incentive to game the match.",
-};
+  path: "/why-it-works",
+});
 
 const mechanics = [
   {
@@ -39,8 +41,7 @@ const mechanics = [
 
 export default function WhyItWorksPage() {
   return (
-    <div className="bg-paper">
-      <PublicHeader />
+    <PublicPage>
 
       <section className="mx-auto w-full max-w-6xl px-5 pt-14 pb-16 sm:px-8">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand">Why it works</p>
@@ -133,7 +134,6 @@ export default function WhyItWorksPage() {
         </div>
       </section>
 
-      <PublicFooter />
-    </div>
+      </PublicPage>
   );
 }

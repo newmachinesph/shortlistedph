@@ -1,3 +1,8 @@
+import type { Metadata } from "next";
+import { NOINDEX } from "@/lib/site";
+
+export const metadata: Metadata = { title: "Employer workspace", ...NOINDEX };
+
 import { WorkspaceShell } from "@/components/workspace";
 import { employerOrOnboard, requirePageUser } from "@/lib/queries";
 import { initials } from "@/lib/format";
