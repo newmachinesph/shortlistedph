@@ -1,8 +1,7 @@
 import { WorkspaceShell } from "@/components/workspace";
 import { employerOrOnboard, requirePageUser } from "@/lib/queries";
+import { initials } from "@/lib/format";
 
-const initialsOf = (name: string) =>
-  name.split(/\s+/).map((p) => p[0]?.toUpperCase() ?? "").slice(0, 2).join("");
 
 export default async function EmployerLayout({ children }: { children: React.ReactNode }) {
   const user = await requirePageUser("employer");
@@ -14,7 +13,7 @@ export default async function EmployerLayout({ children }: { children: React.Rea
       persona={{
         name: employer.companyName,
         sub: employer.location ?? user.email,
-        initials: initialsOf(employer.companyName),
+        initials: initials(employer.companyName),
       }}
     >
       {children}

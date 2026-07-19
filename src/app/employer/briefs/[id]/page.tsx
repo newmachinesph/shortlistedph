@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, Camera, EyeOff, Lock, ScanSearch } from "lucide-react";
+import { ArrowRight, Camera, EyeOff, Lock, ScanSearch, SearchX } from "lucide-react";
 import { db } from "@/lib/db";
 import { employerOrOnboard, getSlateForJd, requirePageUser } from "@/lib/queries";
 import { UnlockButton } from "./unlock-button";
@@ -55,7 +55,28 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
         </div>
       </div>
 
-      {!slate ? (
+      {jd.status === "no_matches" ? (
+        <div className="mt-6 rounded-2xl border border-line bg-white p-10 text-center">
+          <SearchX className="mx-auto h-8 w-8 text-ember" strokeWidth={1.5} />
+          <h2 className="font-display mt-4 text-lg font-semibold text-ink">
+            No one cleared the bar
+          </h2>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-ink-soft">
+            We ranked the market against this job description and nobody was a strong enough match
+            to put in front of you. You have not been charged, and no credit was used.
+          </p>
+          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-ink-faint">
+            Padding a shortlist with near-misses would waste your time and ours. Try widening the
+            must-haves or the budget band — we&rsquo;ll re-run the match.
+          </p>
+          <Link
+            href="/employer/briefs/new"
+            className="mt-6 inline-block rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
+          >
+            Adjust and try again
+          </Link>
+        </div>
+      ) : !slate || slate.entries.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-line bg-white p-10 text-center">
           <ScanSearch className="mx-auto h-8 w-8 text-ember" strokeWidth={1.5} />
           <h2 className="font-display mt-4 text-lg font-semibold text-ink">Matching in progress</h2>

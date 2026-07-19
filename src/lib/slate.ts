@@ -1,5 +1,6 @@
 // Pure serialization — no secrets, no db, so it stays testable outside Next.
 import type { Dims } from "./scoring.ts";
+import { initials } from "./format.ts";
 
 /**
  * The paywall lives HERE, not in CSS.
@@ -58,15 +59,6 @@ export type MaskedEntry = {
   engagements?: FrozenProfile["engagements"];
 };
 
-function initialsOf(name: string | null): string {
-  if (!name) return "??";
-  return name
-    .split(/\s+/)
-    .map((p) => p[0]?.toUpperCase() ?? "")
-    .slice(0, 2)
-    .join("");
-}
-
 export function maskEntry(entry: SlateEntryInput, unlocked: boolean): MaskedEntry {
   const p = entry.snapshot.frozenJson as FrozenProfile;
 
@@ -77,7 +69,7 @@ export function maskEntry(entry: SlateEntryInput, unlocked: boolean): MaskedEntr
     dims: entry.dims,
     reasons: entry.reasons,
     locked: !unlocked,
-    initials: initialsOf(entry.candidateName),
+    initials: initials(entry.candidateName),
     headline: p.headline,
     city: p.city,
     yearsExperience: p.yearsExperience,

@@ -35,14 +35,12 @@ export function CaptureOnReturn({ shouldCapture }: { shouldCapture: boolean }) {
       return;
     }
 
-    const { orderId, productId } = JSON.parse(pending) as {
-      orderId: string;
-      productId: "single" | "three_pack";
-    };
+    // Only the order id — the server derives what was bought from PayPal.
+    const { orderId } = JSON.parse(pending) as { orderId: string };
 
     api<{ credited: boolean; alreadyProcessed: boolean }>("/api/paypal/capture", {
       method: "POST",
-      body: JSON.stringify({ orderId, productId }),
+      body: JSON.stringify({ orderId }),
     })
       .then(() => {
         sessionStorage.removeItem("pendingOrder");

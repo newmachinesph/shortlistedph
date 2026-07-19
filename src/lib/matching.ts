@@ -78,7 +78,11 @@ export async function buildSlate(jdId: string) {
     toVectorLiteral(vector),
   );
 
-  if (pool.length === 0) return { slateId: null, scanned: 0, entries: 0 };
+  if (pool.length === 0) {
+    // Terminal state, not "still matching" — otherwise the dashboard spins forever.
+    await db.jobDescription.update({ where: { id: jd.id }, data: { status: "no_matches" } });
+    return { slateId: null, scanned: 0, entries: 0 };
+  }
 
   const ids = pool.map((c) => c.id);
   const [skills, engagements] = await Promise.all([
@@ -119,6 +123,14 @@ export async function buildSlate(jdId: string) {
     .slice(0, REASONED);
 
   const top = ranked.slice(0, SLATE_SIZE);
+
+  // Nobody cleared the bar. Record that honestly instead of creating an empty
+  // slate the employer could be charged to "unlock".
+  if (top.length === 0) {
+    await db.jobDescription.update({ where: { id: jd.id }, data: { status: "no_matches" } });
+    return { slateId: null, scanned: pool.length, entries: 0 };
+  }
+
   const reasons = await explain(jd, top);
 
   const publishedAt = jd.publishedAt ?? new Date();

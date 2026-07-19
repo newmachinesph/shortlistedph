@@ -10,6 +10,8 @@ const ALLOWED: Record<string, string> = {
   "text/plain": "txt",
 };
 
+// Advisory only — a presigned PUT can't enforce length. The real check happens
+// server-side in extractText() once we have the bytes.
 const MAX_BYTES = 5 * 1024 * 1024;
 
 const Body = z.object({

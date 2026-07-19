@@ -83,6 +83,8 @@ export type CaptureResult = {
   captureId: string | null;
   amount: string | null;
   currency: string | null;
+  /** "<employerId>:<productId>", as set by us at order creation. */
+  referenceId: string | null;
 };
 
 export async function captureOrder(orderId: string): Promise<CaptureResult> {
@@ -98,18 +100,21 @@ export async function captureOrder(orderId: string): Promise<CaptureResult> {
   const json = (await res.json()) as {
     status?: string;
     purchase_units?: {
+      reference_id?: string;
       payments?: {
         captures?: { id: string; status: string; amount?: { value: string; currency_code: string } }[];
       };
     }[];
   };
 
-  const capture = json.purchase_units?.[0]?.payments?.captures?.[0];
+  const unit = json.purchase_units?.[0];
+  const capture = unit?.payments?.captures?.[0];
   return {
     completed: json.status === "COMPLETED" && capture?.status === "COMPLETED",
     captureId: capture?.id ?? null,
     amount: capture?.amount?.value ?? null,
     currency: capture?.amount?.currency_code ?? null,
+    referenceId: unit?.reference_id ?? null,
   };
 }
 
