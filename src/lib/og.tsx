@@ -1,6 +1,5 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { ImageResponse } from "next/og";
+import { markDataUri } from "@/lib/mark";
 
 export const OG_SIZE = { width: 1200, height: 630 };
 export const OG_CONTENT_TYPE = "image/png";
@@ -11,15 +10,6 @@ const INK_SOFT = "#51605a";
 const BRAND = "#306644";
 const EMBER = "#a4491a";
 const LINE = "#e3e9e5";
-
-/**
- * The favicon is the only copy of the mark. Inlining it as a data URI keeps
- * one source of truth and needs no network at build time.
- */
-function markDataUri(): string {
-  const svg = readFileSync(join(process.cwd(), "src/app/icon.svg"));
-  return `data:image/svg+xml;base64,${svg.toString("base64")}`;
-}
 
 /**
  * Space Grotesk from Google, fetched once per build. Satori only ships a

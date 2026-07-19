@@ -85,7 +85,7 @@ export default function ForTalentPage() {
               </div>
               <div className="rounded-2xl border border-line p-5">
                 <Wallet className="h-5 w-5 text-brand" strokeWidth={1.75} />
-                <h3 className="mt-3 font-medium text-ink">₱60, at cost</h3>
+                <h3 className="mt-3 font-medium text-ink">₱60, none of it ours</h3>
                 <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
                   Paid once by QR Ph from GCash, Maya or any bank app. That is what the check
                   costs and we keep none of it. It pays for the check itself; it does not buy a

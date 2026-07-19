@@ -13,8 +13,9 @@ const orgSchema = {
       "@id": `${SITE_URL}/#organization`,
       name: SITE_NAME,
       url: SITE_URL,
-      logo: `${SITE_URL}/icon.svg`,
+      logo: `${SITE_URL}/mark.svg`,
       description: SITE_DESCRIPTION,
+      sameAs: ["https://www.facebook.com/phshortlisted/"],
       areaServed: { "@type": "Country", name: "Philippines" },
       knowsAbout: [
         "remote hiring",
