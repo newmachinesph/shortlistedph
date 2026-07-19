@@ -1,0 +1,287 @@
+import "server-only";
+import { db } from "./db";
+import { MODELS, embed, openai, toVectorLiteral } from "./openai";
+import { normalizeSkill } from "./resume";
+
+export const SLATE_SIZE = 5;
+const CANDIDATE_POOL = 50;
+const REASONED = 8;
+
+/**
+ * Deterministic weights. Every dimension shown in the UI actually counts —
+ * the old platform computed four dimensions and multiplied them by zero.
+ */
+const WEIGHTS = { skills: 0.45, experience: 0.2, rate: 0.2, overlap: 0.15 } as const;
+
+// Confirmed skills are backed by a mutual outcome confirmation; self-reported
+// claims are worth less precisely because anyone can type them.
+const CONFIRMED_SKILL_WEIGHT = 2;
+
+export type { Dims } from "./slate";
+import type { Dims } from "./slate";
+
+type Candidate = {
+  id: string;
+  userId: string;
+  headline: string | null;
+  summary: string | null;
+  city: string | null;
+  yearsExperience: number;
+  rateUsd: number | null;
+  availability: string;
+  committedHours: number;
+  verifiedTier: string;
+  lastEditedAt: Date;
+  similarity: number;
+};
+
+type Jd = {
+  id: string;
+  title: string;
+  mustHaves: string[];
+  niceToHaves: string[];
+  budgetMin: number | null;
+  budgetMax: number | null;
+  hoursPerWeek: number | null;
+  overlap: string | null;
+};
+
+export function jdEmbedText(jd: Jd): string {
+  return [
+    jd.title,
+    `Must have: ${jd.mustHaves.join(", ")}`,
+    jd.niceToHaves.length ? `Nice to have: ${jd.niceToHaves.join(", ")}` : "",
+    jd.hoursPerWeek ? `${jd.hoursPerWeek} hours per week` : "",
+    jd.overlap ? `Timezone overlap: ${jd.overlap}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function scoreSkills(
+  required: string[],
+  candidateSkills: { normalizedName: string; confirmed: boolean }[],
+  similarity: number,
+): number {
+  if (required.length === 0) return Math.round(similarity * 100);
+
+  const owned = new Map(candidateSkills.map((s) => [s.normalizedName, s.confirmed]));
+  let earned = 0;
+  for (const req of required) {
+    const confirmed = owned.get(normalizeSkill(req));
+    if (confirmed === true) earned += CONFIRMED_SKILL_WEIGHT;
+    else if (confirmed === false) earned += 1;
+  }
+  const max = required.length * CONFIRMED_SKILL_WEIGHT;
+  const exact = earned / max;
+
+  // Embedding similarity catches synonyms exact matching misses ("QBO" vs "QuickBooks Online").
+  return Math.round(Math.min(1, exact * 0.75 + similarity * 0.25) * 100);
+}
+
+function scoreRate(rate: number | null, min: number | null, max: number | null): number {
+  if (rate == null || min == null || max == null) return 60;
+  if (rate <= max && rate >= min) return 100;
+  if (rate < min) return 95; // under budget is a win for the employer, not a penalty
+  const overBy = (rate - max) / max;
+  if (overBy <= 0.15) return 70;
+  if (overBy <= 0.4) return 35;
+  return 0;
+}
+
+function scoreOverlap(availability: string, committed: number, hoursNeeded: number | null): number {
+  const free = Math.max(0, 40 - committed);
+  if (availability === "booked") return 10;
+  if (!hoursNeeded) return availability === "open" ? 100 : 70;
+  if (free >= hoursNeeded) return 100;
+  return Math.round((free / hoursNeeded) * 100);
+}
+
+function scoreExperience(years: number, confirmedEngagements: number): number {
+  const base = Math.min(1, years / 5) * 80;
+  const proof = Math.min(20, confirmedEngagements * 10);
+  return Math.round(base + proof);
+}
+
+export function composite(d: Dims): number {
+  return Math.round(
+    d.skills * WEIGHTS.skills +
+      d.experience * WEIGHTS.experience +
+      d.rate * WEIGHTS.rate +
+      d.overlap * WEIGHTS.overlap,
+  );
+}
+
+/**
+ * Ranks the market against one job description.
+ * The LLM writes prose reasons only — it never decides rank.
+ */
+export async function buildSlate(jdId: string) {
+  const jd = await db.jobDescription.findUniqueOrThrow({ where: { id: jdId } });
+  const vector = await embed(jdEmbedText(jd));
+
+  const pool = await db.$queryRawUnsafe<Candidate[]>(
+    `SELECT p.id, p."userId", p.headline, p.summary, p.city, p."yearsExperience",
+            p."rateUsd", p.availability, p."committedHours", p."verifiedTier", p."lastEditedAt",
+            1 - (p.embedding <=> $1::vector) AS similarity
+       FROM "TalentProfile" p
+       JOIN "user" u ON u.id = p."userId"
+      WHERE p."publishedAt" IS NOT NULL
+        AND p.visibility = true
+        AND p.embedding IS NOT NULL
+        AND u.status = 'active'
+      ORDER BY p.embedding <=> $1::vector
+      LIMIT ${CANDIDATE_POOL}`,
+    toVectorLiteral(vector),
+  );
+
+  if (pool.length === 0) return { slateId: null, scanned: 0, entries: 0 };
+
+  const ids = pool.map((c) => c.id);
+  const [skills, engagements] = await Promise.all([
+    db.skill.findMany({ where: { profileId: { in: ids } } }),
+    db.engagement.findMany({ where: { profileId: { in: ids } } }),
+  ]);
+
+  const skillsBy = new Map<string, typeof skills>();
+  for (const s of skills) {
+    const list = skillsBy.get(s.profileId) ?? [];
+    list.push(s);
+    skillsBy.set(s.profileId, list);
+  }
+  const engBy = new Map<string, typeof engagements>();
+  for (const e of engagements) {
+    const list = engBy.get(e.profileId) ?? [];
+    list.push(e);
+    engBy.set(e.profileId, list);
+  }
+
+  const ranked = pool
+    .map((c) => {
+      const cSkills = skillsBy.get(c.id) ?? [];
+      const cEng = engBy.get(c.id) ?? [];
+      const dims: Dims = {
+        skills: scoreSkills(jd.mustHaves, cSkills, c.similarity),
+        rate: scoreRate(c.rateUsd, jd.budgetMin, jd.budgetMax),
+        overlap: scoreOverlap(c.availability, c.committedHours, jd.hoursPerWeek),
+        experience: scoreExperience(c.yearsExperience, cEng.filter((e) => e.outcome === "confirmed").length),
+      };
+      return { c, dims, score: composite(dims), skills: cSkills, engagements: cEng };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, REASONED);
+
+  const top = ranked.slice(0, SLATE_SIZE);
+  const reasons = await explain(jd, top);
+
+  const publishedAt = jd.publishedAt ?? new Date();
+
+  const slate = await db.$transaction(async (tx) => {
+    const created = await tx.slate.create({ data: { jdId: jd.id, status: "preview" } });
+
+    for (const [i, r] of top.entries()) {
+      // Freeze the profile as of this JD. Later edits cannot change what the
+      // employer sees — this is what makes the anti-tailoring claim literal.
+      const snapshot = await tx.profileSnapshot.upsert({
+        where: { profileId_jdId: { profileId: r.c.id, jdId: jd.id } },
+        create: {
+          profileId: r.c.id,
+          jdId: jd.id,
+          frozenJson: {
+            name: null, // filled from user at read time; masked while locked
+            userId: r.c.userId,
+            headline: r.c.headline,
+            summary: r.c.summary,
+            city: r.c.city,
+            yearsExperience: r.c.yearsExperience,
+            rateUsd: r.c.rateUsd,
+            availability: r.c.availability,
+            committedHours: r.c.committedHours,
+            verifiedTier: r.c.verifiedTier,
+            profileStableDays: Math.max(
+              0,
+              Math.floor((publishedAt.getTime() - r.c.lastEditedAt.getTime()) / 86_400_000),
+            ),
+            skills: r.skills.map((s) => ({ name: s.name, confirmed: s.confirmed })),
+            engagements: r.engagements.map((e) => ({
+              role: e.role,
+              company: e.company,
+              span: e.span,
+              outcome: e.outcome,
+            })),
+          },
+        },
+        update: {},
+      });
+
+      await tx.slateEntry.create({
+        data: {
+          slateId: created.id,
+          snapshotId: snapshot.id,
+          rank: i + 1,
+          score: r.score,
+          dims: r.dims,
+          reasons: reasons[i] ?? [],
+        },
+      });
+    }
+
+    await tx.jobDescription.update({ where: { id: jd.id }, data: { status: "slate_ready" } });
+    return created;
+  });
+
+  return { slateId: slate.id, scanned: pool.length, entries: top.length };
+}
+
+type Ranked = { c: Candidate; dims: Dims; score: number; skills: { name: string; confirmed: boolean }[] };
+
+/** Prose only. If this call fails the slate still ships, just without narration. */
+async function explain(jd: Jd, ranked: Ranked[]): Promise<string[][]> {
+  if (ranked.length === 0) return [];
+  try {
+    const res = await openai().responses.create({
+      model: MODELS.extract,
+      input: [
+        {
+          role: "system",
+          content:
+            "You write the 'why shortlisted' bullets an employer reads on a candidate slate. " +
+            "Use ONLY the supplied structured facts — never invent experience. " +
+            "2-3 bullets each, one short sentence per bullet, concrete and specific. " +
+            "If a dimension scored poorly, say so plainly — honest flags build trust. " +
+            'Return JSON: {"candidates":[{"index":0,"reasons":["..."]}]}',
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            job: { title: jd.title, mustHaves: jd.mustHaves, budget: [jd.budgetMin, jd.budgetMax], hours: jd.hoursPerWeek, overlap: jd.overlap },
+            candidates: ranked.map((r, index) => ({
+              index,
+              headline: r.c.headline,
+              city: r.c.city,
+              years: r.c.yearsExperience,
+              rateUsd: r.c.rateUsd,
+              availability: r.c.availability,
+              verified: r.c.verifiedTier === "id_verified",
+              skills: r.skills,
+              scores: r.dims,
+            })),
+          }),
+        },
+      ],
+      text: { format: { type: "json_object" } },
+    });
+
+    const parsed = JSON.parse(res.output_text ?? "{}") as {
+      candidates?: { index: number; reasons: string[] }[];
+    };
+    const out: string[][] = ranked.map(() => []);
+    for (const c of parsed.candidates ?? []) {
+      if (out[c.index]) out[c.index] = c.reasons.slice(0, 3);
+    }
+    return out;
+  } catch (e) {
+    console.error("[matching] reason generation failed", e);
+    return ranked.map(() => []);
+  }
+}

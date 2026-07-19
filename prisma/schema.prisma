@@ -1,0 +1,396 @@
+// shortlisted.ph — see BACKEND.md for the model rationale.
+// Core principle: the snapshot is the product. Slates reference frozen
+// ProfileSnapshots, never live profiles, so post-hoc profile edits can never
+// change what an employer was shown.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [vector]
+}
+
+// ─── Auth (BetterAuth-owned tables) ──────────────────────────────────────
+
+model User {
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  role          String    @default("talent") // talent | employer | admin
+  status        String    @default("active") // active | suspended | banned
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sessions        Session[]
+  accounts        Account[]
+  talentProfile   TalentProfile?
+  employer        EmployerAccount?
+  notifications   Notification[]
+  messages        Message[]
+  reportsFiled    Report[]          @relation("ReportFiler")
+  reportsAgainst  Report[]          @relation("ReportTarget")
+  payments        Payment[]
+  identityBinding IdentityBinding?
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  userId                String
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  idToken               String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verification")
+}
+
+// ─── Talent ──────────────────────────────────────────────────────────────
+
+model TalentProfile {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  headline        String?
+  summary         String?
+  city            String?
+  yearsExperience Int       @default(0)
+  rateUsd         Float?
+  rateLockedUntil DateTime? // 30-day standing-rate lock
+  availability    String    @default("open") // open | partial | booked
+  committedHours  Int       @default(0)
+  visibility      Boolean   @default(true)
+  verifiedTier    String    @default("none") // none | id_verified
+  resumeKey       String? // R2 object key
+  publishedAt     DateTime?
+  lastEditedAt    DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+
+  // pgvector column; Prisma has no native type for it.
+  embedding Unsupported("vector(1536)")?
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skills      Skill[]
+  engagements Engagement[]
+  rateChanges RateChange[]
+  snapshots   ProfileSnapshot[]
+
+  @@index([publishedAt, visibility])
+}
+
+model Skill {
+  id             String  @id @default(cuid())
+  profileId      String
+  name           String
+  normalizedName String
+  confirmed      Boolean @default(false) // backed by an OutcomeConfirmation
+
+  profile TalentProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@index([normalizedName])
+}
+
+model Engagement {
+  id        String  @id @default(cuid())
+  profileId String
+  role      String
+  company   String
+  span      String
+  outcome   String  @default("reported") // confirmed | reported
+
+  profile TalentProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+}
+
+model RateChange {
+  id        String   @id @default(cuid())
+  profileId String
+  oldRate   Float?
+  newRate   Float
+  changedAt DateTime @default(now())
+
+  profile TalentProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, changedAt])
+}
+
+// ─── Employer ────────────────────────────────────────────────────────────
+
+model EmployerAccount {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  companyName String
+  blurb       String?
+  location    String?
+  contactName String?
+  credits     Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobDescriptions JobDescription[]
+  entitlements    Entitlement[]
+}
+
+model JobDescription {
+  id                  String    @id @default(cuid())
+  employerId          String
+  title               String
+  budgetMin           Float?
+  budgetMax           Float?
+  hoursPerWeek        Int?
+  overlap             String?
+  mustHaves           String[]
+  niceToHaves         String[]
+  screeningQuestions  Json?
+  initialInstructions String?
+  schedulingUrl       String?
+  status              String    @default("draft") // draft | matching | slate_ready | closed
+  publishedAt         DateTime?
+  createdAt           DateTime  @default(now())
+
+  embedding Unsupported("vector(1536)")?
+
+  employer  EmployerAccount   @relation(fields: [employerId], references: [id], onDelete: Cascade)
+  slates    Slate[]
+  snapshots ProfileSnapshot[]
+
+  @@index([employerId, status])
+}
+
+// ─── Slates (the product) ────────────────────────────────────────────────
+
+model ProfileSnapshot {
+  id         String   @id @default(cuid())
+  profileId  String
+  jdId       String
+  frozenJson Json // full profile as it existed when the JD was published
+  createdAt  DateTime @default(now())
+
+  profile TalentProfile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  jd      JobDescription @relation(fields: [jdId], references: [id], onDelete: Cascade)
+  entries SlateEntry[]
+
+  @@unique([profileId, jdId])
+}
+
+model Slate {
+  id          String    @id @default(cuid())
+  jdId        String
+  status      String    @default("preview") // preview | unlocked
+  unlockedAt  DateTime?
+  deliveredAt DateTime  @default(now())
+
+  jd      JobDescription @relation(fields: [jdId], references: [id], onDelete: Cascade)
+  entries SlateEntry[]
+
+  @@index([jdId])
+}
+
+model SlateEntry {
+  id         String   @id @default(cuid())
+  slateId    String
+  snapshotId String
+  rank       Int
+  score      Int
+  dims       Json // { skills, rate, overlap, experience }
+  reasons    String[]
+
+  slate      Slate            @relation(fields: [slateId], references: [id], onDelete: Cascade)
+  snapshot   ProfileSnapshot  @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  connection Connection?
+
+  @@index([slateId, rank])
+}
+
+// ─── Relationship layer ──────────────────────────────────────────────────
+
+model Connection {
+  id                String    @id @default(cuid())
+  slateEntryId      String    @unique
+  state             String    @default("requested") // requested | consented | declined | expired
+  screeningAnswers  Json?
+  contactRevealedAt DateTime?
+  createdAt         DateTime  @default(now())
+
+  slateEntry SlateEntry @relation(fields: [slateEntryId], references: [id], onDelete: Cascade)
+  agreement  Agreement?
+  messages   Message[]
+}
+
+model Agreement {
+  id              String    @id @default(cuid())
+  connectionId    String    @unique
+  terms           Json
+  talentSignedAt  DateTime?
+  employerSignedAt DateTime?
+  pdfKey          String?
+  createdAt       DateTime  @default(now())
+
+  connection  Connection            @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  outcomes    OutcomeConfirmation[]
+  ratings     Rating[]
+}
+
+model OutcomeConfirmation {
+  id               String    @id @default(cuid())
+  agreementId      String
+  period           String // e.g. "2026-09"
+  talentConfirmedAt   DateTime?
+  employerConfirmedAt DateTime?
+
+  agreement Agreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+
+  @@unique([agreementId, period])
+}
+
+model Rating {
+  id          String    @id @default(cuid())
+  agreementId String
+  direction   String // talent_to_employer | employer_to_talent
+  stars       Int
+  categories  Json?
+  comment     String?
+  revealedAt  DateTime? // double-blind: set when both sides rate, or after 14d
+  createdAt   DateTime  @default(now())
+
+  agreement Agreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+
+  @@unique([agreementId, direction])
+}
+
+model Message {
+  id           String   @id @default(cuid())
+  connectionId String
+  senderId     String
+  body         String
+  createdAt    DateTime @default(now())
+
+  connection Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  sender     User       @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([connectionId, createdAt])
+}
+
+// ─── Money, trust, ops ───────────────────────────────────────────────────
+
+model Entitlement {
+  id            String   @id @default(cuid())
+  employerId    String
+  kind          String   @default("credit")
+  source        String // paypal order id
+  spentOnSlateId String?
+  createdAt     DateTime @default(now())
+
+  employer EmployerAccount @relation(fields: [employerId], references: [id], onDelete: Cascade)
+
+  @@index([employerId])
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  userId      String
+  provider    String // paypal | paymongo
+  providerRef String   @unique
+  amount      Float
+  currency    String
+  purpose     String // slate_unlock | three_pack | hiring_desk | id_verification
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// No identity documents are ever stored — only an opaque provider reference
+// and a face embedding used to stop banned users re-registering.
+model IdentityBinding {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  diditSessionRef  String?
+  faceEmbeddingRef String?
+  verifiedAt       DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Report {
+  id           String   @id @default(cuid())
+  filedById    String
+  againstId    String
+  reason       String
+  detail       String
+  evidenceKeys String[]
+  status       String   @default("open") // open | resolved | dismissed
+  resolution   String?
+  createdAt    DateTime @default(now())
+
+  filedBy User @relation("ReportFiler", fields: [filedById], references: [id], onDelete: Cascade)
+  against User @relation("ReportTarget", fields: [againstId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String
+  payload   Json
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  target    String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
