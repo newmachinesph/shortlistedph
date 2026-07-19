@@ -1,24 +1,20 @@
 import "server-only";
 import { db } from "./db";
 import { MODELS, embed, openai, toVectorLiteral } from "./openai";
-import { normalizeSkill } from "./resume";
+import {
+  composite,
+  scoreExperience,
+  scoreOverlap,
+  scoreRate,
+  scoreSkills,
+  type Dims,
+} from "./scoring";
+
+export type { Dims };
 
 export const SLATE_SIZE = 5;
 const CANDIDATE_POOL = 50;
 const REASONED = 8;
-
-/**
- * Deterministic weights. Every dimension shown in the UI actually counts —
- * the old platform computed four dimensions and multiplied them by zero.
- */
-const WEIGHTS = { skills: 0.45, experience: 0.2, rate: 0.2, overlap: 0.15 } as const;
-
-// Confirmed skills are backed by a mutual outcome confirmation; self-reported
-// claims are worth less precisely because anyone can type them.
-const CONFIRMED_SKILL_WEIGHT = 2;
-
-export type { Dims } from "./slate";
-import type { Dims } from "./slate";
 
 type Candidate = {
   id: string;
@@ -56,60 +52,6 @@ export function jdEmbedText(jd: Jd): string {
   ]
     .filter(Boolean)
     .join("\n");
-}
-
-export function scoreSkills(
-  required: string[],
-  candidateSkills: { normalizedName: string; confirmed: boolean }[],
-  similarity: number,
-): number {
-  if (required.length === 0) return Math.round(similarity * 100);
-
-  const owned = new Map(candidateSkills.map((s) => [s.normalizedName, s.confirmed]));
-  let earned = 0;
-  for (const req of required) {
-    const confirmed = owned.get(normalizeSkill(req));
-    if (confirmed === true) earned += CONFIRMED_SKILL_WEIGHT;
-    else if (confirmed === false) earned += 1;
-  }
-  const max = required.length * CONFIRMED_SKILL_WEIGHT;
-  const exact = earned / max;
-
-  // Embedding similarity catches synonyms exact matching misses ("QBO" vs "QuickBooks Online").
-  return Math.round(Math.min(1, exact * 0.75 + similarity * 0.25) * 100);
-}
-
-export function scoreRate(rate: number | null, min: number | null, max: number | null): number {
-  if (rate == null || min == null || max == null) return 60;
-  if (rate <= max && rate >= min) return 100;
-  if (rate < min) return 95; // under budget is a win for the employer, not a penalty
-  const overBy = (rate - max) / max;
-  if (overBy <= 0.15) return 70;
-  if (overBy <= 0.4) return 35;
-  return 0;
-}
-
-export function scoreOverlap(availability: string, committed: number, hoursNeeded: number | null): number {
-  const free = Math.max(0, 40 - committed);
-  if (availability === "booked") return 10;
-  if (!hoursNeeded) return availability === "open" ? 100 : 70;
-  if (free >= hoursNeeded) return 100;
-  return Math.round((free / hoursNeeded) * 100);
-}
-
-export function scoreExperience(years: number, confirmedEngagements: number): number {
-  const base = Math.min(1, years / 5) * 80;
-  const proof = Math.min(20, confirmedEngagements * 10);
-  return Math.round(base + proof);
-}
-
-export function composite(d: Dims): number {
-  return Math.round(
-    d.skills * WEIGHTS.skills +
-      d.experience * WEIGHTS.experience +
-      d.rate * WEIGHTS.rate +
-      d.overlap * WEIGHTS.overlap,
-  );
 }
 
 /**

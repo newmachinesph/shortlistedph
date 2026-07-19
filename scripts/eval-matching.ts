@@ -19,7 +19,7 @@ import {
   scoreOverlap,
   scoreRate,
   scoreSkills,
-} from "../src/lib/matching.ts";
+} from "../src/lib/scoring.ts";
 
 config({ path: ".env.local", override: true });
 
