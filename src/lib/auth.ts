@@ -4,6 +4,17 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { db } from "./db";
 
+const googleId = process.env.GOOGLE_CLIENT_ID;
+const googleSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+/**
+ * Vercel won't store an empty env var, so optional keys arrive as undefined.
+ * Registering a provider with undefined credentials can break sign-in
+ * entirely — including email/password — so it's registered only when both
+ * halves are actually present.
+ */
+export const isGoogleEnabled = Boolean(googleId && googleSecret);
+
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
@@ -12,12 +23,9 @@ export const auth = betterAuth({
     enabled: true,
     minPasswordLength: 8,
   },
-  socialProviders: {
-    google: {
-      clientId: process.env.GOOGLE_CLIENT_ID as string,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-    },
-  },
+  socialProviders: isGoogleEnabled
+    ? { google: { clientId: googleId!, clientSecret: googleSecret! } }
+    : {},
   user: {
     additionalFields: {
       // Set server-side after signup (see /api/onboarding/role); never client input.
