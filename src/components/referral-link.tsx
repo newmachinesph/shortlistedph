@@ -24,7 +24,16 @@ function CopyButton({ value, label = "Copy" }: { value: string; label?: string }
   );
 }
 
-export function ReferralLink({ code, base }: { code: string; base: string }) {
+export function ReferralLink({
+  code,
+  base,
+  /** Pre-formatted server-side — REFERRAL_REWARD lives in a server-only module. */
+  bounty,
+}: {
+  code: string;
+  base: string;
+  bounty: string;
+}) {
   const router = useRouter();
   const [draft, setDraft] = useState(code);
   const [saving, setSaving] = useState(false);
@@ -51,7 +60,13 @@ export function ReferralLink({ code, base }: { code: string; base: string }) {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-sm font-medium uppercase tracking-wider text-ink-faint">Your link</p>
+        <p className="text-sm font-medium uppercase tracking-wider text-ink-faint">
+          Your link
+        </p>
+        <p className="mt-1 text-xs text-ink-faint">
+          Send this to a company that needs to hire. {bounty} when they buy their first shortlist,
+          once per company. Referring a jobseeker earns nothing.
+        </p>
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-paper px-4 py-3">
           <span className="min-w-0 flex-1 truncate text-sm text-ink">{link}</span>
           <CopyButton value={link} />
@@ -92,7 +107,8 @@ export function ReferralLink({ code, base }: { code: string; base: string }) {
           Campaign link
         </label>
         <p className="mt-1 text-xs text-ink-faint">
-          Tag a link to see which post or group it came from. One code, separate numbers.
+          Tag a link to see which post or group the companies came from. One code, separate
+          numbers.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <input

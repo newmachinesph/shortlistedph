@@ -13,7 +13,7 @@ import {
   LifeBuoy,
   Scale,
   Bell,
-  Wallet,
+  Gift,
   CreditCard,
   User,
   LogOut,
@@ -36,6 +36,7 @@ const employerNav: NavItem[] = [
   { label: "Legal", icon: Scale, href: "/employer/legal" },
   { label: "Notifications", icon: Bell, href: "/employer/notifications" },
   { label: "Billing", icon: CreditCard, href: "/employer/billing" },
+  { label: "Referrals", icon: Gift, href: "/referrals" },
   { label: "Profile", icon: User, href: "/employer/profile" },
 ];
 
@@ -49,7 +50,7 @@ const talentNav: NavItem[] = [
   { label: "Support", icon: LifeBuoy, href: "/talent/support" },
   { label: "Legal", icon: Scale, href: "/talent/legal" },
   { label: "Notifications", icon: Bell, href: "/talent/notifications" },
-  { label: "Payouts", icon: Wallet, href: "/talent/payouts" },
+  { label: "Referrals", icon: Gift, href: "/referrals" },
   { label: "Profile", icon: User, href: "/talent/profile" },
 ];
 

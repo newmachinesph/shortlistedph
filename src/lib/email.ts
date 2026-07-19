@@ -30,9 +30,36 @@ function resend(): Resend | null {
   return client;
 }
 
-async function send(to: string, subject: string, react: ReactElement): Promise<boolean> {
+/**
+ * Two sending identities, for deliverability rather than tidiness.
+ *
+ * Affiliate mail behaves like marketing — ignored, sometimes marked spam.
+ * Password resets and receipts have to reach the inbox. Sharing one sending
+ * reputation means program complaints eventually bury the auth mail, and the
+ * user-visible symptom is "I never got the reset email".
+ *
+ * Worth knowing: a different From on the SAME domain shares reputation.
+ * EMAIL_FROM_PROGRAM only buys isolation if it is on a separately verified
+ * subdomain. Unset, it falls back to the transactional sender — same
+ * behaviour as before, no isolation.
+ */
+type Stream = "transactional" | "program";
+
+function sender(stream: Stream): string | undefined {
+  if (stream === "program") {
+    return process.env.EMAIL_FROM_PROGRAM || process.env.EMAIL_FROM;
+  }
+  return process.env.EMAIL_FROM;
+}
+
+async function send(
+  to: string,
+  subject: string,
+  react: ReactElement,
+  stream: Stream = "transactional",
+): Promise<boolean> {
   const api = resend();
-  const from = process.env.EMAIL_FROM;
+  const from = sender(stream);
 
   if (!api || !from) {
     // Local dev without keys: say so once, out loud, rather than pretending
@@ -86,13 +113,20 @@ export const mail = {
     },
   ) => send(to, "Your shortlisted.ph receipt", PaymentReceipt(args)),
 
+  // Affiliate program mail rides the program sender — see Stream above.
   referralConverted: (
     to: string,
     args: { name: string; referredName: string; code: string },
-  ) => send(to, `${args.referredName} signed up through your link`, ReferralConverted(args)),
+  ) =>
+    send(
+      to,
+      `${args.referredName} signed up through your link`,
+      ReferralConverted(args),
+      "program",
+    ),
 
   payoutSent: (
     to: string,
     args: { name: string; amount: number; method: string; reference: string },
-  ) => send(to, "Your referral payout is on its way", PayoutSent(args)),
+  ) => send(to, "Your referral payout is on its way", PayoutSent(args), "program"),
 };
