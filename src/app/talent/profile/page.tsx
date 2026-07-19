@@ -105,7 +105,7 @@ export default async function TalentProfilePage() {
           <ul className="mt-4 space-y-3 text-sm">
             <li className="flex items-center gap-2.5 text-ink-faint">
               <span className="h-4 w-4 rounded-full border border-line" />
-              <span>Identity verification — optional, ₱60 at cost</span>
+              <span>Identity verification: optional, ₱60 at cost</span>
             </li>
             <li className="flex items-center gap-2.5 text-ink-faint">
               <span className="h-4 w-4 rounded-full border border-line" />

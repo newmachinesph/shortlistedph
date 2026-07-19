@@ -58,17 +58,18 @@ export default function ForTalentPage() {
               <BadgeCheck className="h-3.5 w-3.5" /> Optional
             </span>
             <h2 className="font-display mt-4 text-3xl font-semibold tracking-tight text-ink">
-              Verifying your identity puts you ahead
+              Prove you&rsquo;re you, if you want to
             </h2>
             <p className="mt-4 max-w-xl leading-relaxed text-ink-soft">
               Employers hiring across an ocean carry one fear above all others: that the person
               they interviewed isn&rsquo;t the person who turns up on Monday. A verified profile
-              answers that before they ask, and our matching engine ranks verified people higher
-              when the fit is otherwise close.
+              answers that before they have to ask, which tends to make the first conversation
+              shorter and warmer.
             </p>
             <p className="mt-4 max-w-xl leading-relaxed text-ink-soft">
-              It costs ₱60, which is what the check itself costs; we take nothing on top. You can
-              skip it and still get shortlisted, still get hired. Plenty of people do.
+              Skipping it costs you nothing structural. Unverified people get shortlisted and
+              hired here every bit as much, because ranking runs on evidence of work rather than
+              on a badge.
             </p>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
@@ -85,8 +86,9 @@ export default function ForTalentPage() {
                 <Wallet className="h-5 w-5 text-brand" strokeWidth={1.75} />
                 <h3 className="mt-3 font-medium text-ink">₱60, at cost</h3>
                 <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
-                  Paid once by QR Ph from GCash, Maya or any bank app. It buys the check, not a
-                  place on any list, and it is the only money we will ever ask you for.
+                  Paid once by QR Ph from GCash, Maya or any bank app. That is what the check
+                  costs and we keep none of it. It pays for the check itself; it does not buy a
+                  position, a placement, or a job.
                 </p>
               </div>
             </div>
