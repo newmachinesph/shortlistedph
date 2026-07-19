@@ -102,7 +102,21 @@ Notes for whoever continues:
 - Matching runs inline on publish. Move to a queue before the pool outgrows the request timeout.
 - Frontend pages still render mock data from `src/data/` — wiring them to these endpoints is the next task.
 
-**Remaining: P3 (payments/webhooks/Didit), P4 (relationship layer), P5 (migration + launch).**
+**P2.5 — data migrated.** 785 profiles from remotetalentph (of 1,254; the rest had neither headline nor skills), 11,318 skills, 2,911 engagements, all embedded, all **unpublished** pending the consent email. 125 implausible hourly rates dropped (source max was 50,000/hr). Scripts in `scripts/`.
+
+Matching was then evaluated against the real pool and three defects fixed: requirement-vs-tag phrasing mismatch, a flat under-budget bonus that let a $4/hr candidate outrank better matches, and slates padding to five seats with unqualified people. See `scripts/eval-matching.ts` — re-run it after any scoring change.
+
+**P3 — payments: BUILT BUT UNTESTED.** No live provider call has ever been made. Verified locally: all payment routes 401 unauthenticated, and forged webhooks (unsigned, claiming a completed capture) are rejected 401 with zero rows written. Both verifiers fail closed when their secret is missing.
+
+Before taking real money, verify in sandbox:
+- PayPal: order create → approve → capture returns `COMPLETED`; webhook signature verification returns `SUCCESS`; a capture arriving twice (capture route + webhook) credits **once**.
+- PayMongo: `payment_intents` + `qrph` method returns a scannable code in `next_action`; a real delivery passes `verifySignature`; `qr.expired` arrives for an unpaid code.
+- Confirm PayPal actually echoes `purchase_units[0].reference_id` on `PAYMENT.CAPTURE.COMPLETED` — the webhook resolves the buyer from it and falls back to `custom_id`/`invoice_id`. If none are present the delivery is logged and ignored rather than guessed at.
+- Webhooks can only be registered once a public URL exists; both providers validate the endpoint at registration time.
+
+Still stubbed: Didit (paying only creates the IdentityBinding row — the badge must come from Didit confirming identity, never from payment) and the $249/mo subscription tier.
+
+**Remaining: P4 (relationship layer), P5 (consent email + launch).**
 
 ## Phases — each ships behind `npm run build` green + one E2E happy path
 

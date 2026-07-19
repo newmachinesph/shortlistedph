@@ -1,85 +1,131 @@
-import { Receipt } from "lucide-react";
+import { db } from "@/lib/db";
+import { employerOrOnboard, requirePageUser } from "@/lib/queries";
+import { PRODUCTS } from "@/lib/payments";
+import { BuyButton } from "./buy-button";
+import { CaptureOnReturn } from "./capture-on-return";
 
-const plans = [
-  { name: "Single unlock", price: "$49", note: "one shortlist", cta: "Buy credit", popular: false },
-  { name: "Three-pack", price: "$119", note: "three shortlists", cta: "Buy credits", popular: true },
-  { name: "Hiring desk", price: "$249/mo", note: "unlimited shortlists", cta: "Subscribe", popular: false },
-];
+export default async function BillingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ paid?: string; cancelled?: string }>;
+}) {
+  const { paid, cancelled } = await searchParams;
+  const user = await requirePageUser("employer");
+  const employer = await employerOrOnboard(user.id);
 
-const invoices = [
-  { date: "Jul 18", desc: "Unlock — Medical VA slate", amount: "$49", status: "Paid" },
-  { date: "Jul 12", desc: "Three-pack", amount: "$119", status: "Paid" },
-];
+  const payments = await db.payment.findMany({
+    where: { userId: user.id },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+  });
 
-export default function EmployerBillingPage() {
+  const spent = payments
+    .filter((p) => p.status === "paid")
+    .reduce((sum, p) => sum + p.amount, 0);
+
   return (
     <>
       <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Billing</h1>
       <p className="mt-1 text-sm text-ink-soft">
-        You only ever pay shortlisted.ph for shortlists — never a cut of what you pay talent.
+        You pay for shortlists only — never a percentage of anyone&rsquo;s salary.
       </p>
 
-      <div className="mt-7 rounded-2xl border border-line bg-white p-6">
-        <p className="text-sm text-ink-faint">Balance</p>
-        <p className="font-display mt-1 text-3xl font-semibold text-ink">2 shortlist credits</p>
-        <p className="mt-1 text-sm text-ink-soft">Never expire.</p>
+      <div className="mt-7">
+        <CaptureOnReturn shouldCapture={paid === "1"} />
       </div>
 
-      <div className="mt-5 grid gap-4 sm:grid-cols-3">
-        {plans.map((p) => (
-          <div key={p.name} className="relative rounded-2xl border border-line bg-white p-5">
-            {p.popular && (
-              <span className="absolute -top-2.5 right-5 rounded-full bg-ember-soft px-2.5 py-0.5 text-[11px] font-medium text-ember">
-                Popular
-              </span>
-            )}
-            <p className="text-sm font-medium text-ink">{p.name}</p>
-            <p className="font-display mt-1.5 text-2xl font-semibold text-ink">{p.price}</p>
-            <p className="mt-0.5 text-xs text-ink-faint">{p.note}</p>
-            <button
-              className={
-                p.popular
-                  ? "mt-4 w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
-                  : "mt-4 w-full rounded-xl px-4 py-2.5 text-sm font-medium text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft"
-              }
-            >
-              {p.cta}
-            </button>
-          </div>
-        ))}
+      {cancelled === "1" && (
+        <div className="mb-5 rounded-2xl bg-paper px-5 py-4 text-sm text-ink-soft">
+          Checkout cancelled — nothing was charged.
+        </div>
+      )}
+
+      <div className="rounded-2xl border border-line bg-white p-6">
+        <p className="text-xs text-ink-faint">Shortlist credits</p>
+        <p className="font-display mt-1.5 text-4xl font-semibold text-brand">{employer.credits}</p>
+        <p className="mt-1 text-sm text-ink-soft">
+          {employer.credits === 0
+            ? "Previewing a slate is always free — a credit unlocks names and connections."
+            : "Credits never expire."}
+        </p>
       </div>
 
-      <h2 className="mt-9 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
-        Invoice history
+      <h2 className="mt-8 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
+        Buy credits
       </h2>
-      <div className="rounded-2xl border border-line bg-white">
-        {invoices.map((inv, i) => (
-          <div
-            key={inv.date + inv.desc}
-            className={`flex flex-wrap items-center justify-between gap-3 px-6 py-4 ${
-              i < invoices.length - 1 ? "border-b border-line" : ""
-            }`}
-          >
-            <div>
-              <p className="text-sm font-medium text-ink">{inv.desc}</p>
-              <p className="text-xs text-ink-faint">
-                {inv.date} · {inv.amount}
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="rounded-full bg-brand-soft px-2.5 py-1 text-[11px] font-medium text-brand">
-                {inv.status}
-              </span>
-              <button className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-medium text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft">
-                <Receipt className="h-3.5 w-3.5" /> Receipt
-              </button>
-            </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-2xl border border-line bg-white p-6">
+          <h3 className="font-medium text-ink">{PRODUCTS.single.label}</h3>
+          <p className="font-display mt-2 text-3xl font-semibold text-ink">
+            ${PRODUCTS.single.amount}
+          </p>
+          <p className="mt-1 mb-5 text-sm text-ink-soft">1 credit</p>
+          <BuyButton productId="single" label="Buy 1 credit" variant="ghost" />
+        </div>
+        <div className="rounded-2xl border-2 border-brand bg-white p-6">
+          <div className="flex items-center gap-2">
+            <h3 className="font-medium text-ink">{PRODUCTS.three_pack.label}</h3>
+            <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand">
+              best value
+            </span>
           </div>
-        ))}
+          <p className="font-display mt-2 text-3xl font-semibold text-ink">
+            ${PRODUCTS.three_pack.amount}
+          </p>
+          <p className="mt-1 mb-5 text-sm text-ink-soft">3 credits · $39.67 each</p>
+          <BuyButton productId="three_pack" label="Buy 3 credits" />
+        </div>
       </div>
 
-      <p className="mt-8 text-xs text-ink-faint">
-        You pay for shortlists only — never a percentage of salary.
+      <h2 className="mt-8 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
+        Payment history
+      </h2>
+      {payments.length === 0 ? (
+        <div className="rounded-2xl border border-line bg-white p-8 text-center">
+          <p className="text-sm text-ink-soft">No payments yet.</p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-line bg-white">
+          {payments.map((p, i) => (
+            <div
+              key={p.id}
+              className={`flex flex-wrap items-center justify-between gap-3 px-6 py-4 ${
+                i < payments.length - 1 ? "border-b border-line" : ""
+              }`}
+            >
+              <div>
+                <p className="text-sm font-medium text-ink">
+                  {PRODUCTS[p.purpose as keyof typeof PRODUCTS]?.label ?? p.purpose}
+                </p>
+                <p className="text-xs text-ink-faint">
+                  {p.createdAt.toISOString().slice(0, 10)} · {p.provider}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-ink">
+                  {p.currency === "USD" ? "$" : "₱"}
+                  {p.amount.toFixed(2)}
+                </span>
+                <span
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
+                    p.status === "paid"
+                      ? "bg-brand-soft text-brand"
+                      : p.status === "refunded"
+                        ? "border border-line text-ink-faint"
+                        : "bg-ember-soft text-ember"
+                  }`}
+                >
+                  {p.status}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <p className="mt-6 text-xs leading-relaxed text-ink-faint">
+        Total spent: ${spent.toFixed(2)}. shortlisted.ph never holds or takes a cut of wages — you
+        pay your hires directly.
       </p>
     </>
   );
