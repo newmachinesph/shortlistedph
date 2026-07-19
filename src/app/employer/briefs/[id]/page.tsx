@@ -75,7 +75,7 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
                   connection requests for $49.
                 </p>
               </div>
-              <UnlockButton slateId={slate.slateId} />
+              <UnlockButton slateId={slate.slateId} credits={employer.credits} />
             </div>
           )}
 
