@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "./db";
 import { MODELS, embed, openai, toVectorLiteral } from "./openai";
 import {
+  MIN_SLATE_SCORE,
   composite,
   scoreExperience,
   scoreOverlap,
@@ -103,7 +104,10 @@ export async function buildSlate(jdId: string) {
       const cSkills = skillsBy.get(c.id) ?? [];
       const cEng = engBy.get(c.id) ?? [];
       const dims: Dims = {
-        skills: scoreSkills(jd.mustHaves, cSkills, c.similarity),
+        skills: scoreSkills(jd.mustHaves, cSkills, c.similarity, {
+          headline: c.headline,
+          roles: cEng.map((e) => e.role),
+        }),
         rate: scoreRate(c.rateUsd, jd.budgetMin, jd.budgetMax),
         overlap: scoreOverlap(c.availability, c.committedHours, jd.hoursPerWeek),
         experience: scoreExperience(c.yearsExperience, cEng.filter((e) => e.outcome === "confirmed").length),
@@ -111,6 +115,7 @@ export async function buildSlate(jdId: string) {
       return { c, dims, score: composite(dims), skills: cSkills, engagements: cEng };
     })
     .sort((a, b) => b.score - a.score)
+    .filter((r) => r.score >= MIN_SLATE_SCORE)
     .slice(0, REASONED);
 
   const top = ranked.slice(0, SLATE_SIZE);
