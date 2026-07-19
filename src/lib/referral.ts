@@ -3,21 +3,24 @@ import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { db } from "./db";
 import { mail } from "./email";
+import { PRODUCTS, type ProductId } from "./payments";
 import { HttpError } from "./session";
 
 /**
  * The whole reward rule, in one place.
  *
- * A referred employer's first cleared purchase pays the referrer 20% of it,
- * with no cap.
+ * A flat bounty per referred company, paid once on their first qualifying
+ * purchase. It deliberately does NOT scale with what they spend — a $119
+ * three-pack pays exactly the same as a $49 single — so the reward is a fixed
+ * cost per acquisition rather than a share of revenue.
  *
- * The reward is held in the SAME currency the purchase cleared in — PayPal
- * settles USD, PayMongo settles PHP, and there is no FX rate anywhere in this
- * codebase. Converting here would mean inventing one, so earnings are reported
- * per currency and the operator picks the real rate at payout time.
+ * The bounty is denominated in USD because that is what the credits products
+ * sell in. Payouts are PHP and settled by hand; there is no FX rate anywhere
+ * in this codebase and none is invented here.
  */
 export const REFERRAL_REWARD = {
-  rate: 0.2,
+  amount: 9.99,
+  currency: "USD" as const,
   /** Payouts are always PHP — settlement is manual. */
   payoutCurrency: "PHP" as const,
   /** Applies to the PHP-converted total the operator computes at payout time. */
@@ -190,28 +193,47 @@ export function refCookieValue(code: string, source?: string) {
 }
 
 /**
- * Flips a signed_up conversion to qualified once the referred user pays.
- * Idempotent — a replayed webhook must not double the reward.
+ * Flips a signed_up conversion to qualified once a referred COMPANY pays for
+ * shortlist credits. Idempotent — a replayed webhook must not double a reward.
  *
- * Takes the payment's own currency and stores the reward in it. Employer
- * purchases clear through PayPal in USD, so rejecting non-PHP here would make
- * the primary referral case unreachable — and because the caller runs this
- * post-commit inside a try/catch, it would fail silently and no affiliate
- * would ever be credited. No conversion happens here by design.
+ * Two gates, because getting either wrong spends money that does not exist:
+ *
+ * 1. Only `kind: "credits"` products earn. The talent verification fee is
+ *    billed at cost and we keep none of it, so paying commission on it would
+ *    come straight out of nothing. A referred jobseeker earns the affiliate
+ *    zero.
+ * 2. The payer must actually hold an EmployerAccount. Belt and braces: if a
+ *    future non-credits product is ever sold to talent, or a credits product
+ *    to a non-employer, this stops commissions starting silently.
+ *
+ * A referral that does not qualify stays at `signed_up`, not `void` — it is a
+ * real signup that simply does not earn.
+ *
+ * The payment's own amount and currency are deliberately not parameters: the
+ * bounty is flat, so taking them would invite someone to start multiplying by
+ * them again.
  */
 export async function qualifyConversion(
   userId: string,
-  { paymentId, amount, currency }: { paymentId: string; amount: number; currency?: string },
+  { paymentId, productId }: { paymentId: string; productId: ProductId },
 ) {
+  if (PRODUCTS[productId].kind !== "credits") return null;
+
   const conversion = await db.referralConversion.findUnique({ where: { userId } });
   if (!conversion || conversion.status !== "signed_up") return null;
+
+  const employer = await db.employerAccount.findUnique({
+    where: { userId },
+    select: { id: true },
+  });
+  if (!employer) return null;
 
   return db.referralConversion.update({
     where: { userId },
     data: {
       status: "qualified",
-      rewardAmount: Math.round(amount * REFERRAL_REWARD.rate * 100) / 100,
-      currency: currency ?? REFERRAL_REWARD.payoutCurrency,
+      rewardAmount: REFERRAL_REWARD.amount,
+      currency: REFERRAL_REWARD.currency,
       paymentId,
       qualifiedAt: new Date(),
     },
@@ -226,7 +248,8 @@ export type EarnedByCurrency = { currency: string; amount: number }[];
 const EMPTY_STATS = {
   code: null,
   clicks: 0,
-  signups: 0,
+  companies: 0,
+  otherSignups: 0,
   qualified: 0,
   earned: [] as EarnedByCurrency,
   paidPhp: 0,
@@ -234,6 +257,7 @@ const EMPTY_STATS = {
   activity: [] as {
     id: string;
     name: string;
+    isCompany: boolean;
     status: string;
     source: string | null;
     reward: number | null;
@@ -247,9 +271,13 @@ export async function getAffiliateStats(userId: string) {
   const referral = await db.referral.findUnique({ where: { userId } });
   if (!referral) return EMPTY_STATS;
 
-  const [clicks, signups, byCurrency, activity, payouts] = await Promise.all([
+  const live = { referralId: referral.id, NOT: { status: "void" } };
+  const [clicks, companies, otherSignups, byCurrency, activity, payouts] = await Promise.all([
     db.referralClick.count({ where: { referralId: referral.id } }),
-    db.referralConversion.count({ where: { referralId: referral.id, NOT: { status: "void" } } }),
+    // Only companies can ever earn, so the two are counted apart. A single
+    // "signups" number next to zero earnings reads as broken tracking.
+    db.referralConversion.count({ where: { ...live, user: { employer: { isNot: null } } } }),
+    db.referralConversion.count({ where: { ...live, user: { employer: { is: null } } } }),
     // Aggregated in the database — the activity list below is capped at 25, so
     // summing money off that slice would under-report anyone popular.
     db.referralConversion.groupBy({
@@ -262,7 +290,9 @@ export async function getAffiliateStats(userId: string) {
       where: { referralId: referral.id },
       orderBy: { createdAt: "desc" },
       take: 25,
-      include: { user: { select: { name: true } } },
+      include: {
+        user: { select: { name: true, employer: { select: { companyName: true } } } },
+      },
     }),
     db.referralPayout.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
   ]);
@@ -292,14 +322,17 @@ export async function getAffiliateStats(userId: string) {
   return {
     code: referral.code,
     clicks,
-    signups,
+    companies,
+    otherSignups,
     qualified: byCurrency.reduce((n, g) => n + g._count._all, 0),
     earned,
     paidPhp,
     unpaidPhp,
     activity: activity.map((c) => ({
       id: c.id,
-      name: c.user.name,
+      // Show the company, not the person who signed up for it.
+      name: c.user.employer?.companyName ?? c.user.name,
+      isCompany: c.user.employer !== null,
       status: c.status,
       source: c.source,
       reward: c.rewardAmount,
@@ -308,4 +341,162 @@ export async function getAffiliateStats(userId: string) {
     })),
     payouts,
   };
+}
+
+// ─── Self-referral signals (operator hints, never a verdict) ──────────────
+
+export type RiskFlag = { code: string; label: string; detail: string };
+
+/**
+ * Free providers where two accounts sharing a domain means nothing. A
+ * corporate domain shared between affiliate and referred company does mean
+ * something, so those still flag.
+ */
+const FREE_EMAIL_DOMAINS = new Set([
+  "gmail.com", "googlemail.com", "yahoo.com", "ymail.com", "outlook.com",
+  "hotmail.com", "live.com", "msn.com", "icloud.com", "me.com",
+  "proton.me", "protonmail.com", "aol.com", "gmx.com", "zoho.com",
+]);
+
+/**
+ * Collapses the aliases one person uses to run two accounts:
+ * lowercase, drop everything from "+" in the local part, and strip dots.
+ *
+ * a.n.dres+work@gmail.com and andres@gmail.com both become andres@gmail.com.
+ * Dot-stripping is a Gmail rule that not every provider shares, so this
+ * deliberately over-matches — it produces a hint for a human, never a block.
+ */
+export function normaliseEmail(email: string): string {
+  const [localRaw = "", domain = ""] = email.trim().toLowerCase().split("@");
+  return `${localRaw.split("+")[0].replace(/\./g, "")}@${domain}`;
+}
+
+const MINUTE = 60_000;
+
+/**
+ * Same-person hints for every qualified conversion, keyed by affiliate userId.
+ *
+ * Affiliates register a second account rather than being granted a role, so
+ * self-referral costs nothing but a spare email. Manual payout approval is the
+ * only control, which means the operator has to be shown where to look.
+ *
+ * These are hints. An empty list means nothing was cheap to detect, NOT that
+ * the payout was verified — the UI must say so.
+ *
+ * ponytail: loads every qualified conversion in one pass, same as the admin
+ * page already does. Fine at current volume; page it when the table is slow.
+ */
+export async function getSelfReferralSignals(): Promise<Map<string, RiskFlag[]>> {
+  const conversions = await db.referralConversion.findMany({
+    where: { status: "qualified" },
+    select: {
+      referralId: true,
+      createdAt: true,
+      qualifiedAt: true,
+      user: { select: { id: true, email: true } },
+      referral: { select: { userId: true, user: { select: { email: true } } } },
+    },
+  });
+  if (conversions.length === 0) return new Map();
+
+  const userIds = [
+    ...new Set(conversions.flatMap((c) => [c.user.id, c.referral.userId])),
+  ];
+  const [sessions, clicks] = await Promise.all([
+    db.session.findMany({
+      where: { userId: { in: userIds }, NOT: { ipAddress: null } },
+      select: { userId: true, ipAddress: true },
+    }),
+    db.referralClick.findMany({
+      where: { referralId: { in: [...new Set(conversions.map((c) => c.referralId))] } },
+      select: { referralId: true, ipHash: true, createdAt: true },
+    }),
+  ]);
+
+  const ipsByUser = new Map<string, Set<string>>();
+  for (const s of sessions) {
+    if (!s.ipAddress) continue;
+    const set = ipsByUser.get(s.userId) ?? new Set<string>();
+    set.add(s.ipAddress);
+    ipsByUser.set(s.userId, set);
+  }
+
+  const out = new Map<string, RiskFlag[]>();
+
+  for (const c of conversions) {
+    const flags: RiskFlag[] = [];
+    const affiliateEmail = c.referral.user.email;
+    const referredEmail = c.user.email;
+
+    if (normaliseEmail(affiliateEmail) === normaliseEmail(referredEmail)) {
+      flags.push({
+        code: "same_email",
+        label: "same email",
+        detail:
+          "Both accounts normalise to one address once dots and +aliases are removed. Almost certainly one person.",
+      });
+    } else {
+      const domain = referredEmail.split("@")[1]?.toLowerCase() ?? "";
+      if (
+        domain &&
+        domain === affiliateEmail.split("@")[1]?.toLowerCase() &&
+        !FREE_EMAIL_DOMAINS.has(domain)
+      ) {
+        flags.push({
+          code: "same_domain",
+          label: "same domain",
+          detail: `Both accounts use @${domain}. Could be genuine colleagues — confirm they are different people.`,
+        });
+      }
+    }
+
+    // Session IPs are stored raw, so affiliate and referred user can be
+    // compared directly. This is the signal that matters: a click sharing an
+    // ipHash with the REFERRED user is expected by construction — that is just
+    // the referred person clicking the link they were sent.
+    const affiliateIps = ipsByUser.get(c.referral.userId);
+    const referredIps = ipsByUser.get(c.user.id);
+    if (affiliateIps && referredIps && [...referredIps].some((ip) => affiliateIps.has(ip))) {
+      flags.push({
+        code: "shared_ip",
+        label: "shared IP",
+        detail:
+          "Affiliate and referred account have signed in from the same address. Common on one office network, expected if it is one person on one machine.",
+      });
+    }
+
+    // Clicks are not tied to a user, so the best available link to signup is
+    // the most recent click on this referral before the conversion existed.
+    const priorClicks = clicks
+      .filter((k) => k.referralId === c.referralId && k.createdAt <= c.createdAt)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    const lastClick = priorClicks[0];
+    if (lastClick && c.createdAt.getTime() - lastClick.createdAt.getTime() < 2 * MINUTE) {
+      flags.push({
+        code: "instant_signup",
+        label: "instant signup",
+        detail:
+          "Signed up within two minutes of the link being clicked — no time spent reading the site.",
+      });
+    }
+
+    if (c.qualifiedAt && c.qualifiedAt.getTime() - c.createdAt.getTime() < 60 * MINUTE) {
+      flags.push({
+        code: "instant_purchase",
+        label: "bought within the hour",
+        detail:
+          "Registered and paid inside an hour. Real buyers usually post a job description first.",
+      });
+    }
+
+    if (flags.length === 0) continue;
+    const existing = out.get(c.referral.userId) ?? [];
+    // One row per affiliate, so the same flag from two conversions collapses.
+    for (const f of flags) {
+      if (!existing.some((e) => e.code === f.code)) existing.push(f);
+    }
+    out.set(c.referral.userId, existing);
+  }
+
+  return out;
 }

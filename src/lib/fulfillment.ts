@@ -124,12 +124,15 @@ async function afterFulfillment(input: {
       }),
     });
 
-    // A referred user's first real payment is what turns a signup into a
-    // payable referral.
+    // Only an employer's first credit purchase turns a signup into a payable
+    // referral. productId is passed so referral.ts can enforce that: the
+    // talent verification fee is billed at cost and we keep none of it, so
+    // commissioning it would pay out of money that was never ours.
+    // Flat bounty, so the payment's amount and currency are irrelevant here —
+    // only which product it was and who bought it.
     await qualifyConversion(input.userId, {
       paymentId: input.providerRef,
-      amount: input.amount,
-      currency: input.currency,
+      productId: input.productId,
     });
   } catch (e) {
     console.error("[fulfillment] post-commit side effects failed", e);
