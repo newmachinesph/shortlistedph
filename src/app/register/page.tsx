@@ -87,7 +87,7 @@ export default function RegisterPage() {
             </span>
             <span className="mt-4 block font-medium text-ink">I&rsquo;m talent</span>
             <span className="mt-1 block text-sm leading-relaxed text-ink-soft">
-              Upload your resume once. Get shortlisted while you sleep. Free forever.
+              Upload your resume once and get shortlisted while you sleep. Free forever.
             </span>
           </button>
         </div>

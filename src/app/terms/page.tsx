@@ -7,11 +7,11 @@ export const metadata: Metadata = { title: "Terms of Service — shortlisted.ph"
 const sections: [string, string][] = [
   [
     "What shortlisted.ph is",
-    "shortlisted.ph is a sourcing platform. Employers post hidden job descriptions; we match and rank talent profiles and deliver shortlists. We are not an employer, staffing agency, or payroll provider — employment relationships, contracts, and salary payments happen directly between employers and talent.",
+    "shortlisted.ph is a sourcing platform. Employers post hidden job descriptions; we match and rank talent profiles and deliver shortlists. We are not an employer, staffing agency, or payroll provider. Employment relationships, contracts, and salary payments happen directly between employers and talent.",
   ],
   [
     "Money",
-    "Employers pay per shortlist. Talent never pays anything — no listing, matching, or placement fees. We never hold, transfer, or take a percentage of salaries.",
+    "Employers pay per shortlist. Talent never pays to be listed, matched, or hired. Optional identity verification costs ₱60, which is what the check costs us. We never hold, transfer, or take a percentage of salaries.",
   ],
   [
     "Honesty",

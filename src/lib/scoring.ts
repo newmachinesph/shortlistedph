@@ -130,11 +130,21 @@ export function scoreExperience(years: number, confirmedEngagements: number): nu
  */
 export const MIN_SLATE_SCORE = 62;
 
-export function composite(d: Dims): number {
-  return Math.round(
+/**
+ * Verified identity is a tiebreaker, not a dimension.
+ *
+ * Kept small on purpose. A bigger bonus would let verification outrank a
+ * genuinely better match, which is both bad ranking and — because verification
+ * currently costs the worker money — the thing that turns an optional fee into
+ * a fee for placement. See docs/research/verification.md.
+ */
+export const VERIFIED_BONUS = 4;
+
+export function composite(d: Dims, isVerified = false): number {
+  const base =
     d.skills * WEIGHTS.skills +
-      d.experience * WEIGHTS.experience +
-      d.rate * WEIGHTS.rate +
-      d.overlap * WEIGHTS.overlap,
-  );
+    d.experience * WEIGHTS.experience +
+    d.rate * WEIGHTS.rate +
+    d.overlap * WEIGHTS.overlap;
+  return Math.min(100, Math.round(base + (isVerified ? VERIFIED_BONUS : 0)));
 }
