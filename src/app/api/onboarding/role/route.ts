@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
+import { mail } from "@/lib/email";
+import { claimAttributionFromCookie } from "@/lib/referral";
 import { HttpError, requireUser } from "@/lib/session";
 
 const Body = z.discriminatedUnion("role", [
@@ -44,6 +46,19 @@ export async function POST(req: Request) {
           },
         }),
       ]);
+    }
+
+    // Post-commit, best-effort, deliberately not inside the transaction.
+    // Attribution has to happen HERE: a referred employer never visits the
+    // talent surfaces that claim it lazily, so without this call employer
+    // referrals — the ones actually worth paying for — are never credited.
+    try {
+      await claimAttributionFromCookie(user.id);
+      if (body.role === "talent") {
+        await mail.welcomeTalent(user.email, user.name);
+      }
+    } catch (e) {
+      console.error("[onboarding] post-signup side effects failed", e);
     }
 
     return ok({ role: body.role });

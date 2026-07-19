@@ -1,19 +1,26 @@
-import { CheckCheck } from "lucide-react";
+import type { Metadata } from "next";
+import Link from "next/link";
+import { NOINDEX } from "@/lib/site";
+import { requirePageUser } from "@/lib/queries";
+import { listNotifications, relTime, renderNotification } from "@/lib/notify";
+import { MarkAllRead } from "@/components/notif-mark-all-read";
 
-const items: { title: string; when: string; unread: boolean }[] = [
-  {
-    title: "Slate ready for Senior React engineer, product team — free preview available",
-    when: "Today",
-    unread: true,
-  },
-  { title: "Agreement with Kristine Bautista was signed by both parties", when: "Jul 18", unread: false },
-  { title: "Receipt for $49 unlock — Medical VA slate", when: "Jul 18", unread: false },
-  { title: "Connection request sent to Louie Mendoza — awaiting his consent", when: "Jul 18", unread: false },
-  { title: "Reminder: rate your engagement with Jerome Dela Cruz", when: "Jul 17", unread: true },
-  { title: "Kristine Bautista accepted your connection request", when: "Jul 16", unread: false },
-];
+export const metadata: Metadata = { title: "Notifications", ...NOINDEX };
 
-export default function EmployerNotificationsPage() {
+export default async function EmployerNotificationsPage() {
+  const user = await requirePageUser("employer");
+  const { rows, unread } = await listNotifications(user.id);
+
+  // Formatted server-side: a relative time computed during client render would
+  // hydrate to a different string than the server sent.
+  const now = new Date();
+  const items = rows.map((n) => ({
+    id: n.id,
+    unread: n.readAt === null,
+    when: relTime(n.createdAt, now),
+    ...renderNotification(n.type, n.payload, "employer"),
+  }));
+
   return (
     <>
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -23,28 +30,43 @@ export default function EmployerNotificationsPage() {
             Everything that happened across your briefs, connections, and agreements.
           </p>
         </div>
-        <button className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft">
-          <CheckCheck className="h-4 w-4" /> Mark all read
-        </button>
+        <MarkAllRead unread={unread} icon />
       </div>
 
       <div className="mt-7 rounded-2xl border border-line bg-white">
-        {items.map((n, i) => (
-          <div
-            key={n.title}
-            className={`flex items-start gap-3 px-6 py-4 ${i < items.length - 1 ? "border-b border-line" : ""}`}
-          >
-            {n.unread ? (
-              <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand" />
+        {items.length === 0 ? (
+          <p className="px-6 py-12 text-center text-sm text-ink-soft">
+            Nothing yet. Post a brief and your shortlist, connection, and billing updates land here.
+          </p>
+        ) : (
+          items.map((n, i) => {
+            const row = (
+              <>
+                <span
+                  aria-hidden
+                  className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${n.unread ? "bg-brand" : "bg-transparent"}`}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className={n.unread ? "font-medium text-ink" : "text-ink-soft"}>{n.text}</p>
+                  <p className="mt-0.5 text-xs text-ink-faint">{n.when}</p>
+                </div>
+              </>
+            );
+            const className = `flex items-start gap-3 px-6 py-4 ${
+              i < items.length - 1 ? "border-b border-line" : ""
+            }`;
+
+            return n.href ? (
+              <Link key={n.id} href={n.href} className={`${className} transition-colors hover:bg-paper`}>
+                {row}
+              </Link>
             ) : (
-              <span className="mt-1.5 h-2 w-2 shrink-0" />
-            )}
-            <div className="min-w-0 flex-1">
-              <p className={n.unread ? "font-medium text-ink" : "text-ink-soft"}>{n.title}</p>
-              <p className="mt-0.5 text-xs text-ink-faint">{n.when}</p>
-            </div>
-          </div>
-        ))}
+              <div key={n.id} className={className}>
+                {row}
+              </div>
+            );
+          })
+        )}
       </div>
     </>
   );

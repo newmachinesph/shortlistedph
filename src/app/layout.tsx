@@ -1,7 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, SITE_URL } from "@/lib/site";
 import "./globals.css";
+
+// Only in a real deployment: `next dev` traffic would otherwise show up as
+// production pageviews, and NEXT_PUBLIC_GA_ID is inlined at build time, so an
+// unset id has to degrade to rendering nothing rather than "undefined".
+const gaId =
+  process.env.NODE_ENV === "production" ? process.env.NEXT_PUBLIC_GA_ID : undefined;
 
 const grotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-grotesk" });
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -64,6 +71,7 @@ export default function RootLayout({
   return (
     <html lang="en-PH" className={`${grotesk.variable} ${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">{children}</body>
+      {gaId ? <GoogleAnalytics gaId={gaId} /> : null}
     </html>
   );
 }

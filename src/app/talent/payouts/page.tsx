@@ -1,70 +1,200 @@
-import { Copy, Gift, Smartphone, Wallet } from "lucide-react";
+import type { Metadata } from "next";
+import { Gift } from "lucide-react";
+import { NOINDEX, SITE_URL } from "@/lib/site";
+import { requirePageUser } from "@/lib/queries";
+import {
+  REFERRAL_REWARD,
+  claimAttributionFromCookie,
+  getAffiliateStats,
+  getOrCreateReferral,
+} from "@/lib/referral";
+import { ReferralLink } from "@/components/referral-link";
 
-export default function TalentPayoutsPage() {
+export const metadata: Metadata = { title: "Referrals & earnings", ...NOINDEX };
+
+const peso = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
+
+/** Renders in whatever currency the payment actually cleared in. No FX here. */
+function money(amount: number, currency: string | null) {
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: currency ?? "PHP",
+  }).format(amount);
+}
+
+const statusChip: Record<string, string> = {
+  signed_up: "bg-paper text-ink-soft",
+  qualified: "bg-brand-soft text-brand",
+  void: "bg-line text-ink-soft",
+  pending: "bg-ember-soft text-ember",
+  paid: "bg-brand-soft text-brand",
+  rejected: "bg-line text-ink-soft",
+};
+
+const statusLabel: Record<string, string> = {
+  signed_up: "Signed up",
+  qualified: "Qualified",
+  void: "Void",
+};
+
+function date(d: Date) {
+  return d.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="rounded-2xl border border-line bg-white p-5">
+      <p className="text-xs font-medium uppercase tracking-wider text-ink-faint">{label}</p>
+      <p className="font-display mt-2 text-2xl font-semibold text-ink">{value}</p>
+      {sub && <p className="mt-1 text-xs text-ink-faint">{sub}</p>}
+    </div>
+  );
+}
+
+/** One tile per currency — totals are never added across them. */
+function Earnings({ earned }: { earned: { currency: string; amount: number }[] }) {
+  if (earned.length === 0) return <Stat label="Earned" value={peso.format(0)} />;
   return (
     <>
-      <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Referral earnings</h1>
+      {earned.map((e) => (
+        <Stat
+          key={e.currency}
+          label={`Earned (${e.currency})`}
+          value={money(e.amount, e.currency)}
+        />
+      ))}
+    </>
+  );
+}
+
+export default async function TalentPayoutsPage() {
+  const user = await requirePageUser("talent");
+  await claimAttributionFromCookie(user.id);
+  const referral = await getOrCreateReferral(user.id, user.name);
+  const stats = await getAffiliateStats(user.id);
+
+  return (
+    <>
+      <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">
+        Referrals &amp; earnings
+      </h1>
       <p className="mt-1 text-sm text-ink-soft">
         The only money that moves through shortlisted.ph — and it flows to you.
       </p>
 
       <section className="mt-7 rounded-2xl border border-line bg-white p-6">
         <div className="flex items-start gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-soft">
-            <Gift className="h-5 w-5 text-brand" />
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-soft">
+            <Gift className="h-5 w-5 text-brand" strokeWidth={1.75} />
           </span>
-          <p className="max-w-xl text-sm leading-relaxed text-ink-soft">
-            Refer an employer who hasn&rsquo;t used shortlisted.ph before. When
-            they buy their first shortlist, you earn 20% of that purchase —
-            paid to you, no cap.
-          </p>
+          <div className="max-w-xl text-sm leading-relaxed text-ink-soft">
+            <p>
+              Share your link with an employer who has never used shortlisted.ph. If they sign up
+              through it and buy their first shortlist, you earn{" "}
+              {Math.round(REFERRAL_REWARD.rate * 100)}% of that purchase. No cap, and no limit on
+              how many people you refer.
+            </p>
+            <ul className="mt-3 space-y-1 text-ink-faint">
+              <li>A person can only be referred once, by whoever they clicked first.</li>
+              <li>Referring yourself does not count.</li>
+              <li>
+                Payouts go out by GCash or bank transfer once your unpaid balance is worth{" "}
+                {peso.format(REFERRAL_REWARD.minPayout)} or more.
+              </li>
+            </ul>
+          </div>
         </div>
       </section>
 
-      <div className="mt-5 grid gap-5 lg:grid-cols-2">
-        <section className="rounded-2xl border border-line bg-white p-6">
-          <h2 className="text-sm font-medium uppercase tracking-wider text-ink-faint">Balance</h2>
-          <p className="font-display mt-3 text-3xl font-semibold text-ink">₱0.00</p>
-          <p className="mt-1 text-sm text-ink-soft">available</p>
-          <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-paper p-3.5">
-            <div>
-              <p className="text-sm font-medium text-ink">₱276 pending</p>
-              <p className="mt-0.5 text-xs text-ink-faint">
-                Dental practice owner you referred signed up Jul 14 — hasn&rsquo;t purchased yet.
-              </p>
-            </div>
-            <span className="shrink-0 rounded-full bg-ember-soft px-2.5 py-1 text-[11px] font-medium text-ember">
-              Pending
-            </span>
-          </div>
-        </section>
+      <section className="mt-5 rounded-2xl border border-line bg-white p-6">
+        <ReferralLink code={referral.code} base={SITE_URL} />
+      </section>
 
-        <section className="rounded-2xl border border-line bg-white p-6">
-          <h2 className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-ink-faint">
-            <Smartphone className="h-4 w-4" /> Payout method
-          </h2>
-          <div className="mt-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-paper">
-                <Wallet className="h-4 w-4 text-ink-faint" />
-              </span>
-              <span className="text-sm font-medium text-ink">GCash ····4821</span>
-            </div>
-            <button className="text-sm font-medium text-brand hover:underline">Change</button>
-          </div>
-          <p className="mt-4 text-xs text-ink-faint">Minimum payout ₱500</p>
-        </section>
+      <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="Clicks" value={String(stats.clicks)} />
+        <Stat label="Signups" value={String(stats.signups)} />
+        <Stat label="Qualified" value={String(stats.qualified)} />
+        <Earnings earned={stats.earned} />
+        <Stat label="Paid out" value={peso.format(stats.paidPhp)} />
+        <Stat
+          label="Unpaid"
+          value={stats.unpaidPhp === null ? "—" : peso.format(stats.unpaidPhp)}
+          sub={stats.unpaidPhp === null ? "Settled at payout" : undefined}
+        />
       </div>
 
-      <section className="mt-5 rounded-2xl border border-line bg-white p-6">
-        <h2 className="text-sm font-medium uppercase tracking-wider text-ink-faint">History</h2>
-        <div className="mt-6 flex flex-col items-center py-6 text-center">
-          <p className="text-sm text-ink-soft">No payouts yet — share your link</p>
-          <div className="mt-4 flex items-center gap-2 rounded-xl border border-line bg-paper px-4 py-2.5">
-            <span className="text-sm text-ink">shortlisted.ph/r/kristine-b</span>
-            <Copy className="h-3.5 w-3.5 text-ink-faint" />
+      <p className="mt-3 text-xs leading-relaxed text-ink-faint">
+        Earnings are held in the currency the employer paid in. Payouts are always sent in pesos —
+        anything earned in another currency is converted at the rate on the day it is paid, so the
+        peso amount you receive will not match the figure above exactly.
+      </p>
+
+      <section className="mt-5 overflow-hidden rounded-2xl border border-line bg-white">
+        <h2 className="border-b border-line px-6 py-4 text-sm font-medium uppercase tracking-wider text-ink-faint">
+          Recent activity
+        </h2>
+        {stats.activity.length === 0 ? (
+          <p className="px-6 py-8 text-center text-sm text-ink-soft">
+            No one has signed up through your link yet.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <tbody>
+                {stats.activity.map((a, i) => (
+                  <tr key={a.id} className={i > 0 ? "border-t border-line" : ""}>
+                    <td className="px-6 py-3.5 font-medium text-ink">{a.name}</td>
+                    <td className="px-3 py-3.5 text-xs text-ink-faint">{a.source ?? "direct"}</td>
+                    <td className="px-3 py-3.5 text-xs text-ink-faint">{date(a.createdAt)}</td>
+                    <td className="px-3 py-3.5 text-right text-ink">
+                      {a.reward ? money(a.reward, a.currency) : "—"}
+                    </td>
+                    <td className="px-6 py-3.5 text-right">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${statusChip[a.status]}`}
+                      >
+                        {statusLabel[a.status] ?? a.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
+        )}
+      </section>
+
+      <section className="mt-5 overflow-hidden rounded-2xl border border-line bg-white">
+        <h2 className="border-b border-line px-6 py-4 text-sm font-medium uppercase tracking-wider text-ink-faint">
+          Payout history
+        </h2>
+        {stats.payouts.length === 0 ? (
+          <p className="px-6 py-8 text-center text-sm text-ink-soft">No payouts yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <tbody>
+                {stats.payouts.map((p, i) => (
+                  <tr key={p.id} className={i > 0 ? "border-t border-line" : ""}>
+                    <td className="px-6 py-3.5 font-medium text-ink">{peso.format(p.amount)}</td>
+                    <td className="px-3 py-3.5 text-xs uppercase text-ink-faint">{p.method}</td>
+                    <td className="px-3 py-3.5 text-xs text-ink-faint">{p.reference ?? "—"}</td>
+                    <td className="px-3 py-3.5 text-xs text-ink-faint">
+                      {date(p.paidAt ?? p.createdAt)}
+                    </td>
+                    <td className="px-6 py-3.5 text-right">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${statusChip[p.status]}`}
+                      >
+                        {p.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <p className="mt-5 text-center text-xs font-medium text-ink-faint">

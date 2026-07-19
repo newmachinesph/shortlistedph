@@ -3,6 +3,7 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { db } from "./db";
+import { mail } from "./email";
 
 const googleId = process.env.GOOGLE_CLIENT_ID;
 const googleSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -22,6 +23,18 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
+    // Without this, better-auth still answers "check your email" and sends
+    // nothing — the reset flow looks fine and silently dead-ends.
+    sendResetPassword: async ({ user, url }) => {
+      await mail.resetPassword(user.email, user.name, url);
+    },
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({ user, url }) => {
+      await mail.verifyEmail(user.email, user.name, url);
+    },
   },
   socialProviders: isGoogleEnabled
     ? { google: { clientId: googleId!, clientSecret: googleSecret! } }

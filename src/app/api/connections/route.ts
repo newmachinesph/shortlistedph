@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
+import { mail } from "@/lib/email";
 import { HttpError, requireEmployer, requireRole } from "@/lib/session";
 
 const Body = z.object({
@@ -41,7 +42,7 @@ export async function POST(req: Request) {
 
     const profile = await db.talentProfile.findUnique({
       where: { id: entry.snapshot.profileId },
-      select: { userId: true },
+      select: { userId: true, user: { select: { email: true, name: true } } },
     });
     if (profile) {
       await db.notification.create({
@@ -55,6 +56,19 @@ export async function POST(req: Request) {
           },
         },
       });
+
+      // In-app alone is not enough here: the candidate has no reason to be
+      // logged in, and a request they never see reads as a candidate who
+      // ignored the employer.
+      try {
+        await mail.connectionRequested(profile.user.email, {
+          name: profile.user.name,
+          company: employer.companyName,
+          jobTitle: entry.snapshot.jd.title,
+        });
+      } catch (e) {
+        console.error("[connections] request email failed", e);
+      }
     }
 
     return ok({ connectionId: connection.id, state: connection.state }, { status: 201 });
