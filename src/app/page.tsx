@@ -4,6 +4,7 @@ import { LogoMark } from "@/components/logo";
 import { PublicPage } from "@/components/public-chrome";
 import { JsonLd } from "@/components/json-ld";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
+import { getPublicStats } from "@/lib/stats";
 
 const orgSchema = {
   "@context": "https://schema.org",
@@ -71,7 +72,12 @@ const antiGaming = [
   },
 ];
 
-export default function Home() {
+/** Figures come from the database; re-read hourly rather than on every request. */
+export const revalidate = 3600;
+
+export default async function Home() {
+  const stats = await getPublicStats();
+
   return (
     <>
       <JsonLd data={orgSchema} />
@@ -87,7 +93,7 @@ export default function Home() {
           Get a <span className="text-brand">shortlist</span>.
         </h1>
         <p className="mt-6 max-w-xl text-lg leading-relaxed text-ink-soft">
-          Tell us who you need. Our matching engine ranks 500+ Filipino remote
+          Tell us who you need. Our matching engine ranks Filipino remote
           professionals against your job description and hands you the top candidates. No job ads, no application spam.
         </p>
         <div className="mt-9 flex flex-wrap items-center gap-4">
@@ -104,20 +110,22 @@ export default function Home() {
             I&rsquo;m talent: upload my resume
           </Link>
         </div>
-        <dl className="mt-16 flex flex-wrap gap-x-12 gap-y-6 border-t border-line pt-8">
-          {[
-            ["500+", "profiles ready to match"],
-            ["40+", "remote roles covered"],
-            ["₱0", "to join and get hired"],
-            ["~24h", "description to shortlist"],
-          ].map(([v, l]) => (
-            <div key={l}>
-              <dt className="sr-only">{l}</dt>
-              <dd className="font-display text-3xl font-semibold text-ink">{v}</dd>
-              <dd className="mt-1 text-sm text-ink-faint">{l}</dd>
-            </div>
-          ))}
-        </dl>
+        {stats && (
+          <dl className="mt-16 flex flex-wrap gap-x-12 gap-y-6 border-t border-line pt-8">
+            {[
+              [stats.profiles.toLocaleString("en-PH"), "profiles in the talent pool"],
+              [`${stats.avgYears} yrs`, "average experience"],
+              [`$${stats.medianRateUsd}`, "median hourly rate"],
+              ["₱0", "for talent to join and get hired"],
+            ].map(([v, l]) => (
+              <div key={l}>
+                <dt className="sr-only">{l}</dt>
+                <dd className="font-display text-3xl font-semibold text-ink">{v}</dd>
+                <dd className="mt-1 text-sm text-ink-faint">{l}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
       </section>
 
       <section id="employers" className="w-full scroll-mt-16 border-y border-line bg-white">
