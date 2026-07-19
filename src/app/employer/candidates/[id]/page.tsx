@@ -4,6 +4,7 @@ import { BadgeCheck, Camera, Check, Lock } from "lucide-react";
 import { employerOrOnboard, getSnapshotForEmployer, requirePageUser } from "@/lib/queries";
 import type { FrozenProfile } from "@/lib/slate";
 import { initials } from "@/lib/format";
+import { RequestConnection } from "@/components/request-connection";
 
 const availabilityLabel: Record<string, string> = {
   open: "Open to full-time",
@@ -20,7 +21,7 @@ export default async function CandidateDossier({ params }: { params: Promise<{ i
   const found = await getSnapshotForEmployer(id, employer.id);
   if (!found) notFound();
 
-  const { snapshot, unlocked } = found;
+  const { snapshot, unlocked, slateEntry } = found;
   const p = snapshot.frozenJson as FrozenProfile;
   const backHref = `/employer/briefs/${snapshot.jd.id}`;
 
@@ -154,12 +155,13 @@ export default async function CandidateDossier({ params }: { params: Promise<{ i
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-4">
-        <button
-          type="button"
-          className="rounded-2xl bg-brand px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-colors hover:bg-brand-dark"
-        >
-          Request connection
-        </button>
+        {slateEntry && (
+          <RequestConnection
+            slateEntryId={slateEntry.id}
+            alreadyRequested={slateEntry.connection !== null}
+            size="lg"
+          />
+        )}
         <p className="text-xs text-ink-faint">
           {name.split(" ")[0]} must consent before contact details are shared.
         </p>

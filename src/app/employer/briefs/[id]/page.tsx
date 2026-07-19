@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowRight, Camera, EyeOff, Lock, ScanSearch, SearchX } from "lucide-react";
 import { db } from "@/lib/db";
 import { employerOrOnboard, getSlateForJd, requirePageUser } from "@/lib/queries";
+import { RequestConnection } from "@/components/request-connection";
 import { UnlockButton } from "./unlock-button";
 
 const dimLabels: [key: "skills" | "rate" | "overlap" | "experience", label: string][] = [
@@ -21,6 +22,13 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
   if (!jd) notFound();
 
   const slate = await getSlateForJd(jd.id, employer.id);
+
+  // So an already-requested candidate shows as requested after a refresh.
+  const requested = await db.connection.findMany({
+    where: { slateEntry: { slate: { jdId: jd.id } } },
+    select: { slateEntryId: true },
+  });
+  const requestedIds = new Set(requested.map((r) => r.slateEntryId));
 
   return (
     <>
@@ -195,12 +203,10 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
                       >
                         View dossier <ArrowRight className="h-3.5 w-3.5" />
                       </Link>
-                      <button
-                        type="button"
-                        className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
-                      >
-                        Request connection
-                      </button>
+                      <RequestConnection
+                        slateEntryId={entry.id}
+                        alreadyRequested={requestedIds.has(entry.id)}
+                      />
                     </>
                   ) : (
                     <span className="inline-flex items-center gap-1.5 text-sm text-ink-faint">
