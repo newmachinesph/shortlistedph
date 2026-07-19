@@ -52,7 +52,7 @@ export default function ForgotPasswordPage() {
       <Link href="/">
         <Logo />
       </Link>
-      <div className="mt-10 w-full max-w-sm rounded-2xl border border-line bg-white p-7">
+      <div className="mt-10 w-full max-w-sm rounded-2xl border border-line bg-white p-6 sm:p-7">
         {!sent ? (
           <>
             <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">
@@ -71,7 +71,7 @@ export default function ForgotPasswordPage() {
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && void submit()}
               placeholder="you@example.com"
-              className="mt-1.5 w-full rounded-xl border border-line bg-paper px-4 py-3 text-sm text-ink placeholder:text-ink-faint focus:outline-2 focus:outline-brand"
+              className="mt-1.5 w-full rounded-xl border border-line bg-paper px-4 py-3 text-base text-ink sm:text-sm placeholder:text-ink-faint focus:outline-2 focus:outline-brand"
             />
             {error && (
               <p role="alert" className="mt-2 text-sm text-red-600">
@@ -81,7 +81,7 @@ export default function ForgotPasswordPage() {
             <button
               onClick={() => void submit()}
               disabled={busy || !email.trim()}
-              className="mt-5 w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-5 w-full rounded-xl bg-brand px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
             >
               {busy ? "Sending…" : "Send reset link"}
             </button>

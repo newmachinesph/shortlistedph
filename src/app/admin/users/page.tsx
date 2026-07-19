@@ -62,12 +62,12 @@ export default async function AdminUsers({
             name="q"
             defaultValue={q ?? ""}
             placeholder="Search by name or email"
-            className="w-full rounded-xl border border-line bg-white py-2.5 pl-9 pr-3 text-sm text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none"
+            className="min-h-11 w-full rounded-xl border border-line bg-white py-2.5 pl-9 pr-3 text-base text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none sm:text-sm"
           />
         </div>
         <button
           type="submit"
-          className="rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
+          className="min-h-11 shrink-0 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
         >
           Search
         </button>
@@ -85,14 +85,14 @@ export default async function AdminUsers({
           users.map((u, i) => (
             <div
               key={u.id}
-              className={`flex flex-wrap items-center gap-4 px-6 py-4 ${
+              className={`flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 sm:px-6 ${
                 i < users.length - 1 ? "border-b border-line" : ""
               }`}
             >
-              <span className="font-display flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-sm font-semibold text-brand">
+              <span className="font-display flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-sm font-semibold text-brand">
                 {initials(u.employer?.companyName ?? u.name)}
               </span>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 basis-48">
                 <p className="truncate text-sm font-medium text-ink">
                   {u.employer?.companyName ?? u.name}{" "}
                   <span className="text-xs font-normal text-ink-faint">{u.role}</span>
@@ -106,18 +106,21 @@ export default async function AdminUsers({
                   })}
                 </p>
               </div>
-              <span
-                className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
-                  statusChip[u.status] ?? statusChip.active
-                }`}
-              >
-                {u.status}
-              </span>
-              <UserStatusActions
-                userId={u.id}
-                status={u.status}
-                published={u.talentProfile?.publishedAt != null}
-              />
+              {/* Chip travels with the buttons so status and its levers never split across rows. */}
+              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+                <span
+                  className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${
+                    statusChip[u.status] ?? statusChip.active
+                  }`}
+                >
+                  {u.status}
+                </span>
+                <UserStatusActions
+                  userId={u.id}
+                  status={u.status}
+                  published={u.talentProfile?.publishedAt != null}
+                />
+              </div>
             </div>
           ))
         )}

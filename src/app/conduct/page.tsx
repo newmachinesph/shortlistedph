@@ -41,7 +41,7 @@ export default function ConductPage() {
   return (
     <div className="min-h-screen bg-paper">
       <PublicHeader />
-      <main className="mx-auto w-full max-w-3xl px-5 pt-8 pb-20">
+      <main className="mx-auto w-full max-w-3xl px-5 pt-8 pb-20 sm:px-8">
         <h1 className="font-display text-3xl font-semibold tracking-tight text-ink">Code of Conduct</h1>
         <p className="mt-3 max-w-xl leading-relaxed text-ink-soft">
           Being shortlisted here means something because of what we don&rsquo;t
@@ -51,7 +51,7 @@ export default function ConductPage() {
           {sections.map(([t, b]) => (
             <section key={t} className="rounded-2xl border border-line bg-white p-6">
               <h2 className="font-medium text-ink">{t}</h2>
-              <p className="mt-2 text-sm leading-relaxed text-ink-soft">{b}</p>
+              <p className="mt-2 text-sm leading-relaxed break-words text-ink-soft">{b}</p>
             </section>
           ))}
         </div>

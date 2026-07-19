@@ -16,7 +16,7 @@ function CopyButton({ value, label = "Copy" }: { value: string; label?: string }
         setCopied(true);
         setTimeout(() => setCopied(false), 1600);
       }}
-      className="inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper"
+      className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-1.5 rounded-xl bg-white px-4 py-1.5 text-sm font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper sm:min-h-0 sm:w-auto sm:bg-transparent sm:text-xs"
     >
       {copied ? <Check className="h-3.5 w-3.5 text-brand" strokeWidth={1.75} /> : <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />}
       {copied ? "Copied" : label}
@@ -67,8 +67,12 @@ export function ReferralLink({
           Send this to a company that needs to hire. {bounty} when they buy their first shortlist,
           once per company. Referring a jobseeker earns nothing.
         </p>
+        {/* break-all on phones: an affiliate needs to read the whole code before
+            sharing it, and a truncated link looks like the wrong link. */}
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-paper px-4 py-3">
-          <span className="min-w-0 flex-1 truncate text-sm text-ink">{link}</span>
+          <span className="w-full min-w-0 break-all text-sm text-ink sm:w-auto sm:flex-1 sm:truncate">
+            {link}
+          </span>
           <CopyButton value={link} />
         </div>
       </div>
@@ -77,20 +81,24 @@ export function ReferralLink({
         <label htmlFor="ref-code" className="text-sm font-medium uppercase tracking-wider text-ink-faint">
           Custom code
         </label>
+        {/* The prefix owns its own line on a phone — squeezed onto one row it
+            leaves the input too narrow to read the code being typed. */}
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="text-sm text-ink-faint">{base.replace(/^https?:\/\//, "")}/r/</span>
+          <span className="w-full break-all text-sm text-ink-faint sm:w-auto">
+            {base.replace(/^https?:\/\//, "")}/r/
+          </span>
           <input
             id="ref-code"
             value={draft}
             onChange={(e) => setDraft(e.target.value.toLowerCase())}
             spellCheck={false}
-            className="min-w-0 flex-1 rounded-xl border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:border-brand"
+            className="min-h-11 w-full min-w-0 rounded-xl border border-line bg-white px-3 py-2 text-base text-ink outline-none focus:border-brand sm:min-h-0 sm:w-auto sm:flex-1 sm:text-sm"
           />
           <button
             type="button"
             onClick={save}
             disabled={saving || draft === code || draft.length < 3}
-            className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:opacity-50"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:opacity-50 sm:min-h-0 sm:w-auto"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.75} />}
             Save
@@ -116,11 +124,13 @@ export function ReferralLink({
             value={tag}
             onChange={(e) => setTag(e.target.value)}
             placeholder="facebook-group"
-            className="min-w-0 flex-1 rounded-xl border border-line bg-white px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-faint focus:border-brand"
+            className="min-h-11 w-full min-w-0 flex-1 rounded-xl border border-line bg-white px-3 py-2 text-base text-ink outline-none placeholder:text-ink-faint focus:border-brand sm:min-h-0 sm:text-sm"
           />
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-paper px-4 py-3">
-          <span className="min-w-0 flex-1 truncate text-sm text-ink">{campaign}</span>
+          <span className="w-full min-w-0 break-all text-sm text-ink sm:w-auto sm:flex-1 sm:truncate">
+            {campaign}
+          </span>
           <CopyButton value={campaign} />
         </div>
       </div>

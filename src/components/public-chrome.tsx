@@ -1,32 +1,8 @@
 import Link from "next/link";
 import { Logo } from "./logo";
+import { PublicNav } from "./public-nav";
 
-export function PublicHeader() {
-  return (
-    <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
-      <Link href="/">
-        <Logo />
-      </Link>
-      <nav className="hidden items-center gap-7 text-sm text-ink-soft sm:flex">
-        <Link href="/for-employers" className="hover:text-ink">For employers</Link>
-        <Link href="/for-talent" className="hover:text-ink">For talent</Link>
-        <Link href="/why-it-works" className="hover:text-ink">Why it works</Link>
-        <Link href="/pricing" className="hover:text-ink">Pricing</Link>
-      </nav>
-      <div className="flex items-center gap-4">
-        <Link href="/login" className="text-sm text-ink-soft hover:text-ink">
-          Sign in
-        </Link>
-        <Link
-          href="/employer"
-          className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
-        >
-          Get your shortlist
-        </Link>
-      </div>
-    </header>
-  );
-}
+export { PublicNav as PublicHeader };
 
 /**
  * Standard frame for a public page. Owns the `<main>` landmark so screen
@@ -35,7 +11,7 @@ export function PublicHeader() {
 export function PublicPage({ children }: { children: React.ReactNode }) {
   return (
     <div className="bg-paper">
-      <PublicHeader />
+      <PublicNav />
       <main>{children}</main>
       <PublicFooter />
     </div>
@@ -92,16 +68,16 @@ export function PublicFooter() {
             </a>
           </div>
 
-          <nav aria-label="Footer" className="grid grid-cols-2 gap-x-12 gap-y-8 sm:grid-cols-3">
+          <nav aria-label="Footer" className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3 sm:gap-x-12">
             {FOOTER_LINKS.map(([heading, links]) => (
               <div key={heading}>
                 <h2 className="text-xs font-medium uppercase tracking-[0.16em] text-ink-faint">
                   {heading}
                 </h2>
-                <ul className="mt-4 space-y-2.5">
+                <ul className="mt-3 space-y-0.5">
                   {links.map(([label, href]) => (
                     <li key={href}>
-                      <Link href={href} className="text-sm text-ink-soft hover:text-ink">
+                      <Link href={href} className="block py-2 text-sm text-ink-soft hover:text-ink">
                         {label}
                       </Link>
                     </li>
@@ -113,19 +89,19 @@ export function PublicFooter() {
               <h2 className="text-xs font-medium uppercase tracking-[0.16em] text-ink-faint">
                 Get started
               </h2>
-              <ul className="mt-4 space-y-2.5">
+              <ul className="mt-3 space-y-0.5">
                 <li>
-                  <Link href="/employer/briefs/new" className="text-sm text-ink-soft hover:text-ink">
+                  <Link href="/employer/briefs/new" className="block py-2 text-sm text-ink-soft hover:text-ink">
                     Write a job description
                   </Link>
                 </li>
                 <li>
-                  <Link href="/onboarding" className="text-sm text-ink-soft hover:text-ink">
+                  <Link href="/onboarding" className="block py-2 text-sm text-ink-soft hover:text-ink">
                     Upload your resume
                   </Link>
                 </li>
                 <li>
-                  <Link href="/login" className="text-sm text-ink-soft hover:text-ink">
+                  <Link href="/login" className="block py-2 text-sm text-ink-soft hover:text-ink">
                     Sign in
                   </Link>
                 </li>

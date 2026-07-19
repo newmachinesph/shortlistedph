@@ -78,7 +78,7 @@ function ResetPasswordForm() {
         </p>
         <Link
           href="/login"
-          className="mt-5 inline-block w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
+          className="mt-5 inline-block w-full rounded-xl bg-brand px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
         >
           Back to sign in
         </Link>
@@ -100,7 +100,7 @@ function ResetPasswordForm() {
         autoComplete="new-password"
         value={pw}
         onChange={(e) => setPw(e.target.value)}
-        className="mt-1.5 w-full rounded-xl border border-line bg-paper px-4 py-3 text-sm text-ink focus:outline-2 focus:outline-brand"
+        className="mt-1.5 w-full rounded-xl border border-line bg-paper px-4 py-3 text-base text-ink sm:text-sm focus:outline-2 focus:outline-brand"
       />
       <p className="mt-1.5 text-xs text-ink-faint">At least 8 characters.</p>
       <label htmlFor="confirm" className="mt-4 block text-sm font-medium text-ink">
@@ -113,7 +113,7 @@ function ResetPasswordForm() {
         value={confirm}
         onChange={(e) => setConfirm(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && void submit()}
-        className={`mt-1.5 w-full rounded-xl border bg-paper px-4 py-3 text-sm text-ink focus:outline-2 focus:outline-brand ${
+        className={`mt-1.5 w-full rounded-xl border bg-paper px-4 py-3 text-base text-ink sm:text-sm focus:outline-2 focus:outline-brand ${
           mismatch ? "border-red-300" : "border-line"
         }`}
       />
@@ -126,7 +126,7 @@ function ResetPasswordForm() {
       <button
         onClick={() => void submit()}
         disabled={!canSubmit}
-        className="mt-5 w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
+        className="mt-5 w-full rounded-xl bg-brand px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
       >
         {busy ? "Updating…" : "Reset password"}
       </button>
@@ -140,7 +140,7 @@ export default function ResetPasswordPage() {
       <Link href="/">
         <Logo />
       </Link>
-      <div className="mt-10 w-full max-w-sm rounded-2xl border border-line bg-white p-7">
+      <div className="mt-10 w-full max-w-sm rounded-2xl border border-line bg-white p-6 sm:p-7">
         {/* useSearchParams needs a Suspense boundary or the route opts out of
             static rendering entirely. */}
         <Suspense fallback={null}>

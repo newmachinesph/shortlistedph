@@ -40,19 +40,19 @@ export function ReferralSettle({ payoutId }: { payoutId: string }) {
           value={reference}
           onChange={(e) => setReference(e.target.value)}
           placeholder="Transfer reference"
-          className="min-w-40 flex-1 rounded-xl border border-line bg-white px-3 py-1.5 text-xs text-ink outline-none placeholder:text-ink-faint focus:border-brand"
+          className="min-h-11 w-full min-w-0 flex-1 rounded-xl border border-line bg-white px-3 py-1.5 text-base text-ink outline-none placeholder:text-ink-faint focus:border-brand sm:min-h-0 sm:w-auto sm:min-w-40 sm:text-xs"
         />
         <input
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder="Note (optional)"
-          className="min-w-40 flex-1 rounded-xl border border-line bg-white px-3 py-1.5 text-xs text-ink outline-none placeholder:text-ink-faint focus:border-brand"
+          className="min-h-11 w-full min-w-0 flex-1 rounded-xl border border-line bg-white px-3 py-1.5 text-base text-ink outline-none placeholder:text-ink-faint focus:border-brand sm:min-h-0 sm:w-auto sm:min-w-40 sm:text-xs"
         />
         <button
           type="button"
           onClick={() => settle("paid")}
           disabled={busy || reference.trim().length === 0}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-dark disabled:opacity-50"
+          className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-dark disabled:opacity-50 sm:min-h-0 sm:flex-none"
         >
           {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />}
           Mark paid
@@ -61,7 +61,7 @@ export function ReferralSettle({ payoutId }: { payoutId: string }) {
           type="button"
           onClick={() => settle("rejected")}
           disabled={busy}
-          className="rounded-xl px-3 py-1.5 text-xs font-medium text-ember ring-1 ring-inset ring-line transition-colors hover:bg-ember-soft disabled:opacity-50"
+          className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl px-3 py-1.5 text-xs font-medium text-ember ring-1 ring-inset ring-line transition-colors hover:bg-ember-soft disabled:opacity-50 sm:min-h-0 sm:flex-none"
         >
           Reject
         </button>
@@ -97,12 +97,12 @@ export function ReferralVoid({ conversionId }: { conversionId: string }) {
   if (error) return <span className="text-xs text-ember">{error}</span>;
 
   return confirming ? (
-    <span className="flex items-center gap-2">
+    <span className="flex flex-wrap items-center gap-2">
       <button
         type="button"
         onClick={voidIt}
         disabled={busy}
-        className="inline-flex items-center gap-1.5 rounded-xl bg-ember-soft px-3 py-1.5 text-xs font-medium text-ember transition-opacity disabled:opacity-50"
+        className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-ember-soft px-3 py-1.5 text-xs font-medium text-ember transition-opacity disabled:opacity-50 sm:min-h-0"
       >
         {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />}
         Confirm void
@@ -110,7 +110,7 @@ export function ReferralVoid({ conversionId }: { conversionId: string }) {
       <button
         type="button"
         onClick={() => setConfirming(false)}
-        className="text-xs text-ink-faint transition-colors hover:text-ink-soft"
+        className="inline-flex min-h-11 items-center px-2 text-xs text-ink-faint transition-colors hover:text-ink-soft sm:min-h-0 sm:px-0"
       >
         Cancel
       </button>
@@ -119,7 +119,7 @@ export function ReferralVoid({ conversionId }: { conversionId: string }) {
     <button
       type="button"
       onClick={() => setConfirming(true)}
-      className="rounded-xl px-3 py-1.5 text-xs font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper"
+      className="inline-flex min-h-11 items-center rounded-xl px-3 py-1.5 text-xs font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper sm:min-h-0"
     >
       Void
     </button>

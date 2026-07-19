@@ -97,12 +97,12 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen bg-paper">
-      <header className="mx-auto max-w-2xl px-5 py-6">
-        <Link href="/">
+      <header className="mx-auto w-full max-w-2xl px-5 py-6">
+        <Link href="/" className="inline-block py-1">
           <Logo />
         </Link>
       </header>
-      <main className="mx-auto max-w-2xl px-5 pb-20">
+      <main className="mx-auto w-full max-w-2xl px-5 pb-20">
         {error && (
           <p className="mt-4 rounded-xl bg-ember-soft px-4 py-3 text-sm text-ember">{error}</p>
         )}
@@ -112,7 +112,7 @@ export default function OnboardingPage() {
             <p className="mt-8 inline-flex items-center gap-1.5 rounded-full bg-ember-soft px-3 py-1 text-xs font-medium text-ember">
               <ShieldAlert className="h-3.5 w-3.5" /> Read this first
             </p>
-            <h1 className="font-display mt-4 text-3xl font-semibold tracking-tight text-ink">
+            <h1 className="font-display mt-4 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
               This platform has a bar.
             </h1>
             <p className="mt-3 leading-relaxed text-ink-soft">
@@ -127,15 +127,18 @@ export default function OnboardingPage() {
                 </li>
               ))}
             </ul>
-            <div className="mt-8 flex flex-wrap items-center gap-4">
+            <div className="mt-8 flex flex-col items-start gap-4 sm:flex-row sm:flex-wrap sm:items-center">
               <button
                 type="button"
                 onClick={() => setStage("upload")}
-                className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-colors hover:bg-brand-dark"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-brand px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-colors hover:bg-brand-dark sm:w-auto sm:py-3"
               >
                 I understand: build my profile <ArrowRight className="h-4 w-4" />
               </button>
-              <Link href="/conduct" className="text-sm font-medium text-brand hover:underline">
+              <Link
+                href="/conduct"
+                className="inline-flex min-h-[44px] items-center text-sm font-medium text-brand hover:underline"
+              >
                 Read the full Code of Conduct
               </Link>
             </div>
@@ -144,7 +147,7 @@ export default function OnboardingPage() {
 
         {stage === "upload" && (
           <>
-            <h1 className="font-display mt-8 text-3xl font-semibold tracking-tight text-ink">
+            <h1 className="font-display mt-8 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
               Upload your resume. That&rsquo;s the whole job.
             </h1>
             <p className="mt-3 leading-relaxed text-ink-soft">
@@ -164,11 +167,13 @@ export default function OnboardingPage() {
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="mt-8 flex w-full flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-brand/40 bg-white px-6 py-14 transition-colors hover:border-brand hover:bg-brand-soft/40"
+              className="mt-8 flex w-full flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-brand/40 bg-white px-4 py-12 text-center transition-colors hover:border-brand hover:bg-brand-soft/40 sm:px-6 sm:py-14"
             >
               <FileUp className="h-8 w-8 text-brand" strokeWidth={1.5} />
               <span className="font-medium text-ink">Choose your resume</span>
-              <span className="text-sm text-ink-faint">PDF, DOC, DOCX or TXT · up to 5MB</span>
+              <span className="text-sm text-balance text-ink-faint">
+                PDF, DOC, DOCX or TXT · up to 5MB
+              </span>
             </button>
             <p className="mt-6 text-sm leading-relaxed text-ink-faint">
               Free forever for talent. Verification is optional, and your ID or NBI clearance never
@@ -197,14 +202,14 @@ export default function OnboardingPage() {
             <span className="mt-8 inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3 py-1 text-xs font-medium text-brand">
               <Check className="h-3.5 w-3.5" /> Profile drafted from your resume
             </span>
-            <h1 className="font-display mt-4 text-3xl font-semibold tracking-tight text-ink">
+            <h1 className="font-display mt-4 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
               Here&rsquo;s what we found. Correct anything.
             </h1>
 
             <div className="mt-7 space-y-4">
               <div className="rounded-2xl border border-line bg-white px-5 py-4">
                 <p className="text-xs text-ink-faint">Headline</p>
-                <p className="mt-0.5 font-medium text-ink">{parsed.headline}</p>
+                <p className="mt-0.5 font-medium break-words text-ink">{parsed.headline}</p>
               </div>
               <div className="rounded-2xl border border-line bg-white px-5 py-4">
                 <p className="text-xs text-ink-faint">Experience</p>
@@ -238,7 +243,7 @@ export default function OnboardingPage() {
                     step={0.5}
                     value={rate}
                     onChange={(e) => setRate(e.target.value)}
-                    className="w-28 rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink focus:outline-2 focus:outline-brand"
+                    className="min-w-0 flex-1 rounded-xl border border-line bg-paper px-3 py-3 text-base text-ink focus:outline-2 focus:outline-brand sm:max-w-[8rem] sm:py-2 sm:text-sm"
                   />
                   <span className="text-sm text-ink-faint">/ hr</span>
                 </div>
@@ -249,12 +254,12 @@ export default function OnboardingPage() {
               </div>
             </div>
 
-            <div className="mt-8 flex flex-wrap items-center gap-4">
+            <div className="mt-8 flex flex-col items-start gap-4 sm:flex-row sm:flex-wrap sm:items-center">
               <button
                 type="button"
                 onClick={handlePublish}
                 disabled={stage === "publishing"}
-                className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-colors hover:bg-brand-dark disabled:opacity-60"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-brand px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-colors hover:bg-brand-dark disabled:opacity-60 sm:w-auto sm:py-3"
               >
                 {stage === "publishing" && <Loader2 className="h-4 w-4 animate-spin" />}
                 {stage === "publishing" ? "Publishing…" : "Publish my profile"}

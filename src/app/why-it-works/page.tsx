@@ -45,7 +45,7 @@ export default function WhyItWorksPage() {
 
       <section className="mx-auto w-full max-w-6xl px-5 pt-14 pb-16 sm:px-8">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand">Why it works</p>
-        <h1 className="font-display mt-4 max-w-3xl text-4xl font-semibold leading-[1.08] tracking-tight text-ink sm:text-6xl">
+        <h1 className="font-display mt-4 max-w-3xl text-[clamp(2rem,8vw,3.75rem)] font-semibold leading-[1.08] tracking-tight text-ink">
           Built so resumes can&rsquo;t be gamed.
         </h1>
         <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink-soft">
@@ -60,7 +60,7 @@ export default function WhyItWorksPage() {
         <div className="mx-auto max-w-4xl px-5 py-20 sm:px-8">
           <ol className="space-y-12">
             {mechanics.map((m, i) => (
-              <li key={m.title} className="flex gap-6">
+              <li key={m.title} className="flex gap-4 sm:gap-6">
                 <div className="flex flex-col items-center">
                   <span className="font-display flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-sm font-semibold text-brand">
                     {i + 1}
@@ -69,9 +69,9 @@ export default function WhyItWorksPage() {
                     <span aria-hidden className="mt-3 w-px flex-1 bg-line" />
                   )}
                 </div>
-                <div className="pb-2">
-                  <h2 className="font-display flex items-center gap-2.5 text-xl font-semibold text-ink">
-                    <m.icon className="h-5 w-5 text-brand" strokeWidth={1.75} />
+                <div className="min-w-0 pb-2">
+                  <h2 className="font-display flex items-center gap-2.5 text-lg font-semibold text-ink sm:text-xl">
+                    <m.icon className="h-5 w-5 shrink-0 text-brand" strokeWidth={1.75} />
                     {m.title}
                   </h2>
                   <p className="mt-3 max-w-2xl leading-relaxed text-ink-soft">{m.body}</p>

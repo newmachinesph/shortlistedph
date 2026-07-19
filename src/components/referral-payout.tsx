@@ -77,7 +77,7 @@ export function ReferralPayout({
                   key={m}
                   type="button"
                   onClick={() => setDraftMethod(m)}
-                  className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
+                  className={`inline-flex min-h-11 flex-1 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition-colors sm:min-h-0 sm:flex-none ${
                     draftMethod === m
                       ? "bg-brand-soft text-brand ring-1 ring-inset ring-brand"
                       : "text-ink-soft ring-1 ring-inset ring-line hover:bg-paper"
@@ -91,21 +91,21 @@ export function ReferralPayout({
               value={draftName}
               onChange={(e) => setDraftName(e.target.value)}
               placeholder="Account name"
-              className="w-full rounded-xl border border-line bg-white px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-faint focus:border-brand"
+              className="min-h-11 w-full rounded-xl border border-line bg-white px-3 py-2 text-base text-ink outline-none placeholder:text-ink-faint focus:border-brand sm:min-h-0 sm:text-sm"
             />
             <input
               value={draftNumber}
               onChange={(e) => setDraftNumber(e.target.value)}
               placeholder={draftMethod === "gcash" ? "GCash number" : "Account number"}
               autoComplete="off"
-              className="w-full rounded-xl border border-line bg-white px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-faint focus:border-brand"
+              className="min-h-11 w-full rounded-xl border border-line bg-white px-3 py-2 text-base text-ink outline-none placeholder:text-ink-faint focus:border-brand sm:min-h-0 sm:text-sm"
             />
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={saveDetails}
                 disabled={busy || draftName.trim().length < 2 || draftNumber.trim().length < 4}
-                className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:opacity-50"
+                className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:opacity-50 sm:min-h-0 sm:flex-none"
               >
                 {busy && <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.75} />}
                 Save details
@@ -114,7 +114,7 @@ export function ReferralPayout({
                 <button
                   type="button"
                   onClick={() => setEditing(false)}
-                  className="rounded-xl px-4 py-2 text-sm text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper"
+                  className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl px-4 py-2 text-sm text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper sm:min-h-0 sm:flex-none"
                 >
                   Cancel
                 </button>
@@ -126,13 +126,13 @@ export function ReferralPayout({
           </div>
         ) : (
           <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl bg-paper px-4 py-3">
-            <span className="text-sm text-ink">
+            <span className="min-w-0 flex-1 break-words text-sm text-ink">
               {method === "gcash" ? "GCash" : "Bank transfer"} · {accountName} · {accountMasked}
             </span>
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="ml-auto rounded-xl px-3 py-1.5 text-xs font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-white"
+              className="ml-auto inline-flex min-h-11 shrink-0 items-center rounded-xl bg-white px-3 py-1.5 text-xs font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-white sm:min-h-0 sm:bg-transparent"
             >
               Change
             </button>
@@ -162,7 +162,7 @@ export function ReferralPayout({
               type="button"
               onClick={request}
               disabled={busy || !method}
-              className="mt-3 inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:opacity-50"
+              className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:opacity-50 sm:min-h-0 sm:w-auto"
             >
               {busy && <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.75} />}
               Request payout

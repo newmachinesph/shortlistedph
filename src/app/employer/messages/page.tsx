@@ -58,7 +58,7 @@ export default async function EmployerMessagesPage({
     .join(" — ");
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] flex-col">
+    <div className="flex flex-col lg:h-[calc(100vh-8rem)]">
       <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Messages</h1>
       <p className="mt-1 text-sm text-ink-soft">
         Conversations only open once a candidate has accepted a connection request.
@@ -81,7 +81,7 @@ export default async function EmployerMessagesPage({
         </div>
       ) : (
         <div className="mt-7 grid min-h-0 flex-1 overflow-hidden rounded-2xl border border-line bg-white lg:grid-cols-[18rem_1fr]">
-          <div className="min-h-0 overflow-y-auto border-b border-line lg:border-b-0 lg:border-r">
+          <div className="max-h-64 min-h-0 overflow-y-auto border-b border-line lg:max-h-none lg:border-b-0 lg:border-r">
             {conversations.map((conv) => {
               const name = conv.slateEntry.snapshot.profile.user.name;
               const isActive = conv.id === active?.id;
@@ -113,12 +113,12 @@ export default async function EmployerMessagesPage({
           </div>
 
           <div className="flex min-h-0 flex-col">
-            <div className="border-b border-line px-6 py-4">
+            <div className="border-b border-line px-4 py-4 sm:px-6">
               <p className="font-medium text-ink">{activeName}</p>
               <p className="text-xs text-ink-faint">{activeSub}</p>
             </div>
 
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-5">
+            <div className="min-h-[50vh] flex-1 space-y-3 overflow-y-auto px-4 py-5 sm:px-6 lg:min-h-0">
               {messages.length === 0 ? (
                 <p className="py-8 text-center text-sm text-ink-soft">
                   No messages yet. Open with the specifics — role, hours, and what the first week
@@ -129,7 +129,7 @@ export default async function EmployerMessagesPage({
                   const mine = m.senderId === user.id;
                   return (
                     <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                      <div className="max-w-md">
+                      <div className="min-w-0 max-w-[85%] sm:max-w-md">
                         <div
                           className={
                             mine

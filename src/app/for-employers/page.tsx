@@ -51,7 +51,7 @@ export default function ForEmployersPage() {
 
       <section className="mx-auto w-full max-w-6xl px-5 pt-14 pb-16 sm:px-8">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand">For employers</p>
-        <h1 className="font-display mt-4 max-w-3xl text-4xl font-semibold leading-[1.08] tracking-tight text-ink sm:text-6xl">
+        <h1 className="font-display mt-4 max-w-3xl text-[clamp(2rem,8vw,3.75rem)] font-semibold leading-[1.08] tracking-tight text-ink">
           Stop reading 400 applications.
         </h1>
         <p className="mt-6 max-w-xl text-lg leading-relaxed text-ink-soft">
@@ -229,7 +229,7 @@ export default function ForEmployersPage() {
       </section>
 
       <section className="mx-auto w-full max-w-6xl px-5 pb-24 pt-20 sm:px-8">
-        <div className="rounded-3xl bg-brand px-8 py-14 text-center sm:px-14">
+        <div className="rounded-3xl bg-brand px-6 py-12 text-center sm:px-14 sm:py-14">
           <h2 className="font-display mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             See your shortlist before you pay for it.
           </h2>

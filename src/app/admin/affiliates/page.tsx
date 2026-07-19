@@ -151,7 +151,7 @@ function RiskChips({ flags }: { flags: RiskFlag[] }) {
         <span
           key={f.code}
           title={f.detail}
-          className="rounded-full bg-ember-soft px-2.5 py-1 text-[11px] font-medium text-ember"
+          className="rounded-full bg-ember-soft px-2.5 py-1 text-xs font-medium text-ember sm:text-[11px]"
         >
           check: {f.label}
         </span>
@@ -198,24 +198,26 @@ export default async function AdminAffiliates() {
           pendingPayouts.map((p, i) => (
             <div
               key={p.id}
-              className={`flex flex-wrap items-center gap-4 px-6 py-4 ${i > 0 ? "border-t border-line" : ""}`}
+              className={`flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 sm:px-6 ${i > 0 ? "border-t border-line" : ""}`}
             >
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 basis-48">
                 <p className="truncate text-sm font-medium text-ink">{p.user.name}</p>
-                <p className="truncate text-xs text-ink-faint">
+                <p className="break-all text-xs text-ink-faint">
                   {p.user.email} · {p.method} · requested {date(p.createdAt)}
                 </p>
-                <p className="truncate text-xs text-ink-faint">
+                <p className="break-all text-xs text-ink-faint">
                   Pay to {p.payTo?.name ?? "—"} · {p.payTo?.masked ?? "no account on file"}
                 </p>
                 <RiskChips flags={p.flags} />
               </div>
-              <span className="font-display text-sm font-semibold text-ink">
-                {money(p.amount, p.currency)}
-              </span>
-              <span className="rounded-full bg-ember-soft px-2.5 py-1 text-[11px] font-medium text-ember">
-                pending
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="font-display text-sm font-semibold text-ink">
+                  {money(p.amount, p.currency)}
+                </span>
+                <span className="shrink-0 rounded-full bg-ember-soft px-2.5 py-1 text-[11px] font-medium text-ember">
+                  pending
+                </span>
+              </div>
               <ReferralSettle payoutId={p.id} />
             </div>
           ))
@@ -244,21 +246,23 @@ export default async function AdminAffiliates() {
             {flaggedConversions.map((c, i) => (
               <div
                 key={c.id}
-                className={`flex flex-wrap items-center gap-4 px-6 py-4 ${i > 0 ? "border-t border-line" : ""}`}
+                className={`flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 sm:px-6 ${i > 0 ? "border-t border-line" : ""}`}
               >
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 basis-48">
                   <p className="truncate text-sm font-medium text-ink">
                     {c.user.employer?.companyName ?? c.user.email}
                   </p>
-                  <p className="truncate text-xs text-ink-faint">
+                  <p className="break-all text-xs text-ink-faint">
                     referred by /r/{c.referral.code} ({c.referral.user.email}) · qualified{" "}
                     {date(c.qualifiedAt ?? c.createdAt)}
                   </p>
                 </div>
-                <span className="text-sm text-ink">
-                  {c.rewardAmount ? money(c.rewardAmount, c.currency ?? REFERRAL_REWARD.currency) : "—"}
-                </span>
-                <ReferralVoid conversionId={c.id} />
+                <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
+                  <span className="text-sm text-ink">
+                    {c.rewardAmount ? money(c.rewardAmount, c.currency ?? REFERRAL_REWARD.currency) : "—"}
+                  </span>
+                  <ReferralVoid conversionId={c.id} />
+                </div>
               </div>
             ))}
           </div>
@@ -280,7 +284,9 @@ export default async function AdminAffiliates() {
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            {/* min-w forces the six columns to scroll inside this box rather than
+                squash to unreadable widths on a phone. */}
+            <table className="w-full min-w-[44rem] text-sm">
               <thead>
                 <tr className="border-b border-line text-xs uppercase tracking-wider text-ink-faint">
                   <th className="px-6 py-3 text-left font-medium">Affiliate</th>
@@ -296,7 +302,7 @@ export default async function AdminAffiliates() {
                   <tr key={r.id} className={i > 0 ? "border-t border-line" : ""}>
                     <td className="px-6 py-3.5">
                       <p className="text-sm font-medium text-ink">{r.name}</p>
-                      <p className="text-xs text-ink-faint">
+                      <p className="break-all text-xs text-ink-faint">
                         /r/{r.code} · {r.email}
                       </p>
                       <RiskChips flags={r.flags} />

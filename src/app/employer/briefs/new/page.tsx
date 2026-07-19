@@ -17,8 +17,9 @@ type Draft = {
   niceToHaves: string[];
 };
 
+// text-base on phones so iOS does not zoom the viewport on focus.
 const fieldCls =
-  "mt-1 w-full rounded-xl border border-line bg-paper px-3.5 py-2.5 text-sm text-ink focus:outline-2 focus:outline-brand";
+  "mt-1 w-full rounded-xl border border-line bg-paper px-3.5 py-2.5 text-base text-ink focus:outline-2 focus:outline-brand sm:text-sm";
 
 export default function NewJobDescriptionPage() {
   const [stage, setStage] = useState<Stage>("compose");
@@ -131,7 +132,7 @@ export default function NewJobDescriptionPage() {
             placeholder={
               "Paste a job description, or write freely:\n\nWe run 3 dental clinics in Austin. Need a VA who has actually worked US dental front desk — insurance verification, Dentrix, heavy phones. $8–11/hr, 40h, at least 4h EST overlap. Dealbreaker: no healthcare experience."
             }
-            className="mt-3 w-full resize-none rounded-xl border border-line bg-paper px-4 py-3 text-sm leading-relaxed text-ink placeholder:text-ink-faint focus:outline-2 focus:outline-brand"
+            className="mt-3 w-full resize-none rounded-xl border border-line bg-paper px-4 py-3 text-base leading-relaxed text-ink placeholder:text-ink-faint focus:outline-2 focus:outline-brand sm:text-sm"
           />
           <button
             type="button"
@@ -232,13 +233,13 @@ export default function NewJobDescriptionPage() {
                     }}
                     placeholder="Add a must-have…"
                     aria-label="Add a must-have"
-                    className="w-full max-w-64 rounded-xl border border-line bg-paper px-3.5 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-2 focus:outline-brand"
+                    className="w-full max-w-64 rounded-xl border border-line bg-paper px-3.5 py-2 text-base text-ink placeholder:text-ink-faint focus:outline-2 focus:outline-brand sm:text-sm"
                   />
                   <button
                     type="button"
                     onClick={addMustHave}
                     aria-label="Add must-have"
-                    className="rounded-xl px-3 py-2 text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft"
                   >
                     <Plus className="h-4 w-4" />
                   </button>

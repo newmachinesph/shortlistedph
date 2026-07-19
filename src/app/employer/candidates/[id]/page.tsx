@@ -31,7 +31,7 @@ export default async function CandidateDossier({ params }: { params: Promise<{ i
         <Link href={backHref} className="text-sm text-ink-faint hover:text-brand">
           ← Back to shortlist
         </Link>
-        <div className="mt-6 rounded-2xl border border-line bg-white p-10 text-center">
+        <div className="mt-6 rounded-2xl border border-line bg-white p-6 text-center sm:p-10">
           <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-soft">
             <Lock className="h-5 w-5 text-brand" />
           </span>
@@ -66,7 +66,7 @@ export default async function CandidateDossier({ params }: { params: Promise<{ i
         </span>
       </div>
 
-      <div className="mt-5 rounded-2xl border border-line bg-white p-7">
+      <div className="mt-5 rounded-2xl border border-line bg-white p-5 sm:p-7">
         <div className="flex flex-wrap items-start gap-5">
           <span className="font-display flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-soft text-xl font-semibold text-brand">
             {initials(name)}

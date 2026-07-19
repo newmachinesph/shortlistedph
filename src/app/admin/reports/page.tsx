@@ -33,7 +33,7 @@ export default async function AdminReports() {
       ) : (
         <div className="mt-7 space-y-5">
           {reports.map((r) => (
-            <div key={r.id} className="rounded-2xl border border-line bg-white p-6">
+            <div key={r.id} className="rounded-2xl border border-line bg-white p-4 sm:p-6">
               <div className="flex flex-wrap items-center gap-2">
                 <span
                   className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -49,7 +49,7 @@ export default async function AdminReports() {
                 >
                   {r.status}
                 </span>
-                <span className="text-xs text-ink-faint">
+                <span className="min-w-0 break-all text-xs text-ink-faint">
                   {r.id} · filed {timeAgo(r.createdAt)}
                 </span>
               </div>
@@ -62,7 +62,7 @@ export default async function AdminReports() {
                 <span className="font-medium text-ink">
                   {r.against.role} · {r.against.name}
                 </span>{" "}
-                <span className="text-xs text-ink-faint">({r.against.email} · {r.against.status})</span>
+                <span className="break-all text-xs text-ink-faint">({r.against.email} · {r.against.status})</span>
               </p>
               <p className="mt-2 text-sm leading-relaxed text-ink-soft">{r.detail}</p>
 

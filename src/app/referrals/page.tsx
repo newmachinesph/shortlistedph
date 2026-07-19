@@ -48,7 +48,7 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
   return (
     <div className="rounded-2xl border border-line bg-white p-5">
       <p className="text-xs font-medium uppercase tracking-wider text-ink-faint">{label}</p>
-      <p className="font-display mt-2 text-2xl font-semibold text-ink">{value}</p>
+      <p className="font-display mt-2 break-words text-2xl font-semibold text-ink">{value}</p>
       {sub && <p className="mt-1 text-xs text-ink-faint">{sub}</p>}
     </div>
   );
@@ -72,7 +72,7 @@ export default async function ReferralsPage() {
   return (
     <div className="min-h-screen bg-paper">
       <header className="border-b border-line bg-white">
-        <div className="mx-auto flex max-w-5xl items-center gap-4 px-5 py-4 sm:px-8">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-4 sm:px-8">
           <Link href="/">
             <Logo />
           </Link>
@@ -86,13 +86,13 @@ export default async function ReferralsPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-5 py-8 sm:px-8">
+      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-8">
         <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Referrals</h1>
         <p className="mt-1 text-sm text-ink-soft">
           Refer a company that hires through shortlisted.ph and take a cut of what they spend.
         </p>
 
-        <section className="mt-7 rounded-2xl border border-line bg-white p-6">
+        <section className="mt-7 rounded-2xl border border-line bg-white p-4 sm:p-6">
           <div className="flex items-start gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-soft">
               <Gift className="h-5 w-5 text-brand" strokeWidth={1.75} />
@@ -134,7 +134,7 @@ export default async function ReferralsPage() {
           </div>
         </section>
 
-        <section className="mt-5 rounded-2xl border border-line bg-white p-6">
+        <section className="mt-5 rounded-2xl border border-line bg-white p-4 sm:p-6">
           <ReferralLink code={referral.code} base={SITE_URL} bounty={bounty} />
         </section>
 
@@ -188,7 +188,7 @@ export default async function ReferralsPage() {
           paid, so the peso amount you receive will not match the figure above exactly.
         </p>
 
-        <section className="mt-5 rounded-2xl border border-line bg-white p-6">
+        <section className="mt-5 rounded-2xl border border-line bg-white p-4 sm:p-6">
           <ReferralPayout
             method={stats.payoutMethod}
             accountName={stats.payoutAccountName}
@@ -211,7 +211,8 @@ export default async function ReferralsPage() {
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              {/* Five columns cannot fit 360px legibly — scroll the table, never the page. */}
+              <table className="w-full min-w-[34rem] text-sm">
                 <tbody>
                   {stats.activity.map((a, i) => (
                     <tr key={a.id} className={i > 0 ? "border-t border-line" : ""}>
@@ -249,7 +250,7 @@ export default async function ReferralsPage() {
             <p className="px-6 py-8 text-center text-sm text-ink-soft">No payouts yet.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[34rem] text-sm">
                 <tbody>
                   {stats.payouts.map((p, i) => (
                     <tr key={p.id} className={i > 0 ? "border-t border-line" : ""}>

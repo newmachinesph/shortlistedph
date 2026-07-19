@@ -37,7 +37,7 @@ export default async function JobDescriptionsPage() {
       </div>
 
       {jds.length === 0 ? (
-        <div className="mt-7 rounded-2xl border border-line bg-white p-10 text-center">
+        <div className="mt-7 rounded-2xl border border-line bg-white p-6 text-center sm:p-10">
           <ScanSearch className="mx-auto h-8 w-8 text-ink-faint" strokeWidth={1.5} />
           <h2 className="font-display mt-4 text-lg font-semibold text-ink">Nothing here yet</h2>
           <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-ink-soft">

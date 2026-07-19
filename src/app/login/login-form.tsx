@@ -36,7 +36,7 @@ export function LoginForm({ showGoogle }: { showGoogle: boolean }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mt-10 w-full max-w-sm rounded-2xl border border-line bg-white p-7"
+      className="mt-10 w-full max-w-sm rounded-2xl border border-line bg-white p-6 sm:p-7"
     >
       <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Welcome back</h1>
 
@@ -52,7 +52,7 @@ export function LoginForm({ showGoogle }: { showGoogle: boolean }) {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="you@example.com"
-        className="mt-1.5 w-full rounded-xl border border-line bg-paper px-4 py-3 text-sm text-ink placeholder:text-ink-faint focus:outline-2 focus:outline-brand"
+        className="mt-1.5 w-full rounded-xl border border-line bg-paper px-4 py-3 text-base text-ink sm:text-sm placeholder:text-ink-faint focus:outline-2 focus:outline-brand"
       />
 
       <label htmlFor="password" className="mt-4 block text-sm font-medium text-ink">
@@ -64,13 +64,13 @@ export function LoginForm({ showGoogle }: { showGoogle: boolean }) {
         required
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        className="mt-1.5 w-full rounded-xl border border-line bg-paper px-4 py-3 text-sm text-ink focus:outline-2 focus:outline-brand"
+        className="mt-1.5 w-full rounded-xl border border-line bg-paper px-4 py-3 text-base text-ink sm:text-sm focus:outline-2 focus:outline-brand"
       />
 
       <button
         type="submit"
         disabled={isBusy}
-        className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:opacity-60"
+        className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:opacity-60"
       >
         {isBusy && <Loader2 className="h-4 w-4 animate-spin" />}
         {isBusy ? "Signing in…" : "Sign in"}
@@ -80,14 +80,17 @@ export function LoginForm({ showGoogle }: { showGoogle: boolean }) {
         <button
           type="button"
           onClick={() => signIn.social({ provider: "google", callbackURL: "/talent" })}
-          className="mt-3 w-full rounded-xl px-4 py-2.5 text-sm font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper"
+          className="mt-3 w-full rounded-xl px-4 py-3 text-sm font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper"
         >
           Continue with Google
         </button>
       )}
 
-      <div className="mt-4 text-center">
-        <Link href="/forgot-password" className="text-sm font-medium text-brand hover:underline">
+      <div className="mt-1 text-center">
+        <Link
+          href="/forgot-password"
+          className="inline-flex min-h-[44px] items-center justify-center px-2 text-sm font-medium text-brand hover:underline"
+        >
           Forgot password?
         </Link>
       </div>

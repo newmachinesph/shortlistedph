@@ -20,7 +20,7 @@ export default async function TalentConnectionsPage() {
       </p>
 
       {connections.length === 0 && (
-        <div className="mt-7 rounded-2xl border border-line bg-white p-10 text-center">
+        <div className="mt-7 rounded-2xl border border-line bg-white p-6 text-center sm:p-10">
           <EyeOff className="mx-auto h-8 w-8 text-ink-faint" strokeWidth={1.5} />
           <h2 className="font-display mt-4 text-lg font-semibold text-ink">No requests yet</h2>
           <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-ink-soft">

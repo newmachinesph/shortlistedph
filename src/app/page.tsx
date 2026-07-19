@@ -87,7 +87,7 @@ export default async function Home() {
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-ember">
           Shortlists, not job ads · Philippine remote talent
         </p>
-        <h1 className="font-display mt-5 max-w-3xl text-5xl font-semibold leading-[1.05] tracking-tight text-ink sm:text-7xl">
+        <h1 className="font-display mt-5 max-w-3xl text-[clamp(2.25rem,9vw,4.5rem)] font-semibold leading-[1.05] tracking-tight text-ink">
           Don&rsquo;t post a job ad.
           <br />
           Get a <span className="text-brand">shortlist</span>.
@@ -217,7 +217,7 @@ export default async function Home() {
       </section>
 
       <section className="mx-auto w-full max-w-6xl px-5 pb-24 sm:px-8">
-        <div className="rounded-3xl bg-brand px-8 py-14 text-center sm:px-14">
+        <div className="rounded-3xl bg-brand px-6 py-12 text-center sm:px-14 sm:py-14">
           <LogoMark className="mx-auto h-12 w-auto brightness-0 invert" />
           <h2 className="font-display mx-auto mt-6 max-w-2xl text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             Your next hire is already on the list.

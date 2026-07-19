@@ -24,7 +24,7 @@ export default async function EmployerProfilePage() {
         No business verification required — your track record on shortlisted.ph is your reputation.
       </p>
 
-      <div className="mt-7 rounded-2xl border border-line bg-white p-7">
+      <div className="mt-7 rounded-2xl border border-line bg-white p-5 sm:p-7">
         <div className="flex flex-wrap items-start gap-5">
           <span className="font-display flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-soft text-xl font-semibold text-brand">
             {initials(employer.companyName)}

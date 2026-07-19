@@ -73,11 +73,11 @@ export function UserStatusActions({
   const options = NEXT[status] ?? NEXT.active;
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
-      {error && <span className="text-[11px] text-ember">{error}</span>}
-      {note && <span className="text-[11px] text-ink-faint">{note}</span>}
+    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:justify-end">
+      {error && <span className="w-full text-xs text-ember sm:w-auto sm:text-[11px]">{error}</span>}
+      {note && <span className="w-full text-xs text-ink-faint sm:w-auto sm:text-[11px]">{note}</span>}
       {confirming && (
-        <span className="text-[11px] text-ember">
+        <span className="w-full text-xs leading-relaxed text-ember sm:w-auto sm:text-[11px]">
           This {CONSEQUENCE}. Click again to confirm.
         </span>
       )}
@@ -87,7 +87,7 @@ export function UserStatusActions({
           type="button"
           disabled={disabled}
           onClick={() => send({ unpublish: true }, "unpublish", true)}
-          className="rounded-xl px-3 py-1.5 text-xs font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper disabled:opacity-50"
+          className="inline-flex min-h-11 items-center rounded-xl px-3 py-1.5 text-xs font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper disabled:opacity-50 sm:min-h-0"
         >
           {confirming === "unpublish" ? "Confirm unpublish" : "Unpublish"}
         </button>
@@ -99,7 +99,7 @@ export function UserStatusActions({
           type="button"
           disabled={disabled}
           onClick={() => send({ status: o.status }, o.status, o.status !== "active")}
-          className={`rounded-xl px-3 py-1.5 text-xs font-medium ring-1 ring-inset transition-colors disabled:opacity-50 ${
+          className={`inline-flex min-h-11 items-center rounded-xl px-3 py-1.5 text-xs font-medium ring-1 ring-inset transition-colors disabled:opacity-50 sm:min-h-0 ${
             o.danger
               ? "text-ember ring-ember/30 hover:bg-ember-soft"
               : "text-ink-soft ring-line hover:bg-paper"

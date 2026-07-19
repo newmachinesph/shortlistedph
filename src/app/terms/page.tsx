@@ -37,14 +37,14 @@ export default function TermsPage() {
   return (
     <div className="min-h-screen bg-paper">
       <PublicHeader />
-      <main className="mx-auto w-full max-w-3xl px-5 pt-8 pb-20">
+      <main className="mx-auto w-full max-w-3xl px-5 pt-8 pb-20 sm:px-8">
         <h1 className="font-display text-3xl font-semibold tracking-tight text-ink">Terms of Service</h1>
         <p className="mt-2 text-sm text-ink-faint">Prototype draft · July 2026 · not yet legal text</p>
         <div className="mt-8 space-y-6">
           {sections.map(([t, b]) => (
             <section key={t} className="rounded-2xl border border-line bg-white p-6">
               <h2 className="font-medium text-ink">{t}</h2>
-              <p className="mt-2 text-sm leading-relaxed text-ink-soft">{b}</p>
+              <p className="mt-2 text-sm leading-relaxed break-words text-ink-soft">{b}</p>
             </section>
           ))}
         </div>
