@@ -194,6 +194,36 @@ export default function ForEmployersPage() {
             clearances. A genuine certificate can still have come through a corrupted process, and
             no authenticity check catches that.
           </p>
+
+          <div className="mt-8 rounded-2xl border border-line p-6">
+            <h3 className="text-sm font-medium uppercase tracking-wider text-ink-faint">
+              Further reading
+            </h3>
+            <p className="mt-3 text-sm leading-relaxed text-ink-soft">
+              Respicio &amp; Co., a Philippine law firm, published a useful explainer in June 2026
+              on what a clearance &ldquo;hit&rdquo; means:{" "}
+              <a
+                href="https://www.respicio.ph/commentaries/how-to-check-an-nbi-clearance-hit-online"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-brand hover:underline"
+              >
+                How to check an NBI clearance hit online
+              </a>
+              . The short version is that a hit usually means a name matched something in the
+              database and a person has to look at it, not that anything was found. Shared
+              surnames and spelling differences trigger them constantly. If a candidate mentions a
+              delay for this reason, it is routine.
+            </p>
+            <p className="mt-3 text-sm leading-relaxed text-ink-faint">
+              We differ from that article on one point. It points readers to
+              nbi-clearance.io as an official verification tool; when we checked, that domain was
+              registered anonymously through a US privacy service and queries its own private API
+              rather than anything run by the NBI. We could find no evidence connecting it to the
+              Bureau. Take the explanation of hits, which is sound, and get the clearance itself
+              from the candidate.
+            </p>
+          </div>
         </div>
       </section>
 
