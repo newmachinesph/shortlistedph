@@ -72,7 +72,7 @@ const faqs = [
   ],
   [
     "Does talent ever pay anything?",
-    "Never to be listed, matched, shortlisted, or hired. Placement fees are the oldest recruitment scam in Philippine hiring and we will not touch them. The one thing a worker can pay for is optional identity verification, which costs ₱60 because that is what the check costs us; we take nothing on top, and skipping it still gets you shortlisted.",
+    "Never to be listed, matched, shortlisted, prioritised, or hired. Placement fees are the oldest recruitment scam in Philippine hiring and we will not touch them. Identity verification sits outside that entirely: it is optional, it is a check run by an outside provider, the ₱60 covers what the check costs and we keep none of it. People who skip it get shortlisted and hired here the same as anyone else.",
   ],
   [
     "Why can't I browse candidates?",
@@ -151,11 +151,14 @@ export default function PricingPage() {
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-line bg-white px-7 py-6">
           <div>
-            <h2 className="font-display text-xl font-semibold text-ink">For talent: ₱0. Forever.</h2>
+            <h2 className="font-display text-xl font-semibold text-ink">
+              For talent: free to join, free to get hired.
+            </h2>
             <p className="mt-1 max-w-xl text-sm leading-relaxed text-ink-soft">
               Standing profile, automatic matching, and every shortlist you land on,
-              all free. Identity verification is optional and costs ₱60 at cost.
-              If anyone ever asks you to pay to be placed, it&rsquo;s not us.
+              all free, permanently. Identity verification is the one optional extra,
+              and the ₱60 goes to the check rather than to us. If anyone ever asks you
+              to pay to be placed, it&rsquo;s not us.
             </p>
           </div>
           <Link

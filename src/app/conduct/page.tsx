@@ -33,7 +33,7 @@ const sections: [string, string][] = [
   ],
   [
     "Talent never pays to be hired.",
-    "No listing fees, matching fees, placement fees, or training fees, on or off this platform. Recruitment placement fees are the oldest scam in Philippine hiring. The single exception is optional identity verification at ₱60, which is what the check costs us and earns us nothing. Nobody at shortlisted.ph will ever ask you for anything else, and anyone who does is running a scam; report it to support@shortlisted.ph.",
+    "No listing fees, matching fees, placement fees, or training fees, on or off this platform. Recruitment placement fees are the oldest scam in Philippine hiring. Identity verification is not one of these: it is optional, it is a check run by an outside provider, the ₱60 covers what that check costs and we keep none of it, and declining it takes nothing away from you. Nobody at shortlisted.ph will ever ask you for money to be listed, matched, shortlisted, prioritised, or hired. Anyone who does is running a scam; report it to support@shortlisted.ph.",
   ],
 ];
 

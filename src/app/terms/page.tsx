@@ -17,7 +17,7 @@ const sections: [string, string][] = [
   ],
   [
     "Money",
-    "Employers pay per shortlist. Talent never pays to be listed, matched, or hired. Optional identity verification costs ₱60, which is what the check costs us. We never hold, transfer, or take a percentage of salaries.",
+    "Employers pay per shortlist. Talent never pays to be listed, matched, shortlisted, prioritised, or hired. Identity verification is optional and separate from all of that: the ₱60 covers a check run by an outside provider and we keep none of it. We never hold, transfer, or take a percentage of salaries.",
   ],
   [
     "Honesty",
