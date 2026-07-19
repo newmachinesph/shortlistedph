@@ -8,9 +8,9 @@ export function PublicHeader() {
         <Logo />
       </Link>
       <nav className="hidden items-center gap-7 text-sm text-ink-soft sm:flex">
-        <Link href="/#employers" className="hover:text-ink">For employers</Link>
-        <Link href="/#talent" className="hover:text-ink">For talent</Link>
-        <Link href="/#trust" className="hover:text-ink">Why it works</Link>
+        <Link href="/for-employers" className="hover:text-ink">For employers</Link>
+        <Link href="/for-talent" className="hover:text-ink">For talent</Link>
+        <Link href="/why-it-works" className="hover:text-ink">Why it works</Link>
         <Link href="/pricing" className="hover:text-ink">Pricing</Link>
       </nav>
       <div className="flex items-center gap-4">
@@ -33,7 +33,10 @@ export function PublicFooter() {
     <footer className="w-full border-t border-line">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-8 text-sm text-ink-faint sm:px-8">
         <Logo />
-        <div className="flex items-center gap-5">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <Link href="/for-employers" className="hover:text-ink">Employers</Link>
+          <Link href="/for-talent" className="hover:text-ink">Talent</Link>
+          <Link href="/why-it-works" className="hover:text-ink">Why it works</Link>
           <Link href="/pricing" className="hover:text-ink">Pricing</Link>
           <Link href="/conduct" className="hover:text-ink">Conduct</Link>
           <Link href="/terms" className="hover:text-ink">Terms</Link>

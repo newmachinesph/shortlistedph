@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Code of Conduct — shortlisted.ph" 
 const sections: [string, string][] = [
   [
     "One human, one account, one reputation",
-    "Every account belongs to exactly one real person or one real business, forever. Selling, sharing, or duplicating accounts ends all of them. Your history — confirmed outcomes, ratings, rate history, stability — follows your identity and cannot be reset by re-registering.",
+    "Every account belongs to exactly one real person or one real business, forever. Selling, sharing, or duplicating accounts ends all of them. Your history (confirmed outcomes, ratings, rate history, stability) follows your identity and cannot be reset by re-registering.",
   ],
   [
     "We witness. You contract.",
@@ -15,19 +15,19 @@ const sections: [string, string][] = [
   ],
   [
     "Honesty is structural, not requested",
-    "Profiles are snapshots — employers see them as they existed when a job was posted. Claims are tagged by what backs them: a confirmed engagement outcome, or nothing. The engine ranks what you can prove. Fabricating experience, portfolios, or references is not a rule violation we debate; it is removal.",
+    "Profiles are snapshots: employers see them as they existed when a job was posted. Claims are tagged by what backs them: a confirmed engagement outcome, or nothing. The engine ranks what you can prove. Fabricating experience, portfolios, or references is not a rule violation we debate; it is removal.",
   ],
   [
     "Fraud ends everything",
-    "Misrepresentation of identity, fabricated credentials, ghosting with assets or access, fake outcome confirmations, or any scam attempt — with evidence — means permanent removal. Records, agreements, and confirmations are preserved and will be disclosed to the NBI, the PNP Anti-Cybercrime Group, or courts upon lawful request. Fraud between contracting parties may constitute estafa under Article 315 of the Revised Penal Code or computer-related fraud under the Cybercrime Prevention Act of 2012 — pursued by the wronged party, with our records as evidence.",
+    "Misrepresentation of identity, fabricated credentials, ghosting with assets or access, fake outcome confirmations, or any scam attempt, where evidence supports it, means permanent removal. We preserve records, agreements, and confirmations, and will disclose them to the NBI, the PNP Anti-Cybercrime Group, or courts on lawful request. Fraud between contracting parties may constitute estafa under Article 315 of the Revised Penal Code or computer-related fraud under the Cybercrime Prevention Act of 2012. The wronged party pursues it; our records serve as evidence.",
   ],
   [
     "Employers are held to the same bar",
-    "Non-payment of confirmed work, fake job descriptions, harvesting personal data, unpaid 'trial tasks', or asking anyone for money is grounds for removal. An employer's track record — response rate, confirmed hires, outcome history — is shown to every candidate before they consent to connect. Reputation here is earned in both directions.",
+    "Non-payment of confirmed work, fake job descriptions, harvesting personal data, unpaid 'trial tasks', or asking anyone for money is grounds for removal. Every candidate sees an employer's track record (response rate, confirmed hires, outcome history) before consenting to connect. Reputation here is earned in both directions.",
   ],
   [
-    "Talent never pays. Anyone who asks is a scammer.",
-    "There are no listing fees, matching fees, placement fees, or training fees — on or off this platform. Recruitment placement fees are the oldest scam in Philippine hiring. If anyone claiming to represent shortlisted.ph or an employer asks you for money, report it to support@shortlisted.ph immediately.",
+    "Talent never pays to be hired.",
+    "No listing fees, matching fees, placement fees, or training fees, on or off this platform. Recruitment placement fees are the oldest scam in Philippine hiring. The single exception is optional identity verification at ₱60, which is what the check costs us and earns us nothing. Nobody at shortlisted.ph will ever ask you for anything else, and anyone who does is running a scam; report it to support@shortlisted.ph.",
   ],
 ];
 

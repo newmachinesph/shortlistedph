@@ -6,7 +6,7 @@ import { PublicFooter, PublicHeader } from "@/components/public-chrome";
 export const metadata: Metadata = {
   title: "Pricing — shortlisted.ph",
   description:
-    "Employers pay per shortlist. Talent pays nothing, ever. No job ads, no per-hire fees, no salary handling.",
+    "Employers pay per shortlist. Talent pays nothing to be listed, matched or hired. No job ads, no per-hire fees, no salary handling.",
 };
 
 const tiers = [
@@ -17,7 +17,7 @@ const tiers = [
     highlight: false,
     features: [
       "Post a hidden job description",
-      "Full ranked slate of 5 — scores, match reasons, dimension bars",
+      "Full ranked slate of 5: scores, match reasons, dimension bars",
       "Names and photos blurred",
       "Dossiers and connections locked",
       "No card required",
@@ -34,7 +34,7 @@ const tiers = [
       "Connection requests included",
       "Free re-slate if fewer than 3 consent",
       "Pay only after you've seen the slate",
-      "Three-pack: $119 — credits never expire",
+      "Three-pack: $119, credits never expire",
     ],
     cta: "Unlock a shortlist",
   },
@@ -57,23 +57,23 @@ const tiers = [
 const faqs = [
   [
     "Do you handle salaries or contracts?",
-    "No. We are sourcing only — you hire and pay your worker directly. No escrow, no cut of wages, no per-hire fee. You pay for the shortlist, and what happens after is between you and your hire.",
+    "No. We are sourcing only. You hire and pay your worker directly. No escrow, no cut of wages, no per-hire fee. You pay for the shortlist, and what happens after is between you and your hire.",
   ],
   [
     "Why is the preview free?",
-    "Because the slate sells itself. You see exactly who ranked and why before paying a peso — if the match quality doesn't convince you, don't unlock it.",
+    "Because the slate sells itself. You see exactly who ranked and why before paying a peso. If the match quality doesn't convince you, don't unlock it.",
   ],
   [
     "What if nobody on my slate consents to connect?",
-    "If fewer than 3 of 5 candidates accept your connection request, we rebuild the slate free. Your response-rate score is shown to candidates — employers who respond fast rarely need this.",
+    "If fewer than 3 of 5 candidates accept your connection request, we rebuild the slate free. Candidates see your response-rate score; employers who respond fast rarely need this.",
   ],
   [
     "Does talent ever pay anything?",
-    "Never. No listing fees, no matching fees, no placement fees — placement fees are the oldest recruitment scam in the Philippines and we will not touch them. Talent side is free forever.",
+    "Never to be listed, matched, shortlisted, or hired. Placement fees are the oldest recruitment scam in Philippine hiring and we will not touch them. The one thing a worker can pay for is optional identity verification, which costs ₱60 because that is what the check costs us; we take nothing on top, and skipping it still gets you shortlisted.",
   ],
   [
     "Why can't I browse candidates?",
-    "Browsing is what makes resumes fake. Because candidates can't see jobs and employers can't scrape profiles, nobody can game the match. You get a ranked slate instead — that's the product.",
+    "Browsing is what makes resumes fake. Because candidates can't see jobs and employers can't scrape profiles, nobody can game the match. You get a ranked slate instead. That's the product.",
   ],
 ];
 
@@ -87,10 +87,10 @@ export default function PricingPage() {
         <h1 className="font-display mx-auto mt-4 max-w-2xl text-4xl font-semibold tracking-tight text-ink sm:text-5xl">
           Employers pay per shortlist.
           <br />
-          Talent pays <span className="text-brand">nothing, ever</span>.
+          Talent pays <span className="text-brand">nothing to get hired</span>.
         </h1>
         <p className="mx-auto mt-5 max-w-xl leading-relaxed text-ink-soft">
-          Post a job description and see your ranked slate free — pay only to
+          Post a job description and see your ranked slate free, then pay only to
           unlock names and connections. No per-hire percentage, no salary
           handling. The hire is yours.
         </p>
@@ -138,9 +138,9 @@ export default function PricingPage() {
           <div>
             <h2 className="font-display text-xl font-semibold text-ink">For talent: ₱0. Forever.</h2>
             <p className="mt-1 max-w-xl text-sm leading-relaxed text-ink-soft">
-              Standing profile, automatic matching, optional verification, and
-              every shortlist you land on — free. If anyone ever asks you to
-              pay to be placed, it&rsquo;s not us.
+              Standing profile, automatic matching, and every shortlist you land on,
+              all free. Identity verification is optional and costs ₱60 at cost.
+              If anyone ever asks you to pay to be placed, it&rsquo;s not us.
             </p>
           </div>
           <Link

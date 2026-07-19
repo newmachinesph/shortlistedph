@@ -11,11 +11,11 @@ const sections: [string, string][] = [
   ],
   [
     "What we never store",
-    "Government IDs, NBI clearances, and similar documents are never uploaded to shortlisted.ph. Verification happens without us keeping copies; documents are shown by talent directly to employers after hiring.",
+    "Government IDs, NBI clearances, and similar documents are never uploaded to shortlisted.ph. Verification happens without us keeping copies; talent shows documents directly to employers after hiring.",
   ],
   [
     "Who sees what",
-    "Talent profiles are invisible to employers until shortlisted. In free previews, names, photos, and contact details are withheld. Full profiles are revealed only after a candidate consents to connect. Every reveal is logged and visible to the talent in their consent log.",
+    "Employers can't see talent profiles until someone is shortlisted. Free previews withhold names, photos, and contact details. We reveal a full profile only after that candidate consents to connect, and we log every reveal where the talent can see it.",
   ],
   [
     "Data Privacy Act",
@@ -23,7 +23,7 @@ const sections: [string, string][] = [
   ],
   [
     "AI processing",
-    "Resumes are processed by AI to build standing profiles and compute match rankings. Profiles are embedded for search. We do not sell data or use it to train third-party models.",
+    "We run your resume through AI to build a standing profile and compute match rankings, and we embed profiles for search. We do not sell data or use it to train third-party models.",
   ],
 ];
 

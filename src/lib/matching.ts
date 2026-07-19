@@ -116,7 +116,13 @@ export async function buildSlate(jdId: string) {
         overlap: scoreOverlap(c.availability, c.committedHours, jd.hoursPerWeek),
         experience: scoreExperience(c.yearsExperience, cEng.filter((e) => e.outcome === "confirmed").length),
       };
-      return { c, dims, score: composite(dims), skills: cSkills, engagements: cEng };
+      return {
+        c,
+        dims,
+        score: composite(dims, c.verifiedTier === "id_verified"),
+        skills: cSkills,
+        engagements: cEng,
+      };
     })
     .sort((a, b) => b.score - a.score)
     .filter((r) => r.score >= MIN_SLATE_SCORE)

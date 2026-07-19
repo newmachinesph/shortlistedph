@@ -18,7 +18,7 @@ const gateRules: [string, string][] = [
   ],
   [
     "Fabrication ends the account",
-    "Invented experience, borrowed portfolios, or fake references are removal — permanently, bound to your identity.",
+    "Invented experience, borrowed portfolios, or fake references mean removal: permanent, and bound to your identity.",
   ],
   [
     "You never pay anyone. Ever.",
@@ -63,7 +63,7 @@ export default function OnboardingPage() {
         body: file,
         headers: { "Content-Type": file.type },
       });
-      if (!put.ok) throw new Error("Upload failed — check your connection and try again");
+      if (!put.ok) throw new Error("Upload failed. Check your connection and try again");
 
       const { parsed } = await api<{ parsed: Parsed }>("/api/talent/resume/parse", {
         method: "POST",
@@ -133,7 +133,7 @@ export default function OnboardingPage() {
                 onClick={() => setStage("upload")}
                 className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-colors hover:bg-brand-dark"
               >
-                I understand — build my profile <ArrowRight className="h-4 w-4" />
+                I understand: build my profile <ArrowRight className="h-4 w-4" />
               </button>
               <Link href="/conduct" className="text-sm font-medium text-brand hover:underline">
                 Read the full Code of Conduct
@@ -149,8 +149,7 @@ export default function OnboardingPage() {
             </h1>
             <p className="mt-3 leading-relaxed text-ink-soft">
               We build your standing profile from it, then match you against every new job
-              description automatically. You never apply, never tailor, never write a cover letter
-              again.
+              description automatically. You never apply and never write another cover letter.
             </p>
             <input
               ref={fileRef}
@@ -173,7 +172,7 @@ export default function OnboardingPage() {
             </button>
             <p className="mt-6 text-sm leading-relaxed text-ink-faint">
               Free forever for talent. Verification is optional, and your ID or NBI clearance never
-              touches our servers — you show documents directly to an employer only after
+              touches our servers. You show them directly to an employer once
               you&rsquo;re hired.
             </p>
           </>
@@ -188,7 +187,7 @@ export default function OnboardingPage() {
               Reading your resume
             </h1>
             <p className="mt-2 text-sm text-ink-soft">
-              Extracting your experience and skills — this takes a few seconds.
+              Extracting your experience and skills. This takes a few seconds.
             </p>
           </div>
         )}

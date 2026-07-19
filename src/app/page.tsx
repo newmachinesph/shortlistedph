@@ -7,7 +7,7 @@ const antiGaming = [
   {
     icon: EyeOff,
     title: "Job descriptions are hidden",
-    body: "Candidates never see what employers are looking for — there is nothing to tailor a resume to, so resumes stop being tailored.",
+    body: "Candidates never see what employers are looking for, so there is nothing to tailor a resume to.",
   },
   {
     icon: Camera,
@@ -22,7 +22,7 @@ const antiGaming = [
   {
     icon: Lock,
     title: "Documents stay yours",
-    body: "Verification is optional. IDs and NBI clearance are never uploaded to us mid-process — you show them directly to your employer after you're hired.",
+    body: "Verification is optional. IDs and NBI clearance are never uploaded to us mid-process. You show them directly to your employer once you're hired.",
   },
 ];
 
@@ -42,8 +42,7 @@ export default function Home() {
         </h1>
         <p className="mt-6 max-w-xl text-lg leading-relaxed text-ink-soft">
           Tell us who you need. Our matching engine ranks 500+ Filipino remote
-          professionals against your brief and hands you the top candidates —
-          no job ads, no application spam, no fabricated resumes.
+          professionals against your brief and hands you the top candidates. No job ads, no application spam.
         </p>
         <div className="mt-9 flex flex-wrap items-center gap-4">
           <Link
@@ -56,14 +55,14 @@ export default function Home() {
             href="/onboarding"
             className="inline-flex items-center gap-2 rounded-2xl px-6 py-3.5 text-sm font-semibold text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft"
           >
-            I&rsquo;m talent — upload my resume
+            I&rsquo;m talent: upload my resume
           </Link>
         </div>
         <dl className="mt-16 flex flex-wrap gap-x-12 gap-y-6 border-t border-line pt-8">
           {[
             ["500+", "profiles ready to match"],
             ["40+", "remote roles covered"],
-            ["₱0", "cost for talent, forever"],
+            ["₱0", "to join and get hired"],
             ["~24h", "brief to shortlist"],
           ].map(([v, l]) => (
             <div key={l}>
@@ -84,7 +83,7 @@ export default function Home() {
             </h2>
             <ol className="mt-8 space-y-6">
               {[
-                ["Write a job description", "Real budget, real dealbreakers — it stays hidden from candidates, so you can be honest."],
+                ["Write a job description", "Real budget, real dealbreakers. It stays hidden from candidates, so you can be honest."],
                 ["We match and rank", "Every profile is embedded and scored against your job description. You see why each person ranked."],
                 ["Meet your shortlist", "A slate of 5, with snapshot-frozen profiles. Request a connection; candidates consent before contact."],
               ].map(([t, b], i) => (
@@ -99,6 +98,12 @@ export default function Home() {
                 </li>
               ))}
             </ol>
+            <Link
+              href="/for-employers"
+              className="mt-7 inline-flex items-center gap-2 text-sm font-medium text-brand hover:underline"
+            >
+              More for employers <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
           <div id="talent" className="scroll-mt-28">
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-ember">For talent</p>
@@ -107,8 +112,8 @@ export default function Home() {
             </h2>
             <ol className="mt-8 space-y-6">
               {[
-                ["Upload your resume once", "We build your standing profile from it. Review, correct, done in minutes."],
-                ["Your profile does the work", "Every new job is matched against you automatically — while you sleep."],
+                ["Upload your resume once", "We build your standing profile from it. Review it, fix what's wrong, done in minutes."],
+                ["Your profile does the work", "Every new job is matched against you automatically, while you sleep."],
                 ["Get shortlisted", "When an employer wants to talk, you see the full brief and decide. Nothing is shared without your consent."],
               ].map(([t, b], i) => (
                 <li key={t} className="flex gap-4">
@@ -122,6 +127,12 @@ export default function Home() {
                 </li>
               ))}
             </ol>
+            <Link
+              href="/for-talent"
+              className="mt-7 inline-flex items-center gap-2 text-sm font-medium text-ember hover:underline"
+            >
+              More for talent <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
         </div>
       </section>
@@ -143,13 +154,19 @@ export default function Home() {
             </div>
           ))}
         </div>
+        <Link
+          href="/why-it-works"
+          className="mt-8 inline-flex items-center gap-2 text-sm font-medium text-brand hover:underline"
+        >
+          How the matching actually works <ArrowRight className="h-4 w-4" />
+        </Link>
       </section>
 
       <section className="mx-auto w-full max-w-6xl px-5 pb-24 sm:px-8">
         <div className="rounded-3xl bg-brand px-8 py-14 text-center sm:px-14">
           <LogoMark className="mx-auto h-12 w-auto brightness-0 invert" />
           <h2 className="font-display mx-auto mt-6 max-w-2xl text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-            The next great hire is already on the list.
+            Your next hire is already on the list.
           </h2>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
             <Link
@@ -162,7 +179,7 @@ export default function Home() {
               href="/onboarding"
               className="rounded-2xl px-6 py-3.5 text-sm font-semibold text-white ring-1 ring-inset ring-white/40 transition-colors hover:bg-white/10"
             >
-              Join as talent — free
+              Join as talent, free
             </Link>
           </div>
         </div>
