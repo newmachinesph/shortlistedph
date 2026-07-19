@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { BadgeCheck, Camera, Check, Globe, Lock } from "lucide-react";
 import { getTalentProfile, requirePageUser, talentOrOnboard } from "@/lib/queries";
+import { initials } from "@/lib/format";
 
-const initialsOf = (name: string) =>
-  name.split(/\s+/).map((p) => p[0]?.toUpperCase() ?? "").slice(0, 2).join("");
 
 export default async function TalentProfilePage() {
   const user = await requirePageUser("talent");
@@ -53,7 +52,7 @@ export default async function TalentProfilePage() {
       <div className="mt-6 rounded-2xl border border-line bg-white p-7">
         <div className="flex flex-wrap items-start gap-5">
           <span className="font-display flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-soft text-xl font-semibold text-brand">
-            {initialsOf(profile.user.name)}
+            {initials(profile.user.name)}
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">

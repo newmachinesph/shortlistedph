@@ -5,6 +5,7 @@ import { employerOrOnboard, listJds, requirePageUser } from "@/lib/queries";
 const statusChip: Record<string, { label: string; cls: string }> = {
   slate_ready: { label: "Slate ready", cls: "bg-brand-soft text-brand" },
   matching: { label: "Matching…", cls: "bg-ember-soft text-ember" },
+  no_matches: { label: "No qualified matches", cls: "bg-ember-soft text-ember" },
   draft: { label: "Draft", cls: "bg-line text-ink-soft" },
   closed: { label: "Closed", cls: "bg-line text-ink-soft" },
 };

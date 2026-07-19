@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { BadgeCheck, Camera, Check, Lock } from "lucide-react";
 import { employerOrOnboard, getSnapshotForEmployer, requirePageUser } from "@/lib/queries";
 import type { FrozenProfile } from "@/lib/slate";
+import { initials } from "@/lib/format";
 
 const availabilityLabel: Record<string, string> = {
   open: "Open to full-time",
@@ -10,8 +11,6 @@ const availabilityLabel: Record<string, string> = {
   booked: "Fully booked",
 };
 
-const initialsOf = (name: string) =>
-  name.split(/\s+/).map((p) => p[0]?.toUpperCase() ?? "").slice(0, 2).join("");
 
 export default async function CandidateDossier({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -69,7 +68,7 @@ export default async function CandidateDossier({ params }: { params: Promise<{ i
       <div className="mt-5 rounded-2xl border border-line bg-white p-7">
         <div className="flex flex-wrap items-start gap-5">
           <span className="font-display flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-soft text-xl font-semibold text-brand">
-            {initialsOf(name)}
+            {initials(name)}
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">

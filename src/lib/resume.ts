@@ -3,7 +3,16 @@ import { z } from "zod";
 import { HttpError } from "./session";
 import { MODELS, openai } from "./openai";
 
+/**
+ * The presigned PUT carries no length condition, so the size declared when
+ * requesting the URL is a claim, not a constraint. This is where it becomes one.
+ */
+export const MAX_RESUME_BYTES = 5 * 1024 * 1024;
+
 export async function extractText(buf: Buffer, filename: string): Promise<string> {
+  if (buf.byteLength > MAX_RESUME_BYTES) {
+    throw new HttpError(413, "Resume must be under 5MB");
+  }
   const ext = filename.toLowerCase().split(".").pop();
   if (ext === "pdf") {
     const { extractText: pdfText, getDocumentProxy } = await import("unpdf");
@@ -64,8 +73,9 @@ export async function parseResume(text: string): Promise<ParsedResume> {
   return ParsedResume.parse(JSON.parse(raw));
 }
 
-export const normalizeSkill = (s: string) =>
-  s.toLowerCase().replace(/[^a-z0-9+#. ]/g, "").replace(/\s+/g, " ").trim();
+// Single owner is scoring.ts — profile writes and match scoring must normalize
+// identically or skills silently stop matching.
+export { normalizeSkill } from "./scoring";
 
 /** One text blob per profile — what gets embedded for matching. */
 export function profileEmbedText(p: {

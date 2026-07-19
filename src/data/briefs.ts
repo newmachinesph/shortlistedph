@@ -176,4 +176,3 @@ export const slates: Record<string, SlateEntry[]> = {
   ],
 };
 
-export const briefById = (id: string) => briefs.find((b) => b.id === id);

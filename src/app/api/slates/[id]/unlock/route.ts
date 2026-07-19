@@ -14,10 +14,16 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
     const slate = await db.slate.findUnique({
       where: { id },
-      include: { jd: { select: { employerId: true } } },
+      include: {
+        jd: { select: { employerId: true } },
+        _count: { select: { entries: true } },
+      },
     });
     if (!slate || slate.jd.employerId !== employer.id) throw new HttpError(404, "Slate not found");
     if (slate.status === "unlocked") return ok({ status: "unlocked", alreadyUnlocked: true });
+    // Belt and braces: buildSlate no longer creates empty slates, but a credit
+    // must never be spendable on nothing.
+    if (slate._count.entries === 0) throw new HttpError(409, "This shortlist has no candidates to unlock");
 
     const result = await db.$transaction(async (tx) => {
       // Conditional decrement — two concurrent unlocks can't both spend the
