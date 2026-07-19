@@ -1,59 +1,99 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowRight, Check, FileUp, Loader2, ShieldAlert } from "lucide-react";
 import { Logo } from "@/components/logo";
+import { api } from "@/lib/auth-client";
 
 const gateRules: [string, string][] = [
   [
-    "You're matched on verified experience, not ambition.",
-    "The engine ranks what you can prove — confirmed engagements, verified skills. A polished resume with nothing behind it goes nowhere here.",
+    "We match verified experience, not ambition",
+    "Your profile is ranked against what your resume and past engagements actually support. Claims nobody can back count for less.",
   ],
   [
-    "Inflated rates don't get argued with. They just never match.",
-    "Your standing rate is compared against profiles with similar verified experience. Price yourself above what you can prove and you'll simply stop appearing on shortlists.",
+    "One rate, for everyone",
+    "You set a standing rate. It locks for 30 days and its history is visible to employers who shortlist you. No quoting one number to a startup and another to a US company.",
   ],
   [
-    "Fabricated experience ends the account. Permanently.",
-    "One human, one account, one reputation. Fraud with evidence means removal, and records are preserved for lawful requests by Philippine authorities.",
+    "Fabrication ends the account",
+    "Invented experience, borrowed portfolios, or fake references are removal — permanently, bound to your identity.",
   ],
   [
-    "You never pay anything. Anyone who asks is scamming you.",
-    "No listing fees, no placement fees, no 'training' fees — on or off this platform. Report anyone who asks.",
+    "You never pay anyone. Ever.",
+    "No listing, matching, or placement fees. If anyone asks you for money to be shortlisted or hired, report it.",
   ],
 ];
 
-const steps = [
-  "Reading your resume…",
-  "Extracting experience and skills…",
-  "Building your standing profile…",
-  "Indexing you for matching…",
-];
+type Stage = "gate" | "upload" | "parsing" | "review" | "publishing";
 
-const extracted = [
-  ["Headline", "Medical VA — US dental practices"],
-  ["Experience", "6 years · 2 engagements found"],
-  ["Skills", "Dentrix, Eaglesoft, insurance verification, +3 more"],
-  ["Suggested rate", "$9/hr — you can change this before publishing"],
-];
+type Parsed = {
+  headline: string;
+  summary: string;
+  city: string | null;
+  yearsExperience: number;
+  suggestedRateUsd: number | null;
+  skills: string[];
+  engagements: { role: string; company: string; span: string }[];
+};
 
 export default function OnboardingPage() {
-  const [stage, setStage] = useState<"gate" | "upload" | "parsing" | "review">("gate");
-  const [step, setStep] = useState(0);
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const router = useRouter();
+  const [stage, setStage] = useState<Stage>("gate");
+  const [parsed, setParsed] = useState<Parsed | null>(null);
+  const [rate, setRate] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
-
-  const start = () => {
+  async function handleFile(file: File) {
+    setError(null);
     setStage("parsing");
-    steps.forEach((_, i) =>
-      timers.current.push(setTimeout(() => setStep(i), i * 900)),
-    );
-    timers.current.push(
-      setTimeout(() => setStage("review"), steps.length * 900 + 400),
-    );
-  };
+    try {
+      const { uploadUrl, key } = await api<{ uploadUrl: string; key: string }>(
+        "/api/talent/resume/upload-url",
+        {
+          method: "POST",
+          body: JSON.stringify({ contentType: file.type, sizeBytes: file.size }),
+        },
+      );
+
+      const put = await fetch(uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type },
+      });
+      if (!put.ok) throw new Error("Upload failed — check your connection and try again");
+
+      const { parsed } = await api<{ parsed: Parsed }>("/api/talent/resume/parse", {
+        method: "POST",
+        body: JSON.stringify({ key }),
+      });
+
+      setParsed(parsed);
+      setRate(parsed.suggestedRateUsd ? String(parsed.suggestedRateUsd) : "");
+      setStage("review");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+      setStage("upload");
+    }
+  }
+
+  async function handlePublish() {
+    setError(null);
+    setStage("publishing");
+    try {
+      const parsedRate = Number(rate);
+      if (!parsedRate || parsedRate < 1) throw new Error("Set your standing rate before publishing");
+      await api("/api/talent/rate", { method: "PUT", body: JSON.stringify({ rateUsd: parsedRate }) });
+      await api("/api/talent/publish", { method: "POST" });
+      router.push("/talent");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not publish");
+      setStage("review");
+    }
+  }
 
   return (
     <div className="min-h-screen bg-paper">
@@ -63,6 +103,10 @@ export default function OnboardingPage() {
         </Link>
       </header>
       <main className="mx-auto max-w-2xl px-5 pb-20">
+        {error && (
+          <p className="mt-4 rounded-xl bg-ember-soft px-4 py-3 text-sm text-ember">{error}</p>
+        )}
+
         {stage === "gate" && (
           <>
             <p className="mt-8 inline-flex items-center gap-1.5 rounded-full bg-ember-soft px-3 py-1 text-xs font-medium text-ember">
@@ -72,8 +116,8 @@ export default function OnboardingPage() {
               This platform has a bar.
             </h1>
             <p className="mt-3 leading-relaxed text-ink-soft">
-              Being shortlisted here means something because of what we
-              don&rsquo;t allow. Two minutes of straight talk before you upload:
+              Being shortlisted here means something because of what we don&rsquo;t allow. Two
+              minutes of straight talk before you upload:
             </p>
             <ul className="mt-7 space-y-4">
               {gateRules.map(([title, body]) => (
@@ -85,6 +129,7 @@ export default function OnboardingPage() {
             </ul>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <button
+                type="button"
                 onClick={() => setStage("upload")}
                 className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-colors hover:bg-brand-dark"
               >
@@ -96,94 +141,130 @@ export default function OnboardingPage() {
             </div>
           </>
         )}
+
         {stage === "upload" && (
           <>
             <h1 className="font-display mt-8 text-3xl font-semibold tracking-tight text-ink">
               Upload your resume. That&rsquo;s the whole job.
             </h1>
             <p className="mt-3 leading-relaxed text-ink-soft">
-              We build your standing profile from it, then match you against
-              every new brief automatically. You never apply, never tailor,
-              never write a cover letter again.
+              We build your standing profile from it, then match you against every new job
+              description automatically. You never apply, never tailor, never write a cover letter
+              again.
             </p>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pdf,.doc,.docx,.txt"
+              className="sr-only"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleFile(file);
+              }}
+            />
             <button
-              onClick={start}
+              type="button"
+              onClick={() => fileRef.current?.click()}
               className="mt-8 flex w-full flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-brand/40 bg-white px-6 py-14 transition-colors hover:border-brand hover:bg-brand-soft/40"
             >
               <FileUp className="h-8 w-8 text-brand" strokeWidth={1.5} />
-              <span className="font-medium text-ink">Drop your resume here</span>
-              <span className="text-sm text-ink-faint">
-                PDF, DOC, or DOCX · or click to use a sample resume (demo)
-              </span>
+              <span className="font-medium text-ink">Choose your resume</span>
+              <span className="text-sm text-ink-faint">PDF, DOC, DOCX or TXT · up to 5MB</span>
             </button>
             <p className="mt-6 text-sm leading-relaxed text-ink-faint">
-              Free forever for talent. Verification is optional, and your ID or
-              NBI clearance never touches our servers — you show documents
-              directly to an employer only after you&rsquo;re hired.
+              Free forever for talent. Verification is optional, and your ID or NBI clearance never
+              touches our servers — you show documents directly to an employer only after
+              you&rsquo;re hired.
             </p>
           </>
         )}
 
         {stage === "parsing" && (
           <div className="pt-20 text-center">
-            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand-soft">
+            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-soft">
               <Loader2 className="h-7 w-7 animate-spin text-brand" />
             </span>
             <h1 className="font-display mt-6 text-2xl font-semibold text-ink">
-              Building your profile
+              Reading your resume
             </h1>
-            <ul className="mx-auto mt-6 max-w-xs space-y-2.5 text-left">
-              {steps.map((s, i) => (
-                <li
-                  key={s}
-                  className={`flex items-center gap-2.5 text-sm ${
-                    i < step ? "text-brand" : i === step ? "text-ink" : "text-ink-faint"
-                  }`}
-                >
-                  {i < step ? (
-                    <Check className="h-4 w-4" />
-                  ) : i === step ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <span className="h-4 w-4" />
-                  )}
-                  {s}
-                </li>
-              ))}
-            </ul>
+            <p className="mt-2 text-sm text-ink-soft">
+              Extracting your experience and skills — this takes a few seconds.
+            </p>
           </div>
         )}
 
-        {stage === "review" && (
+        {(stage === "review" || stage === "publishing") && parsed && (
           <>
             <span className="mt-8 inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3 py-1 text-xs font-medium text-brand">
-              <Check className="h-3.5 w-3.5" /> Profile drafted in 34 seconds
+              <Check className="h-3.5 w-3.5" /> Profile drafted from your resume
             </span>
             <h1 className="font-display mt-4 text-3xl font-semibold tracking-tight text-ink">
               Here&rsquo;s what we found. Correct anything.
             </h1>
-            <dl className="mt-7 space-y-4">
-              {extracted.map(([label, value]) => (
-                <div
-                  key={label}
-                  className="rounded-2xl border border-line bg-white px-5 py-4"
-                >
-                  <dt className="text-xs text-ink-faint">{label}</dt>
-                  <dd className="mt-0.5 font-medium text-ink">{value}</dd>
+
+            <div className="mt-7 space-y-4">
+              <div className="rounded-2xl border border-line bg-white px-5 py-4">
+                <p className="text-xs text-ink-faint">Headline</p>
+                <p className="mt-0.5 font-medium text-ink">{parsed.headline}</p>
+              </div>
+              <div className="rounded-2xl border border-line bg-white px-5 py-4">
+                <p className="text-xs text-ink-faint">Experience</p>
+                <p className="mt-0.5 font-medium text-ink">
+                  {parsed.yearsExperience} years · {parsed.engagements.length} engagements found
+                </p>
+              </div>
+              <div className="rounded-2xl border border-line bg-white px-5 py-4">
+                <p className="text-xs text-ink-faint">Skills</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {parsed.skills.map((s) => (
+                    <span
+                      key={s}
+                      className="rounded-full border border-line px-2.5 py-1 text-xs text-ink-soft"
+                    >
+                      {s}
+                    </span>
+                  ))}
                 </div>
-              ))}
-            </dl>
+              </div>
+              <div className="rounded-2xl border border-line bg-white px-5 py-4">
+                <label htmlFor="rate" className="text-xs text-ink-faint">
+                  Your standing rate (USD / hour)
+                </label>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="font-display text-2xl font-semibold text-ink">$</span>
+                  <input
+                    id="rate"
+                    type="number"
+                    min={1}
+                    step={0.5}
+                    value={rate}
+                    onChange={(e) => setRate(e.target.value)}
+                    className="w-28 rounded-xl border border-line bg-paper px-3 py-2 text-sm text-ink focus:outline-2 focus:outline-brand"
+                  />
+                  <span className="text-sm text-ink-faint">/ hr</span>
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-ink-faint">
+                  Locks for 30 days once published. Its history is visible to employers who
+                  shortlist you.
+                </p>
+              </div>
+            </div>
+
             <div className="mt-8 flex flex-wrap items-center gap-4">
-              <Link
-                href="/talent"
-                className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-colors hover:bg-brand-dark"
+              <button
+                type="button"
+                onClick={handlePublish}
+                disabled={stage === "publishing"}
+                className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-colors hover:bg-brand-dark disabled:opacity-60"
               >
-                Publish my profile <ArrowRight className="h-4 w-4" />
-              </Link>
+                {stage === "publishing" && <Loader2 className="h-4 w-4 animate-spin" />}
+                {stage === "publishing" ? "Publishing…" : "Publish my profile"}
+                {stage !== "publishing" && <ArrowRight className="h-4 w-4" />}
+              </button>
               <p className="text-xs leading-relaxed text-ink-faint">
                 Matching starts immediately.
                 <br />
-                Your rate locks for 30 days after each change.
+                You can refine everything later.
               </p>
             </div>
           </>

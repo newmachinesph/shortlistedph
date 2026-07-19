@@ -1,14 +1,19 @@
 import Link from "next/link";
-import { ArrowRight, Pencil, Plus, ScanSearch } from "lucide-react";
-import { briefs, slates } from "@/data/briefs";
+import { ArrowRight, Plus, ScanSearch } from "lucide-react";
+import { employerOrOnboard, listJds, requirePageUser } from "@/lib/queries";
 
 const statusChip: Record<string, { label: string; cls: string }> = {
   slate_ready: { label: "Slate ready", cls: "bg-brand-soft text-brand" },
   matching: { label: "Matching…", cls: "bg-ember-soft text-ember" },
   draft: { label: "Draft", cls: "bg-line text-ink-soft" },
+  closed: { label: "Closed", cls: "bg-line text-ink-soft" },
 };
 
-export default function EmployerBriefsPage() {
+export default async function JobDescriptionsPage() {
+  const user = await requirePageUser("employer");
+  const employer = await employerOrOnboard(user.id);
+  const jds = await listJds(employer.id);
+
   return (
     <>
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -17,7 +22,7 @@ export default function EmployerBriefsPage() {
             Job descriptions
           </h1>
           <p className="mt-1 text-sm text-ink-soft">
-            Every brief you post stays hidden from candidates until a match is made.
+            Every one is hidden from candidates — they exist only to drive matching.
           </p>
         </div>
         <Link
@@ -28,59 +33,66 @@ export default function EmployerBriefsPage() {
         </Link>
       </div>
 
-      <div className="mt-7 space-y-4">
-        {briefs.map((b) => {
-          const chip = statusChip[b.status];
-          const slate = slates[b.id];
-          return (
-            <div key={b.id} className="rounded-2xl border border-line bg-white p-6">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2.5">
-                    <h3 className="font-medium text-ink">{b.title}</h3>
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${chip.cls}`}>
-                      {chip.label}
-                    </span>
-                    {b.status === "slate_ready" && !b.unlocked && (
-                      <span className="rounded-full bg-ember-soft px-2 py-0.5 text-[11px] font-medium text-ember">
-                        Free preview — unlock $49
+      {jds.length === 0 ? (
+        <div className="mt-7 rounded-2xl border border-line bg-white p-10 text-center">
+          <ScanSearch className="mx-auto h-8 w-8 text-ink-faint" strokeWidth={1.5} />
+          <h2 className="font-display mt-4 text-lg font-semibold text-ink">Nothing here yet</h2>
+          <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-ink-soft">
+            Write what you need and we&rsquo;ll rank the market against it. Previewing your slate
+            costs nothing.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-7 space-y-4">
+          {jds.map((jd) => {
+            const chip = statusChip[jd.status] ?? statusChip.draft;
+            const slate = jd.slates[0];
+            const locked = slate && slate.status !== "unlocked";
+            return (
+              <div key={jd.id} className="rounded-2xl border border-line bg-white p-6">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <h3 className="font-medium text-ink">{jd.title}</h3>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${chip.cls}`}>
+                        {chip.label}
                       </span>
-                    )}
+                      {locked && (
+                        <span className="rounded-full bg-ember-soft px-2 py-0.5 text-[11px] font-medium text-ember">
+                          Free preview — unlock $49
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-sm text-ink-soft">
+                      {jd.budgetMin != null && jd.budgetMax != null
+                        ? `$${jd.budgetMin}–${jd.budgetMax}/hr · `
+                        : ""}
+                      {jd.hoursPerWeek ? `${jd.hoursPerWeek}h/wk · ` : ""}
+                      {jd.mustHaves.length} must-haves
+                    </p>
                   </div>
-                  <p className="mt-1 text-sm text-ink-soft">
-                    ${b.budgetMin}–{b.budgetMax}/hr · {b.hoursPerWeek}h/wk · overlap {b.overlap} · posted {b.postedAgo}
-                  </p>
-                  <p className="mt-1 text-xs text-ink-faint">
-                    Hidden from candidates · {b.candidatesScanned} profiles scanned
-                  </p>
+                  {slate ? (
+                    <Link
+                      href={`/employer/briefs/${jd.id}`}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-brand-soft px-4 py-2 text-sm font-medium text-brand transition-colors hover:bg-brand hover:text-white"
+                    >
+                      {locked ? "View preview" : "View shortlist"} ({slate._count.entries}){" "}
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/employer/briefs/new"
+                      className="rounded-xl px-4 py-2 text-sm font-medium text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft"
+                    >
+                      Continue editing
+                    </Link>
+                  )}
                 </div>
-                {b.status === "slate_ready" && slate ? (
-                  <Link
-                    href={`/employer/briefs/${b.id}`}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-brand-soft px-4 py-2 text-sm font-medium text-brand transition-colors hover:bg-brand hover:text-white"
-                  >
-                    <span>
-                      {b.unlocked ? "View shortlist" : "View preview"} ({slate.length})
-                    </span>
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                ) : b.status === "draft" ? (
-                  <Link
-                    href="/employer/briefs/new"
-                    className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft"
-                  >
-                    <Pencil className="h-4 w-4" /> Continue editing
-                  </Link>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 rounded-xl bg-ember-soft px-4 py-2 text-sm text-ember">
-                    <ScanSearch className="h-4 w-4" /> Slate ETA ~18h
-                  </span>
-                )}
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </>
   );
 }
