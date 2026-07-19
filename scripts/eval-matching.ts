@@ -14,6 +14,7 @@ import OpenAI from "openai";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
+  MIN_SLATE_SCORE,
   composite,
   scoreExperience,
   scoreOverlap,
@@ -107,26 +108,43 @@ async function main() {
       skillsBy.set(s.profileId, list);
     }
     const engCount = new Map<string, number>();
+    const rolesBy = new Map<string, string[]>();
     for (const e of engagements) {
       if (e.outcome === "confirmed") engCount.set(e.profileId, (engCount.get(e.profileId) ?? 0) + 1);
+      const list = rolesBy.get(e.profileId) ?? [];
+      list.push(e.role);
+      rolesBy.set(e.profileId, list);
     }
 
     const ranked = pool
       .map((c) => {
         const dims = {
-          skills: scoreSkills(jd.mustHaves, skillsBy.get(c.id) ?? [], c.similarity),
+          skills: scoreSkills(jd.mustHaves, skillsBy.get(c.id) ?? [], c.similarity, {
+            headline: c.headline,
+            roles: rolesBy.get(c.id) ?? [],
+          }),
           rate: scoreRate(c.rateUsd, jd.budgetMin, jd.budgetMax),
           overlap: scoreOverlap(c.availability, c.committedHours, jd.hoursPerWeek),
           experience: scoreExperience(c.yearsExperience, engCount.get(c.id) ?? 0),
         };
         return { c, dims, score: composite(dims) };
       })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 5);
+      .sort((a, b) => b.score - a.score);
+
+    const qualified = ranked.filter((r) => r.score >= MIN_SLATE_SCORE).slice(0, 5);
+    const rejected = ranked.filter((r) => r.score < MIN_SLATE_SCORE).length;
 
     console.log(`━━━ ${jd.title}`);
     console.log(`    budget $${jd.budgetMin}-${jd.budgetMax}/hr · must: ${jd.mustHaves.join(", ")}`);
-    for (const [i, r] of ranked.entries()) {
+    if (qualified.length === 0) {
+      console.log(`    NO QUALIFIED CANDIDATES — ${rejected} below the bar (top was ${ranked[0]?.score ?? 0})`);
+      console.log();
+      continue;
+    }
+    if (qualified.length < 5) {
+      console.log(`    only ${qualified.length} met the bar (${rejected} below)`);
+    }
+    for (const [i, r] of qualified.entries()) {
       const headline = (r.c.headline ?? "(no headline)").slice(0, 58);
       console.log(
         `  ${i + 1}. ${String(r.score).padStart(3)}  ${headline.padEnd(60)} ` +
