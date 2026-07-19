@@ -91,6 +91,8 @@ model Verification {
 model TalentProfile {
   id              String    @id @default(cuid())
   userId          String    @unique
+  // remotetalentph JobSeekerProfile.id — makes the migration re-runnable.
+  legacyId        String?   @unique
   headline        String?
   summary         String?
   city            String?
