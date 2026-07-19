@@ -1,6 +1,8 @@
 import "server-only";
 import { db } from "./db";
+import { mail } from "./email";
 import { PRODUCTS, type ProductId } from "./payments";
+import { qualifyConversion } from "./referral";
 
 /**
  * Every path that grants something paid-for goes through here.
@@ -79,6 +81,11 @@ export async function fulfillPurchase(input: {
       });
     });
 
+    // Everything below runs AFTER the money is committed and is deliberately
+    // outside the transaction: a bounced receipt or a referral bookkeeping
+    // failure must never roll back a payment that already cleared.
+    await afterFulfillment(input);
+
     return { granted: true, alreadyProcessed: false };
   } catch (e) {
     // Unique violation = a concurrent delivery won the race. Not an error.
@@ -86,6 +93,46 @@ export async function fulfillPurchase(input: {
       return { granted: false, alreadyProcessed: true };
     }
     throw e;
+  }
+}
+
+/** Post-commit side effects. Swallows its own failures on purpose. */
+async function afterFulfillment(input: {
+  userId: string;
+  providerRef: string;
+  productId: ProductId;
+  amount: number;
+  currency: string;
+}) {
+  try {
+    const user = await db.user.findUnique({
+      where: { id: input.userId },
+      select: { email: true, name: true },
+    });
+    if (!user) return;
+
+    await mail.paymentReceipt(user.email, {
+      name: user.name,
+      description: PRODUCTS[input.productId].label,
+      amount: input.amount,
+      currency: input.currency,
+      reference: input.providerRef,
+      date: new Date().toLocaleDateString("en-PH", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }),
+    });
+
+    // A referred user's first real payment is what turns a signup into a
+    // payable referral.
+    await qualifyConversion(input.userId, {
+      paymentId: input.providerRef,
+      amount: input.amount,
+      currency: input.currency,
+    });
+  } catch (e) {
+    console.error("[fulfillment] post-commit side effects failed", e);
   }
 }
 

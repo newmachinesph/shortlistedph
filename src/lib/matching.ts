@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "./db";
+import { mail } from "./email";
 import { MODELS, embed, openai, toVectorLiteral } from "./openai";
 import {
   MIN_SLATE_SCORE,
@@ -194,6 +195,28 @@ export async function buildSlate(jdId: string) {
     await tx.jobDescription.update({ where: { id: jd.id }, data: { status: "slate_ready" } });
     return created;
   });
+
+  // Outside the transaction on purpose: a bounced email must not undo a slate
+  // that was built correctly.
+  try {
+    // The local Jd type carries only matching inputs, so the employer is
+    // resolved from the row rather than assumed to be in scope.
+    const row = await db.jobDescription.findUnique({
+      where: { id: jd.id },
+      select: { employer: { select: { companyName: true, user: { select: { email: true } } } } },
+    });
+    const employer = row?.employer;
+    if (employer) {
+      await mail.slateDelivered(employer.user.email, {
+        company: employer.companyName,
+        jobTitle: jd.title,
+        count: top.length,
+        jdId: jd.id,
+      });
+    }
+  } catch (e) {
+    console.error("[matching] slate-ready email failed", e);
+  }
 
   return { slateId: slate.id, scanned: pool.length, entries: top.length };
 }
