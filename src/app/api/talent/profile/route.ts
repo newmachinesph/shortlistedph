@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
-import { normalizeSkill } from "@/lib/resume";
+import { isHttpUrl, normalizeSkill } from "@/lib/resume";
 import { requireRole, requireTalentProfile } from "@/lib/session";
 
 export async function GET() {
@@ -21,6 +21,23 @@ export async function GET() {
   }
 }
 
+/**
+ * These are rendered to employers as links, so only absolute http(s) survives.
+ * Empty string is how the client says "clear this" — it stores as null.
+ */
+const webUrl = z
+  .union([
+    z.literal(""),
+    z.string().trim().max(300).refine(isHttpUrl, "Links must start with http:// or https://"),
+  ])
+  .transform((v) => (v === "" ? null : v));
+
+const optionalText = (max: number) =>
+  z
+    .union([z.literal(""), z.string().trim().max(max)])
+    .transform((v) => (v === "" ? null : v))
+    .optional();
+
 const Patch = z.object({
   headline: z.string().max(160).optional(),
   summary: z.string().max(2000).optional(),
@@ -29,6 +46,14 @@ const Patch = z.object({
   availability: z.enum(["open", "partial", "booked"]).optional(),
   committedHours: z.number().int().min(0).max(80).optional(),
   visibility: z.boolean().optional(),
+  portfolioUrl: webUrl.optional(),
+  linkedinUrl: webUrl.optional(),
+  githubUrl: webUrl.optional(),
+  education: optionalText(200),
+  englishLevel: z.enum(["native", "fluent", "conversational", "basic"]).nullish(),
+  tools: optionalText(400),
+  certifications: optionalText(400),
+  preferredOverlap: optionalText(80),
   skills: z.array(z.string().min(1).max(60)).max(20).optional(),
   engagements: z
     .array(z.object({ role: z.string().max(120), company: z.string().max(120), span: z.string().max(60) }))
@@ -46,20 +71,47 @@ export async function PATCH(req: Request) {
 
     await db.$transaction(async (tx) => {
       if (skills) {
-        await tx.skill.deleteMany({ where: { profileId: profile.id } });
-        await tx.skill.createMany({
-          data: skills.map((name) => ({
-            profileId: profile.id,
-            name,
-            normalizedName: normalizeSkill(name),
-          })),
-        });
+        // Diff rather than replace: a wipe-and-recreate would silently drop the
+        // confirmed flag off every surviving skill, and confirmation is evidence.
+        const kept = new Map(skills.map((name) => [normalizeSkill(name), name]));
+        const current = await tx.skill.findMany({ where: { profileId: profile.id } });
+        const removed = current.filter(
+          (s) => !kept.has(s.normalizedName) && !s.confirmed,
+        );
+        if (removed.length) {
+          await tx.skill.deleteMany({ where: { id: { in: removed.map((s) => s.id) } } });
+        }
+        const have = new Set(current.map((s) => s.normalizedName));
+        const added = [...kept].filter(([norm]) => norm && !have.has(norm));
+        if (added.length) {
+          await tx.skill.createMany({
+            data: added.map(([normalizedName, name]) => ({
+              profileId: profile.id,
+              name,
+              normalizedName,
+            })),
+          });
+        }
       }
       if (engagements) {
-        await tx.engagement.deleteMany({ where: { profileId: profile.id } });
-        await tx.engagement.createMany({
-          data: engagements.map((e) => ({ ...e, profileId: profile.id })),
-        });
+        const key = (e: { role: string; company: string }) =>
+          `${normalizeSkill(e.role)}|${normalizeSkill(e.company)}`;
+        const kept = new Map(engagements.map((e) => [key(e), e]));
+        const current = await tx.engagement.findMany({ where: { profileId: profile.id } });
+        // A confirmed engagement is mutual evidence — the talent alone cannot delete it.
+        const removed = current.filter(
+          (e) => !kept.has(key(e)) && e.outcome !== "confirmed",
+        );
+        if (removed.length) {
+          await tx.engagement.deleteMany({ where: { id: { in: removed.map((e) => e.id) } } });
+        }
+        const have = new Set(current.map(key));
+        const added = [...kept].filter(([k]) => !have.has(k));
+        if (added.length) {
+          await tx.engagement.createMany({
+            data: added.map(([, e]) => ({ ...e, profileId: profile.id })),
+          });
+        }
       }
       await tx.talentProfile.update({
         where: { id: profile.id },

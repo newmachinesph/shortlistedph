@@ -1,0 +1,114 @@
+SHORTLISTED.PH RESUME TEMPLATE
+Replace everything in [brackets]. Delete the notes in (parentheses).
+Keep the section headings exactly as written. Plain text only: no tables,
+no columns, no text boxes, no icons. Save as PDF, DOCX or TXT, under 5MB.
+A filled-in example follows the blank template at the bottom of this file.
+
+
+================================================================
+BLANK TEMPLATE
+================================================================
+
+[Your Full Name]
+[City, Province] (city only, not a street address)
+[email] | [mobile]
+
+HEADLINE
+[One line: your role plus your specialty. No adjectives.]
+
+SUMMARY
+[Two or three sentences. What you do, for whom, with what tools.
+State facts only — anything you cannot back up gets dropped.]
+
+YEARS OF EXPERIENCE
+[A number, e.g. 6]
+
+RATE
+[USD per hour, e.g. USD 12 per hour]
+
+SKILLS
+(Software, systems and concrete capabilities. One per line or comma
+separated. Up to 20 — beyond that they are ignored. Write the tool name
+alone: "Xero", not "strong experience with Xero". Do not join two skills
+with a slash; write them as separate entries.)
+[Skill]
+[Skill]
+[Skill]
+
+EXPERIENCE
+(Newest first. Up to 12 roles. Every entry needs a job title, an
+employer, and a start and end year.)
+
+[Job Title] — [Employer] ([Start year] - [End year])
+[What you were responsible for, in one line.]
+[An outcome with a number in it, if you have one.]
+
+[Job Title] — [Employer] ([Start year] - [End year])
+[What you were responsible for, in one line.]
+[An outcome with a number in it, if you have one.]
+
+EDUCATION
+[Degree or course] — [School] ([Year])
+
+CERTIFICATIONS
+[Certification] — [Issuer] ([Year])
+
+
+================================================================
+FILLED-IN EXAMPLE
+================================================================
+
+Maria Cristina Salazar
+Cebu City, Cebu
+mc.salazar@example.com | +63 917 555 0142
+
+HEADLINE
+Dental billing and insurance verification specialist for US practices
+
+SUMMARY
+Handles end-to-end billing for three US dental practices on Dentrix and
+Open Dental, from eligibility checks to appeals on denied claims. Six
+years in dental revenue cycle, all of it remote and on US hours. Works
+US Eastern time, 8am to 5pm.
+
+YEARS OF EXPERIENCE
+6
+
+RATE
+USD 11 per hour
+
+SKILLS
+Dentrix
+Open Dental
+Insurance verification
+Dental claims submission
+Claim denial appeals
+Eligibility and benefits checks
+Treatment plan estimates
+Patient billing and statements
+Accounts receivable follow-up
+HIPAA compliance
+CDT coding
+QuickBooks Online
+
+EXPERIENCE
+
+Dental Billing Specialist — Harborview Dental Group (2022 - 2026)
+Owned billing for a three-location practice on Dentrix, roughly 400
+claims a month.
+Cut the over-90-day receivables balance from USD 78,000 to USD 21,000
+in eleven months.
+
+Insurance Verification Coordinator — BrightSmile Family Dental (2020 - 2022)
+Verified eligibility and benefits for every scheduled patient the day
+before their appointment.
+Reduced day-of-appointment coverage surprises to under 2% of visits.
+
+Medical Billing Associate — Cebu Outsourcing Partners (2019 - 2020)
+Posted payments and worked denials for a US primary care client.
+
+EDUCATION
+BS Accountancy — University of San Carlos (2019)
+
+CERTIFICATIONS
+HIPAA Awareness for Business Associates — HIPAA Training (2024)

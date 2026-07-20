@@ -50,6 +50,13 @@ export default function ForTalentPage() {
           </Link>
           <span className="text-sm text-ink-soft">Free, and it stays free.</span>
         </div>
+        <p className="mt-4 text-sm text-ink-soft">
+          No resume ready, or not sure how to lay one out?{" "}
+          <Link href="/resume-template" className="font-medium text-brand hover:underline">
+            Use our resume template
+          </Link>{" "}
+          — it is built around the fields we read.
+        </p>
       </section>
 
       <section className="w-full border-y border-line bg-white">

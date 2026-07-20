@@ -107,6 +107,17 @@ model TalentProfile {
   visibility      Boolean   @default(true)
   verifiedTier    String    @default("none") // none | id_verified
   resumeKey       String? // R2 object key
+
+  // Collected by the onboarding gap step — only asked when the resume did not
+  // answer them. All nullable: skipping any of these must never block publish.
+  portfolioUrl    String?
+  linkedinUrl     String?
+  githubUrl       String?
+  education       String?
+  englishLevel    String? // native | fluent | conversational | basic
+  tools           String? // free text, comma separated
+  preferredOverlap String? // e.g. "4h US Eastern"
+  certifications  String?
   publishedAt     DateTime?
   lastEditedAt    DateTime  @default(now())
   createdAt       DateTime  @default(now())
