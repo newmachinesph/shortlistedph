@@ -28,6 +28,7 @@ export const PUBLIC_ROUTES = [
   "/for-talent",
   "/why-it-works",
   "/pricing",
+  "/resume-template",
   "/conduct",
   "/terms",
   "/privacy",
