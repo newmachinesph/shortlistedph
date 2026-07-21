@@ -36,6 +36,8 @@ export function InterviewPool({
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(alreadyRequested);
+  const [questionsText, setQuestionsText] = useState("");
+  const [notes, setNotes] = useState("");
 
   if (done) {
     return (
@@ -51,10 +53,19 @@ export function InterviewPool({
   async function choose(interviewerId: string) {
     setError(null);
     setPendingId(interviewerId);
+    const suggestedQuestions = questionsText
+      .split("\n")
+      .map((q) => q.trim())
+      .filter(Boolean);
     try {
       await api("/api/interviews", {
         method: "POST",
-        body: JSON.stringify({ slateEntryId, interviewerId }),
+        body: JSON.stringify({
+          slateEntryId,
+          interviewerId,
+          suggestedQuestions,
+          employerNotes: notes.trim() || undefined,
+        }),
       });
       setDone(true);
       router.refresh();
@@ -96,6 +107,39 @@ export function InterviewPool({
         >
           Close
         </button>
+      </div>
+
+      <div className="mt-4 space-y-4">
+        <div>
+          <label htmlFor="iv-questions" className="block text-sm font-medium text-ink">
+            Suggested questions <span className="font-normal text-ink-faint">(optional)</span>
+          </label>
+          <p className="mt-0.5 text-xs text-ink-faint">One per line. The interviewer sees these.</p>
+          <textarea
+            id="iv-questions"
+            rows={4}
+            value={questionsText}
+            onChange={(e) => setQuestionsText(e.target.value)}
+            placeholder={"Walk me through a system you designed end to end.\nHow do you handle disagreement on a technical decision?"}
+            className="mt-1.5 w-full rounded-xl border border-line bg-white px-4 py-3 text-base text-ink placeholder:text-ink-faint focus:outline-2 focus:outline-brand sm:text-sm"
+          />
+        </div>
+        <div>
+          <label htmlFor="iv-notes" className="block text-sm font-medium text-ink">
+            Notes for the interviewer <span className="font-normal text-ink-faint">(optional)</span>
+          </label>
+          <p className="mt-0.5 text-xs text-ink-faint">
+            Context or what to probe — the role, must-haves, anything to confirm.
+          </p>
+          <textarea
+            id="iv-notes"
+            rows={3}
+            maxLength={2000}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="mt-1.5 w-full rounded-xl border border-line bg-white px-4 py-3 text-base text-ink placeholder:text-ink-faint focus:outline-2 focus:outline-brand sm:text-sm"
+          />
+        </div>
       </div>
 
       {interviewers.length === 0 ? (

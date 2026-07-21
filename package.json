@@ -9,7 +9,8 @@
     "lint": "eslint",
     "postinstall": "prisma generate",
     "preflight": "node --experimental-strip-types scripts/preflight.ts",
-    "seed:admin": "node --experimental-strip-types scripts/seed-admin.ts"
+    "seed:admin": "node --experimental-strip-types scripts/seed-admin.ts",
+    "seed:interviewers": "node --experimental-strip-types scripts/seed-interviewers.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1090.0",

@@ -19,6 +19,8 @@ export type Assignment = {
   scheduledAt: string | null;
   hasRecording: boolean;
   company: string;
+  suggestedQuestions: string[];
+  employerNotes: string | null;
   candidate: AssignmentCandidate;
 };
 
@@ -66,6 +68,11 @@ export function InterviewerAssignment({
         </div>
       )}
 
+      <EmployerBrief
+        suggestedQuestions={assignment.suggestedQuestions}
+        employerNotes={assignment.employerNotes}
+      />
+
       <ScheduleBlock assignment={assignment} durationMinutes={durationMinutes} onDone={() => router.refresh()} />
       <UploadBlock assignment={assignment} onDone={() => router.refresh()} />
 
@@ -79,6 +86,43 @@ export function InterviewerAssignment({
         <p className="mt-5 rounded-xl bg-paper px-4 py-3 text-sm text-ink-soft">
           Upload the recording to unlock the assessment. A report can&rsquo;t be filed without it.
         </p>
+      )}
+    </div>
+  );
+}
+
+// The employer's brief, shown before and during the call. Nothing renders when
+// they left both blank — no empty headers.
+function EmployerBrief({
+  suggestedQuestions,
+  employerNotes,
+}: {
+  suggestedQuestions: string[];
+  employerNotes: string | null;
+}) {
+  if (suggestedQuestions.length === 0 && !employerNotes) return null;
+  return (
+    <div className="mt-5 border-t border-line pt-5">
+      <p className="text-sm font-medium text-ink">From the employer</p>
+      {employerNotes && (
+        <div className="mt-2">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-ink-faint">Notes</h3>
+          <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-ink-soft">
+            {employerNotes}
+          </p>
+        </div>
+      )}
+      {suggestedQuestions.length > 0 && (
+        <div className="mt-3">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-ink-faint">
+            Suggested questions
+          </h3>
+          <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm leading-relaxed text-ink-soft">
+            {suggestedQuestions.map((q, i) => (
+              <li key={i}>{q}</li>
+            ))}
+          </ol>
+        </div>
       )}
     </div>
   );

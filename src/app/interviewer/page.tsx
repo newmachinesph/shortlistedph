@@ -36,6 +36,8 @@ export default async function InterviewerHome() {
       scheduledAt: a.scheduledAt ? a.scheduledAt.toISOString() : null,
       hasRecording: Boolean(a.recordingKey),
       company: a.employer.companyName,
+      suggestedQuestions: a.suggestedQuestions,
+      employerNotes: a.employerNotes,
       candidate: {
         name: a.talent.name,
         headline: p.headline,

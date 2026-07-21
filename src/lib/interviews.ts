@@ -16,18 +16,29 @@ import { db } from "./db";
  *   any active state → cancelled
  */
 
-// ponytail: flat platform fee on top of the interviewer's own rate. One
-// constant, owner's number to set — raise it if margin matters more than
-// conversion. Interviewer earns their rateUsd; platform keeps the difference.
-export const INTERVIEW_PLATFORM_FEE_USD = 15;
+// Unit economics live here — the two numbers below are the whole margin story,
+// owner's to tune.
+//
+// Paying the interviewer over PayPal is not free: a cross-border payout carries
+// a percentage cut plus an FX spread, so the employer price has to cover the
+// rate AND the cost of moving it, or the fee eats into margin. The fee is
+// modelled as a percentage because PayPal's is — a higher rate costs
+// proportionally more to pay out.
+export const INTERVIEWER_PAYOUT_FEE_PCT = 0.06; // PayPal cross-border + FX buffer
+export const INTERVIEW_MARGIN_USD = 12; // platform's take, after the transfer cost
 
 export const INTERVIEWER_RATE_MIN = 5;
 export const INTERVIEWER_RATE_MAX = 10;
 export const INTERVIEW_DURATION_MINUTES = 30;
 
-/** What the employer pays for an interview at a given interviewer rate. */
+/**
+ * What the employer pays. Covers the interviewer's rate, the PayPal cost of
+ * paying them, and our margin. Rounded UP to a whole dollar: cleaner pricing,
+ * and rounding up can never leave the transfer fee uncovered.
+ */
 export function employerPrice(interviewerRateUsd: number): number {
-  return Math.round((interviewerRateUsd + INTERVIEW_PLATFORM_FEE_USD) * 100) / 100;
+  const transferCost = interviewerRateUsd * INTERVIEWER_PAYOUT_FEE_PCT;
+  return Math.ceil(interviewerRateUsd + transferCost + INTERVIEW_MARGIN_USD);
 }
 
 // The assessment template. Fixed fields so every report renders identically
