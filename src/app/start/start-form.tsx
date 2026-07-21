@@ -190,8 +190,8 @@ export function StartForm({ initial }: { initial: StartInitial }) {
               <span className="font-display text-2xl font-semibold text-brand">
                 About {count.toLocaleString("en-PH")}
               </span>{" "}
-              Filipino {count === 1 ? "professional" : "professionals"} already match — and we keep
-              sourcing.
+              Filipino {count === 1 ? "professional already matches" : "professionals already match"} —
+              and we keep sourcing.
             </p>
           ) : (
             <p className="text-base leading-relaxed text-ink">
