@@ -140,7 +140,7 @@ export default function PricingPage() {
                 ))}
               </ul>
               <Link
-                href="/employer/briefs/new"
+                href="/start"
                 className={`mt-7 inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-colors ${
                   t.highlight
                     ? "bg-white text-brand hover:bg-brand-soft"

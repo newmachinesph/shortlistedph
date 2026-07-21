@@ -90,6 +90,23 @@ export function WelcomeTalent({ name }: { name: string }) {
   );
 }
 
+export function AvailabilityPrompt({ name }: { name: string }) {
+  return (
+    <Shell
+      preview="Are you still open to work?"
+      footnote="Two taps keeps your profile in front of employers. If nothing has changed, just confirm."
+    >
+      <Text style={s.heading}>Still open to work, {name}?</Text>
+      <Text style={s.text}>
+        Employers see how recently each candidate confirmed they are available,
+        and they reach out to the fresh ones first. A quick update keeps you in
+        that group — say whether you are open and how soon you could start.
+      </Text>
+      <Button href={`${SITE_URL}/talent/profile`}>Update my availability</Button>
+    </Shell>
+  );
+}
+
 export function ConnectionRequested({
   name,
   company,

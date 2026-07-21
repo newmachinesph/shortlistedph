@@ -152,6 +152,8 @@ export function renderNotification(
       return { text: `Your interview is scheduled.`, href: `/${side}/interviews` };
     case "interview_reported":
       return { text: `The interview assessment is ready.`, href: "/employer/interviews" };
+    case "availability_check":
+      return { text: `Still open to work? Confirm your availability.`, href: "/talent/profile" };
     default:
       // Unknown type: show the event, not a crash. "some_new_event" reads as
       // "Some new event" — ugly but honest, and the row stays clickable-free.

@@ -4,6 +4,7 @@ import { render, toPlainText } from "@react-email/components";
 import nodemailer from "nodemailer";
 import type { ReactElement } from "react";
 import {
+  AvailabilityPrompt,
   ConnectionRequested,
   PaymentReceipt,
   PayoutSent,
@@ -140,6 +141,9 @@ export const mail = {
 
   welcomeTalent: (to: string, name: string) =>
     send(to, "Welcome to shortlisted.ph", WelcomeTalent({ name })),
+
+  availabilityPrompt: (to: string, name: string) =>
+    send(to, "Are you still open to work?", AvailabilityPrompt({ name })),
 
   connectionRequested: (
     to: string,

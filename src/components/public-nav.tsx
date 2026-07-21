@@ -43,7 +43,7 @@ export function PublicNav() {
             Sign in
           </Link>
           <Link
-            href="/employer"
+            href="/start"
             className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
           >
             Get your shortlist
@@ -89,7 +89,7 @@ export function PublicNav() {
               Sign in
             </Link>
             <Link
-              href="/employer"
+              href="/start"
               className="mb-3 mt-1 rounded-xl bg-brand px-4 py-3 text-center text-sm font-medium text-white transition-colors hover:bg-brand-dark"
             >
               Get your shortlist

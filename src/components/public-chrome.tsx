@@ -91,7 +91,7 @@ export function PublicFooter() {
               </h2>
               <ul className="mt-3 space-y-0.5">
                 <li>
-                  <Link href="/employer/briefs/new" className="block py-2 text-sm text-ink-soft hover:text-ink">
+                  <Link href="/start" className="block py-2 text-sm text-ink-soft hover:text-ink">
                     Write a job description
                   </Link>
                 </li>
