@@ -46,6 +46,8 @@ export async function listAssignments(interviewerId: string) {
       status: true,
       scheduledAt: true,
       recordingKey: true,
+      suggestedQuestions: true,
+      employerNotes: true,
       // The interviewer is told who they are interviewing — they can't run the
       // call blind. Name comes from the live talent user, the rest from the
       // frozen snapshot the employer was shown.

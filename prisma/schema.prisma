@@ -536,6 +536,10 @@ model Interview {
   // price the employer already saw.
   priceUsd             Float
   interviewerPayoutUsd Float
+  // Set by the employer at request time — the interviewer sees these before
+  // and during the call. Optional: a request is valid with neither.
+  suggestedQuestions String[]
+  employerNotes      String?
   scheduledAt  DateTime?
   recordingKey String? // R2 object key, uploaded by the interviewer
   paymentRef   String? // Payment.providerRef once the employer pays

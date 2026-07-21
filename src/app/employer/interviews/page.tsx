@@ -131,6 +131,26 @@ export default async function InterviewsPage({
                         </span>
                       </div>
 
+                      {(iv.suggestedQuestions.length > 0 || iv.employerNotes) && (
+                        <div className="mt-4 rounded-xl border border-line bg-paper p-4">
+                          <p className="text-xs font-medium uppercase tracking-wider text-ink-faint">
+                            What you sent the interviewer
+                          </p>
+                          {iv.employerNotes && (
+                            <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-soft">
+                              {iv.employerNotes}
+                            </p>
+                          )}
+                          {iv.suggestedQuestions.length > 0 && (
+                            <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm leading-relaxed text-ink-soft">
+                              {iv.suggestedQuestions.map((q, i) => (
+                                <li key={i}>{q}</li>
+                              ))}
+                            </ol>
+                          )}
+                        </div>
+                      )}
+
                       {iv.status === "requested" && (
                         <>
                           <p className="mt-3 text-sm leading-relaxed text-ink-soft">

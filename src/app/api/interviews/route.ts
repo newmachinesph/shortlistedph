@@ -5,12 +5,31 @@ import { employerPrice, interviewableEntry } from "@/lib/interviews";
 import { notify } from "@/lib/notify";
 import { HttpError, requireEmployer, requireRole } from "@/lib/session";
 
-// Only ids cross the wire. The price is never one of them — it is derived
-// server-side from the interviewer's own rate, so a tampered body can't move
-// what the employer is charged.
+// Only ids cross the wire that decide money. The price is never one of them —
+// it is derived server-side from the interviewer's own rate, so a tampered body
+// can't move what the employer is charged. The optional brief (questions +
+// notes) is trimmed and bounded here so nothing unbounded reaches the row.
+const MAX_QUESTIONS = 15;
+const MAX_QUESTION_LEN = 300;
+const MAX_NOTES_LEN = 2000;
+
 const Body = z.object({
   slateEntryId: z.string().min(1),
   interviewerId: z.string().min(1),
+  suggestedQuestions: z
+    .array(z.string())
+    .optional()
+    .transform((arr) =>
+      (arr ?? [])
+        .map((q) => q.trim().slice(0, MAX_QUESTION_LEN))
+        .filter((q) => q.length > 0)
+        .slice(0, MAX_QUESTIONS),
+    ),
+  employerNotes: z
+    .string()
+    .max(MAX_NOTES_LEN)
+    .optional()
+    .transform((s) => s?.trim() || undefined),
 });
 
 /**
@@ -22,7 +41,10 @@ export async function POST(req: Request) {
   try {
     const user = await requireRole("employer");
     const employer = await requireEmployer(user.id);
-    const { slateEntryId, interviewerId } = await parseBody(req, Body);
+    const { slateEntryId, interviewerId, suggestedQuestions, employerNotes } = await parseBody(
+      req,
+      Body,
+    );
 
     // Unlocked entry that belongs to this employer, or nothing at all.
     const entry = await interviewableEntry(slateEntryId, employer.id);
@@ -58,6 +80,9 @@ export async function POST(req: Request) {
         // employer has already been shown.
         priceUsd: employerPrice(interviewer.rateUsd),
         interviewerPayoutUsd: interviewer.rateUsd,
+        // Optional employer brief for the interviewer — bounded above.
+        suggestedQuestions,
+        employerNotes,
       },
     });
 
