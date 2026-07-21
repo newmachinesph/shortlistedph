@@ -13,7 +13,13 @@ const BATCH = 200;
 
 function providedSecret(req: Request): string {
   const url = new URL(req.url);
-  return req.headers.get("x-cron-secret") ?? url.searchParams.get("secret") ?? "";
+  // Vercel Cron automatically sends "Authorization: Bearer <CRON_SECRET>" when
+  // CRON_SECRET is set on the project, so accept that alongside the manual
+  // header/query forms used for local testing.
+  const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  return (
+    bearer || req.headers.get("x-cron-secret") || url.searchParams.get("secret") || ""
+  );
 }
 
 /** Length-checked constant-time compare — timingSafeEqual throws on mismatch. */

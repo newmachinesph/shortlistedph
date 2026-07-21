@@ -43,3 +43,4 @@ next-env.d.ts
 # agent tooling telemetry (churns every run)
 .claude-flow/
 .impeccable/
+.gstack/

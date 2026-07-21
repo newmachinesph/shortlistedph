@@ -56,23 +56,39 @@ function sender(stream: Stream): string | undefined {
 }
 
 /**
- * Dev mail goes to Mailpit over SMTP; production goes to Resend over HTTPS.
+ * Which transport to use. EMAIL_PROVIDER picks it explicitly ("smtp" | "resend"),
+ * defaulting to SMTP — that is the intended production path (PrivateEmail) and
+ * the local one (Mailpit), both over SMTP. Keyed off an explicit variable, not
+ * NODE_ENV, so a stray NODE_ENV can never silently reroute real user mail.
+ */
+function provider(): "smtp" | "resend" {
+  return process.env.EMAIL_PROVIDER === "resend" ? "resend" : "smtp";
+}
+
+/**
+ * One transport for both Mailpit and PrivateEmail.
  *
- * Keyed off SMTP_HOST rather than NODE_ENV so the local path can be exercised
- * deliberately — and so a stray NODE_ENV in a deployed environment can never
- * silently reroute real user mail into a container that isn't there.
- *
- * Mailpit accepts anything: no auth, no TLS. Sending credentials to it would
- * only mean shipping them somewhere they aren't needed.
+ * Auth is attached only when SMTP_USER is set — Mailpit accepts anything and
+ * wants no credentials, PrivateEmail requires them. TLS follows the port:
+ * 465 is implicit SSL (secure=true), anything else is plain/STARTTLS, and the
+ * local :1025 case additionally ignores TLS so Mailpit's bare socket is fine.
  */
 function smtp() {
   const host = process.env.SMTP_HOST;
   if (!host) return null;
+  const port = Number(process.env.SMTP_PORT ?? 1025);
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const secure = process.env.SMTP_SECURE === "true" || port === 465;
+
   return nodemailer.createTransport({
     host,
-    port: Number(process.env.SMTP_PORT ?? 1025),
-    secure: false,
-    ignoreTLS: true,
+    port,
+    secure,
+    // Mailpit has no TLS; a real server negotiates it. Only ignore TLS when
+    // talking to an unauthenticated local relay.
+    ignoreTLS: !user && !secure,
+    ...(user ? { auth: { user, pass } } : {}),
   });
 }
 
@@ -103,18 +119,25 @@ async function send(
   stream: Stream = "transactional",
 ): Promise<boolean> {
   const from = sender(stream);
+  const which = provider();
 
-  const transport = smtp();
-  if (transport && from) {
-    return sendViaSmtp(transport, from, to, subject, react);
+  if (which === "smtp") {
+    const transport = smtp();
+    if (transport && from) {
+      return sendViaSmtp(transport, from, to, subject, react);
+    }
+    console.warn(
+      `[email] EMAIL_PROVIDER=smtp but SMTP_HOST/EMAIL_FROM missing — skipped "${subject}" to ${to}`,
+    );
+    return false;
   }
 
   const api = resend();
 
   if (!api || !from) {
-    // Local dev without keys: say so once, out loud, rather than pretending
-    // the mail went out.
-    console.warn(`[email] not configured — skipped "${subject}" to ${to}`);
+    console.warn(
+      `[email] EMAIL_PROVIDER=resend but RESEND_API_KEY/EMAIL_FROM missing — skipped "${subject}" to ${to}`,
+    );
     return false;
   }
 
