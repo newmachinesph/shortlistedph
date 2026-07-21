@@ -137,6 +137,21 @@ export function renderNotification(
       const from = field(payload, "from") || "Someone";
       return { text: `${from} sent you a message.`, href: thread };
     }
+    case "interview_requested":
+      // The candidate is asked to consent to being interviewed and recorded.
+      return { text: `${company} requested an interview with you.`, href: "/talent/interviews" };
+    case "interview_consented":
+      return { text: `Your candidate agreed to the interview — pay to confirm.`, href: "/employer/interviews" };
+    case "interview_declined":
+      return { text: `Your candidate declined the interview.`, href: "/employer/interviews" };
+    case "interview_assigned":
+      return { text: `You have a confirmed interview to run for ${company}.`, href: "/interviewer" };
+    case "interview_booked":
+      return { text: `Your interview with ${company} is booked.`, href: "/talent/interviews" };
+    case "interview_scheduled":
+      return { text: `Your interview is scheduled.`, href: `/${side}/interviews` };
+    case "interview_reported":
+      return { text: `The interview assessment is ready.`, href: "/employer/interviews" };
     default:
       // Unknown type: show the event, not a crash. "some_new_event" reads as
       // "Some new event" — ugly but honest, and the row stays clickable-free.

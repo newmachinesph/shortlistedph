@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { fulfillPurchase, markPaymentRefunded } from "@/lib/fulfillment";
+import { fulfillInterview, fulfillPurchase, markPaymentRefunded } from "@/lib/fulfillment";
 import { isCreditProduct } from "@/lib/payments";
 import { verifyWebhook } from "@/lib/paypal";
 
@@ -47,6 +47,27 @@ export async function POST(req: Request) {
         event.resource?.custom_id ??
         event.resource?.invoice_id ??
         "";
+      // Interview payments carry "interview:<id>" and settle a dynamic price.
+      if (reference.startsWith("interview:")) {
+        const interviewId = reference.slice("interview:".length);
+        const iv = await db.interview.findUnique({
+          where: { id: interviewId },
+          select: { employerId: true, employer: { select: { userId: true } } },
+        });
+        if (!iv) {
+          return NextResponse.json({ received: true, ignored: "unknown interview" });
+        }
+        const result = await fulfillInterview({
+          employerUserId: iv.employer.userId,
+          employerId: iv.employerId,
+          interviewId,
+          providerRef: captureId,
+          amount: Number(event.resource?.amount?.value ?? 0),
+          currency: event.resource?.amount?.currency_code ?? "USD",
+        });
+        return NextResponse.json({ received: true, ...result });
+      }
+
       const [employerId, productId] = reference.split(":");
 
       if (!employerId || !productId || !isCreditProduct(productId)) {
