@@ -61,7 +61,7 @@ export default function ForEmployersPage() {
         </p>
         <div className="mt-8 flex flex-wrap items-center gap-4">
           <Link
-            href="/employer/briefs/new"
+            href="/start"
             className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-colors hover:bg-brand-dark"
           >
             Write a job description <ArrowRight className="h-4 w-4" />
@@ -238,7 +238,7 @@ export default function ForEmployersPage() {
             $49 unlocks it, and only if the match quality convinces you.
           </p>
           <Link
-            href="/employer/briefs/new"
+            href="/start"
             className="mt-8 inline-block rounded-2xl bg-white px-6 py-3.5 text-sm font-semibold text-brand transition-colors hover:bg-brand-soft"
           >
             Write a job description

@@ -107,7 +107,18 @@ export async function getSnapshotForEmployer(snapshotId: string, employerId: str
           slate: { select: { status: true } },
         },
       },
-      profile: { select: { user: { select: { name: true } } } },
+      profile: {
+        select: {
+          user: { select: { name: true } },
+          // Live availability — read now from the current TalentProfile, NOT
+          // from the frozen snapshot. Credentials freeze for anti-tailoring;
+          // availability is the opposite and must stay current.
+          openToOffers: true,
+          availability: true,
+          noticePeriodDays: true,
+          availabilityConfirmedAt: true,
+        },
+      },
     },
   });
   if (!snapshot) return null;

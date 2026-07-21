@@ -120,6 +120,14 @@ model TalentProfile {
   tools           String? // free text, comma separated
   preferredOverlap String? // e.g. "4h US Eastern"
   certifications  String?
+
+  // Live availability signal — deliberately NOT frozen into the snapshot.
+  // Credentials are frozen for anti-tailoring; availability is the opposite,
+  // it has to be current, so employers read it live at slate time.
+  availabilityConfirmedAt DateTime? // when the talent last confirmed
+  noticePeriodDays        Int? // how soon they can start if hired
+  openToOffers            Boolean   @default(true)
+
   publishedAt     DateTime?
   lastEditedAt    DateTime  @default(now())
   createdAt       DateTime  @default(now())
@@ -495,6 +503,28 @@ model ReferralPayout {
   conversions ReferralConversion[]
 
   @@index([userId, status])
+}
+
+// Anonymous top-of-funnel intake. An employer describes a role and sees a live
+// prospect count BEFORE signing up; the draft is keyed by a cookie token and
+// claimed into a real JobDescription once they create an account. No PII —
+// this holds role requirements only, so an abandoned draft is not personal data.
+model JobDraft {
+  id            String   @id @default(cuid())
+  token         String   @unique
+  title         String?
+  rawText       String?  // pasted or free-written role, before parsing
+  budgetMin     Float?
+  budgetMax     Float?
+  hoursPerWeek  Int?
+  overlap       String?
+  mustHaves     String[]
+  matchCount    Int? // snapshot of prospects shown, for lead analytics
+  claimedByJdId String? // set when a signed-up employer turns this into a JD
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([createdAt])
 }
 
 // ─── Interviews (pay-per-interview) ──────────────────────────────────────

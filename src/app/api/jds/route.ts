@@ -2,6 +2,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
 import { requireEmployer, requireRole } from "@/lib/session";
+import { claimDraft, draftToken } from "@/lib/job-draft";
 
 export async function GET() {
   try {
@@ -55,6 +56,11 @@ export async function POST(req: Request) {
     const jd = await db.jobDescription.create({
       data: { ...body, employerId: employer.id, status: "draft" },
     });
+    // If this JD grew out of an anonymous /start draft, mark it claimed so the
+    // builder stops offering it. Trust model unchanged — the draft is not read
+    // into the JD here, only tied to it.
+    const token = await draftToken();
+    if (token) await claimDraft(token, jd.id);
     return ok({ jd }, { status: 201 });
   } catch (e) {
     return fail(e);

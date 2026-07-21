@@ -24,6 +24,7 @@ export const SITE_DESCRIPTION =
 /** Public routes, in the order a first-time reader should meet them. */
 export const PUBLIC_ROUTES = [
   "/",
+  "/start",
   "/for-employers",
   "/for-talent",
   "/why-it-works",

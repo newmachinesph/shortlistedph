@@ -1,16 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BadgeCheck, Camera, Check, Lock } from "lucide-react";
+import { BadgeCheck, CalendarClock, Camera, Check, Lock } from "lucide-react";
 import { employerOrOnboard, getSnapshotForEmployer, requirePageUser } from "@/lib/queries";
 import type { FrozenProfile } from "@/lib/slate";
 import { initials } from "@/lib/format";
+import { availabilityStatus, freshnessNote, isStale } from "@/lib/availability";
 import { RequestConnection } from "@/components/request-connection";
-
-const availabilityLabel: Record<string, string> = {
-  open: "Open to full-time",
-  partial: "Partially committed",
-  booked: "Fully booked",
-};
 
 
 export default async function CandidateDossier({ params }: { params: Promise<{ id: string }> }) {
@@ -51,6 +46,12 @@ export default async function CandidateDossier({ params }: { params: Promise<{ i
   }
 
   const name = snapshot.profile.user.name;
+  // Availability read live off the current profile — layered over the frozen
+  // credential data below, never taken from frozenJson.
+  const live = snapshot.profile;
+  const availStatus = availabilityStatus(live);
+  const availNote = freshnessNote(live.availabilityConfirmedAt);
+  const availStale = isStale(live.availabilityConfirmedAt);
 
   return (
     <>
@@ -83,8 +84,7 @@ export default async function CandidateDossier({ params }: { params: Promise<{ i
             <p className="mt-1 text-ink-soft">{p.headline}</p>
             <p className="mt-1 text-sm text-ink-faint">
               {p.city ? `${p.city} · ` : ""}
-              {p.yearsExperience} yrs experience · {availabilityLabel[p.availability] ?? p.availability}
-              {p.committedHours > 0 ? ` (${p.committedHours}h/wk committed)` : ""}
+              {p.yearsExperience} yrs experience
             </p>
           </div>
           {p.rateUsd != null && (
@@ -95,6 +95,24 @@ export default async function CandidateDossier({ params }: { params: Promise<{ i
           )}
         </div>
         {p.summary && <p className="mt-5 max-w-2xl leading-relaxed text-ink-soft">{p.summary}</p>}
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-line bg-white p-6">
+        <div className="flex items-center gap-2">
+          <CalendarClock className="h-4 w-4 text-brand" strokeWidth={1.75} />
+          <h2 className="text-sm font-medium uppercase tracking-wider text-ink-faint">
+            Live availability
+          </h2>
+        </div>
+        <p className="font-display mt-3 text-lg font-semibold text-ink">{availStatus}</p>
+        <p className={`mt-1 text-sm ${availStale ? "text-ember" : "text-ink-soft"}`}>
+          {availNote}
+          {availStale ? " · may be out of date" : ""}
+        </p>
+        <p className="mt-4 rounded-xl bg-paper p-3.5 text-xs leading-relaxed text-ink-faint">
+          Self-reported by the candidate and dated. Unlike the profile above, this is read live — not
+          frozen to when your brief was posted.
+        </p>
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-2">

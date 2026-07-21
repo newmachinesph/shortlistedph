@@ -2,6 +2,8 @@ import Link from "next/link";
 import { BadgeCheck, Camera, Check, Globe, Lock } from "lucide-react";
 import { getTalentProfile, requirePageUser, talentOrOnboard } from "@/lib/queries";
 import { initials } from "@/lib/format";
+import { availabilityLabel, freshnessNote, isStale } from "@/lib/availability";
+import { AvailabilitySection } from "./availability-section";
 
 
 export default async function TalentProfilePage() {
@@ -11,6 +13,11 @@ export default async function TalentProfilePage() {
   if (!profile) return null;
 
   const { stableDays, isRateLocked } = profile;
+  // Freshness copy is computed here, on the server, then handed down as strings —
+  // the same reason relTime is server-computed: Date.now() must not run twice.
+  const availLabel = availabilityLabel(profile);
+  const availNote = freshnessNote(profile.availabilityConfirmedAt);
+  const availStale = isStale(profile.availabilityConfirmedAt);
   const isPublished = profile.publishedAt !== null;
 
   return (
@@ -78,6 +85,17 @@ export default async function TalentProfilePage() {
           <span>Stable for {stableDays} days — stability strengthens your ranking.</span>
         </p>
       </div>
+
+      <AvailabilitySection
+        initial={{
+          openToOffers: profile.openToOffers,
+          availability: profile.availability,
+          noticePeriodDays: profile.noticePeriodDays,
+        }}
+        label={availLabel}
+        note={availNote}
+        stale={availStale}
+      />
 
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
         <section className="rounded-2xl border border-line bg-white p-6">

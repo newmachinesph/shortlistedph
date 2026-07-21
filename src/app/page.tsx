@@ -98,7 +98,7 @@ export default async function Home() {
         </p>
         <div className="mt-9 flex flex-wrap items-center gap-4">
           <Link
-            href="/employer/briefs/new"
+            href="/start"
             className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-all hover:bg-brand-dark hover:shadow-brand/30"
           >
             Write your job description <ArrowRight className="h-4 w-4" />
@@ -224,7 +224,7 @@ export default async function Home() {
           </h2>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
             <Link
-              href="/employer/briefs/new"
+              href="/start"
               className="rounded-2xl bg-white px-6 py-3.5 text-sm font-semibold text-brand transition-colors hover:bg-brand-soft"
             >
               Get your shortlist

@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, Camera, EyeOff, Lock, ScanSearch, SearchX } from "lucide-react";
+import { ArrowRight, CalendarClock, Camera, EyeOff, Lock, ScanSearch, SearchX } from "lucide-react";
 import { db } from "@/lib/db";
 import { employerOrOnboard, getSlateForJd, requirePageUser } from "@/lib/queries";
+import { availabilityHint, availabilityStatus, freshnessNote } from "@/lib/availability";
 import { activeInterviewers, employerPrice, INTERVIEW_DURATION_MINUTES } from "@/lib/interviews";
 import { RequestConnection } from "@/components/request-connection";
 import { InterviewPool } from "@/components/interview-pool";
@@ -24,6 +25,42 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
   if (!jd) notFound();
 
   const slate = await getSlateForJd(jd.id, employer.id);
+
+  // Availability is a LIVE signal — read now off each candidate's current
+  // TalentProfile, never from the frozen snapshot. Keyed by slate-entry id so
+  // it lines up with the masked entries getSlateForJd returns. While the slate
+  // is locked we render only a non-identifying hint (or nothing).
+  const liveRows = slate
+    ? await db.slateEntry.findMany({
+        where: { slateId: slate.slateId },
+        select: {
+          id: true,
+          snapshot: {
+            select: {
+              profile: {
+                select: {
+                  openToOffers: true,
+                  availability: true,
+                  noticePeriodDays: true,
+                  availabilityConfirmedAt: true,
+                },
+              },
+            },
+          },
+        },
+      })
+    : [];
+  const slateUnlocked = slate?.unlocked ?? false;
+  const availLine = new Map<string, string | null>();
+  for (const r of liveRows) {
+    const live = r.snapshot.profile;
+    availLine.set(
+      r.id,
+      slateUnlocked
+        ? `${availabilityStatus(live)} · ${freshnessNote(live.availabilityConfirmedAt)}`
+        : availabilityHint(live),
+    );
+  }
 
   // So an already-requested candidate shows as requested after a refresh.
   const requested = await db.connection.findMany({
@@ -178,6 +215,18 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
                       {entry.city ? ` · ${entry.city}` : ""}
                       {entry.rateUsd ? ` · $${entry.rateUsd}/hr` : ""}
                     </p>
+                    {availLine.get(entry.id) && (
+                      <p
+                        className={`mt-1.5 inline-flex items-center gap-1.5 text-xs ${
+                          slate.unlocked
+                            ? "text-brand"
+                            : "rounded-full bg-brand-soft px-2 py-0.5 font-medium text-brand"
+                        }`}
+                      >
+                        <CalendarClock className="h-3.5 w-3.5" strokeWidth={1.75} />
+                        {availLine.get(entry.id)}
+                      </p>
+                    )}
                     {entry.reasons.length > 0 && (
                       <ul className="mt-3 space-y-1">
                         {entry.reasons.map((r) => (
