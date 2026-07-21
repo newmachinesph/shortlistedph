@@ -1,11 +1,19 @@
 import { z } from "zod";
 import { fail, ok, parseBody } from "@/lib/api";
-import { applyUserStatus, unpublishProfile } from "@/lib/admin";
+import { adjustEmployerCredits, applyUserStatus, unpublishProfile } from "@/lib/admin";
 import { requireAdmin } from "@/lib/session";
 
 const Body = z.union([
   z.object({ status: z.enum(["active", "suspended", "banned"]) }),
   z.object({ unpublish: z.literal(true) }),
+  z.object({
+    credits: z.object({
+      // Exactly one is used; the lib rejects passing both.
+      set: z.number().int().min(0).max(9999).optional(),
+      delta: z.number().int().min(-9999).max(9999).optional(),
+      reason: z.string().trim().min(1).max(300),
+    }),
+  }),
 ]);
 
 /**
@@ -22,6 +30,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     if ("unpublish" in body) {
       return ok(await unpublishProfile({ actorId: admin.id, userId: id }));
+    }
+
+    if ("credits" in body) {
+      return ok(
+        await adjustEmployerCredits({
+          actorId: admin.id,
+          userId: id,
+          set: body.credits.set,
+          delta: body.credits.delta,
+          reason: body.credits.reason,
+        }),
+      );
     }
 
     const result = await applyUserStatus({

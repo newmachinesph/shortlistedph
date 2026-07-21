@@ -78,7 +78,7 @@ export async function POST(req: Request) {
         status: "requested",
         // Both amounts frozen now so a later rate change can't move a price the
         // employer has already been shown.
-        priceUsd: employerPrice(interviewer.rateUsd),
+        priceUsd: employerPrice(),
         interviewerPayoutUsd: interviewer.rateUsd,
         // Optional employer brief for the interviewer — bounded above.
         suggestedQuestions,

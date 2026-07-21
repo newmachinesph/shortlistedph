@@ -111,3 +111,84 @@ export function UserStatusActions({
     </div>
   );
 }
+
+/** Grant, deduct, or set an employer's shortlist credits. */
+export function EmployerCredits({ userId, credits }: { userId: string; credits: number }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function send(payload: { set?: number; delta?: number }) {
+    if (!reason.trim()) {
+      setError("Add a reason");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credits: { ...payload, reason: reason.trim() } }),
+      });
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) {
+        setError(body?.error ?? "Failed");
+        return;
+      }
+      setAmount("");
+      setReason("");
+      startTransition(() => router.refresh());
+    } catch {
+      setError("Network error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const n = Number(amount);
+  const valid = Number.isInteger(n) && n !== 0;
+  const disabled = busy || pending || !valid;
+
+  return (
+    <div className="mt-2 flex w-full flex-wrap items-center gap-2 border-t border-line pt-2">
+      <span className="text-xs text-ink-faint">
+        Credits: <span className="font-medium text-ink">{credits}</span>
+      </span>
+      <input
+        type="number"
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+        placeholder="Amount"
+        className="w-20 rounded-lg border border-line bg-paper px-2 py-1.5 text-base sm:text-xs"
+      />
+      <input
+        type="text"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        placeholder="Reason (required)"
+        className="min-w-0 flex-1 rounded-lg border border-line bg-paper px-2 py-1.5 text-base sm:text-xs"
+      />
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => send({ delta: n })}
+        className="inline-flex min-h-11 items-center rounded-xl px-3 py-1.5 text-xs font-medium text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft disabled:opacity-50 sm:min-h-0"
+      >
+        Add / deduct
+      </button>
+      <button
+        type="button"
+        disabled={busy || pending || !Number.isInteger(n) || n < 0}
+        onClick={() => send({ set: n })}
+        className="inline-flex min-h-11 items-center rounded-xl px-3 py-1.5 text-xs font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper disabled:opacity-50 sm:min-h-0"
+      >
+        Set to
+      </button>
+      {error && <span className="w-full text-[11px] text-ember">{error}</span>}
+    </div>
+  );
+}
