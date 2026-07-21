@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { fail, ok, parseBody } from "@/lib/api";
-import { fulfillPurchase } from "@/lib/fulfillment";
+import { fulfillInterview, fulfillPurchase } from "@/lib/fulfillment";
 import { PRODUCTS, isCreditProduct } from "@/lib/payments";
 import { captureOrder } from "@/lib/paypal";
 import { HttpError, requireEmployer, requireRole } from "@/lib/session";
@@ -30,7 +30,24 @@ export async function POST(req: Request) {
       throw new HttpError(402, "Payment was not completed");
     }
 
-    const [employerId, productId] = (capture.referenceId ?? "").split(":");
+    const reference = capture.referenceId ?? "";
+
+    // Interview payments carry "interview:<id>" and settle a dynamic,
+    // pre-locked price rather than a catalog product.
+    if (reference.startsWith("interview:")) {
+      const interviewId = reference.slice("interview:".length);
+      const result = await fulfillInterview({
+        employerUserId: user.id,
+        employerId: employer.id,
+        interviewId,
+        providerRef: capture.captureId,
+        amount: Number(capture.amount ?? 0),
+        currency: capture.currency ?? "USD",
+      });
+      return ok({ paid: result.granted, alreadyProcessed: result.alreadyProcessed });
+    }
+
+    const [employerId, productId] = reference.split(":");
 
     // The webhook can still fulfil this from PayPal's own delivery, so failing
     // here loses nothing except the instant balance update.

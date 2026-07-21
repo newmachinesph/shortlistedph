@@ -4,6 +4,10 @@ import { ArrowRight, Check } from "lucide-react";
 import { PublicPage } from "@/components/public-chrome";
 import { JsonLd } from "@/components/json-ld";
 import { pageMeta } from "@/lib/site";
+import { INTERVIEWER_RATE_MIN, INTERVIEWER_RATE_MAX, employerPrice } from "@/lib/interviews";
+
+const interviewLow = employerPrice(INTERVIEWER_RATE_MIN);
+const interviewHigh = employerPrice(INTERVIEWER_RATE_MAX);
 
 export const metadata: Metadata = pageMeta({
   title: "Pricing",
@@ -166,6 +170,32 @@ export default function PricingPage() {
             className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft"
           >
             Upload your resume <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-6xl px-5 pb-16 sm:px-8">
+        <div className="flex flex-col gap-6 rounded-3xl border border-line bg-white px-7 py-8 sm:flex-row sm:items-start sm:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand">
+              Add-on: pay per interview
+            </p>
+            <h2 className="font-display mt-3 text-xl font-semibold text-ink">
+              Have a shortlisted candidate interviewed before you commit.
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+              Once your slate is unlocked, you can ask a vetted interviewer to run a recorded
+              30-minute session with any candidate and send back a written assessment. Pricing is
+              per interview and varies by interviewer, who set their own rate; with the platform fee
+              added it runs ${interviewLow} to ${interviewHigh}, and you see the exact total before
+              you confirm. The candidate consents before anything is charged.
+            </p>
+          </div>
+          <Link
+            href="/interviews"
+            className="inline-flex shrink-0 items-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft"
+          >
+            How interviews work <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </section>

@@ -19,6 +19,7 @@ import {
   LogOut,
   Search,
   Menu,
+  Video,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -31,6 +32,7 @@ const employerNav: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/employer" },
   { label: "Job descriptions", icon: FileText, href: "/employer/briefs" },
   { label: "Connections", icon: Users, href: "/employer/connections" },
+  { label: "Interviews", icon: Video, href: "/employer/interviews" },
   { label: "Agreements", icon: FileSignature, href: "/employer/agreements" },
   { label: "Ratings", icon: Star, href: "/employer/ratings" },
   { label: "Messages", icon: MessageSquare, href: "/employer/messages" },
@@ -46,6 +48,7 @@ const talentNav: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/talent" },
   { label: "Services", icon: FileText, href: "/talent/services" },
   { label: "Connections", icon: Users, href: "/talent/connections" },
+  { label: "Interviews", icon: Video, href: "/talent/interviews" },
   { label: "Agreements", icon: FileSignature, href: "/talent/agreements" },
   { label: "Ratings", icon: Star, href: "/talent/ratings" },
   { label: "Messages", icon: MessageSquare, href: "/talent/messages" },

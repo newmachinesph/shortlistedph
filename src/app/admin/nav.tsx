@@ -9,7 +9,9 @@ import {
   ListChecks,
   Menu,
   Share2,
+  UserCheck,
   Users,
+  Video,
   ExternalLink,
   X,
   type LucideIcon,
@@ -21,6 +23,8 @@ const nav: { label: string; icon: LucideIcon; href: string }[] = [
   { label: "Reports", icon: Flag, href: "/admin/reports" },
   { label: "Users", icon: Users, href: "/admin/users" },
   { label: "Slates", icon: ListChecks, href: "/admin/slates" },
+  { label: "Interviewers", icon: UserCheck, href: "/admin/interviewers" },
+  { label: "Interviews", icon: Video, href: "/admin/interviews" },
   { label: "Affiliates", icon: Share2, href: "/admin/affiliates" },
 ];
 

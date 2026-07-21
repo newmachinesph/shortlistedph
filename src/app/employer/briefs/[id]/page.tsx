@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { ArrowRight, Camera, EyeOff, Lock, ScanSearch, SearchX } from "lucide-react";
 import { db } from "@/lib/db";
 import { employerOrOnboard, getSlateForJd, requirePageUser } from "@/lib/queries";
+import { activeInterviewers, employerPrice, INTERVIEW_DURATION_MINUTES } from "@/lib/interviews";
 import { RequestConnection } from "@/components/request-connection";
+import { InterviewPool } from "@/components/interview-pool";
 import { UnlockButton } from "./unlock-button";
 
 const dimLabels: [key: "skills" | "rate" | "overlap" | "experience", label: string][] = [
@@ -29,6 +31,31 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
     select: { slateEntryId: true },
   });
   const requestedIds = new Set(requested.map((r) => r.slateEntryId));
+
+  // Interview entry point only exists on an unlocked slate, so the pool and the
+  // already-requested set are only worth fetching there.
+  const interviewPool = slate?.unlocked
+    ? (await activeInterviewers()).map((iv) => ({
+        id: iv.id,
+        name: iv.user.name,
+        bio: iv.bio,
+        expertise: iv.expertise,
+        languages: iv.languages,
+        yearsExperience: iv.yearsExperience,
+        priceUsd: employerPrice(iv.rateUsd),
+      }))
+    : [];
+  const interviewedIds = new Set<string>();
+  if (slate?.unlocked) {
+    const live = await db.interview.findMany({
+      where: {
+        slateEntry: { slate: { jdId: jd.id } },
+        status: { notIn: ["declined", "cancelled"] },
+      },
+      select: { slateEntryId: true },
+    });
+    for (const i of live) interviewedIds.add(i.slateEntryId);
+  }
 
   return (
     <>
@@ -206,6 +233,13 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
                       <RequestConnection
                         slateEntryId={entry.id}
                         alreadyRequested={requestedIds.has(entry.id)}
+                      />
+                      <InterviewPool
+                        slateEntryId={entry.id}
+                        candidateName={entry.name ?? "this candidate"}
+                        interviewers={interviewPool}
+                        durationMinutes={INTERVIEW_DURATION_MINUTES}
+                        alreadyRequested={interviewedIds.has(entry.id)}
                       />
                     </>
                   ) : (

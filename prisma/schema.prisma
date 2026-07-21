@@ -39,6 +39,8 @@ model User {
   referral        Referral?
   referredBy      ReferralConversion? @relation("ReferredUser")
   referralPayouts ReferralPayout[]
+  interviewer     Interviewer?
+  interviewsAsTalent Interview[]     @relation("InterviewTalent")
 
   @@map("user")
 }
@@ -187,6 +189,7 @@ model EmployerAccount {
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   jobDescriptions JobDescription[]
   entitlements    Entitlement[]
+  interviews      Interview[]
 }
 
 model JobDescription {
@@ -256,6 +259,7 @@ model SlateEntry {
   slate      Slate            @relation(fields: [slateId], references: [id], onDelete: Cascade)
   snapshot   ProfileSnapshot  @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
   connection Connection?
+  interviews Interview[]
 
   @@index([slateId, rank])
 }
@@ -491,4 +495,99 @@ model ReferralPayout {
   conversions ReferralConversion[]
 
   @@index([userId, status])
+}
+
+// ─── Interviews (pay-per-interview) ──────────────────────────────────────
+
+// A vetted person who runs paid interviews. Not self-serve: an application
+// sets status "pending", an admin flips it to "active". rateUsd is their
+// payout per completed interview; the employer pays that plus a platform fee.
+model Interviewer {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  bio             String?
+  expertise       String[] // domains, e.g. ["react", "customer support"]
+  languages       String[]
+  yearsExperience Int      @default(0)
+  rateUsd         Float    @default(8) // 5–10, enforced in app
+  status          String   @default("pending") // pending | active | paused
+  avatarKey       String?
+  createdAt       DateTime @default(now())
+
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interviews Interview[]
+  payouts    InterviewerPayout[]
+
+  @@index([status])
+}
+
+model Interview {
+  id            String @id @default(cuid())
+  // Ties the interview to the employer's unlocked shortlist entry and, through
+  // the snapshot, to the talent being interviewed.
+  slateEntryId  String
+  employerId    String
+  interviewerId String
+  talentUserId  String
+  status        String @default("requested")
+  // requested → consented → paid → scheduled → recorded → reported
+  //           ↘ declined (candidate said no; never charged)   ↘ cancelled
+  // Both amounts locked at request time so a later rate change can't move a
+  // price the employer already saw.
+  priceUsd             Float
+  interviewerPayoutUsd Float
+  scheduledAt  DateTime?
+  recordingKey String? // R2 object key, uploaded by the interviewer
+  paymentRef   String? // Payment.providerRef once the employer pays
+  payoutId     String?
+  createdAt    DateTime @default(now())
+
+  slateEntry  SlateEntry           @relation(fields: [slateEntryId], references: [id], onDelete: Cascade)
+  employer    EmployerAccount      @relation(fields: [employerId], references: [id], onDelete: Cascade)
+  interviewer Interviewer          @relation(fields: [interviewerId], references: [id])
+  talent      User                 @relation("InterviewTalent", fields: [talentUserId], references: [id], onDelete: Cascade)
+  assessment  InterviewAssessment?
+  payout      InterviewerPayout?   @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+
+  @@index([employerId, status])
+  @@index([interviewerId, status])
+  @@index([talentUserId, status])
+  @@index([payoutId])
+}
+
+// Our fixed template, filled by the interviewer. Fixed fields so every report
+// renders identically and can be compared across candidates.
+model InterviewAssessment {
+  id             String   @id @default(cuid())
+  interviewId    String   @unique
+  recommendation String // strong_yes | yes | lean_yes | no
+  overall        Int // 1–5
+  technical      Int // 1–5
+  communication  Int // 1–5
+  englishFluency Int // 1–5
+  strengths      String
+  concerns       String
+  notes          String?
+  submittedAt    DateTime @default(now())
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+}
+
+// Earned in USD, settled to PHP by hand — same manual rail as referral payouts.
+model InterviewerPayout {
+  id            String    @id @default(cuid())
+  interviewerId String
+  amount        Float
+  currency      String    @default("USD")
+  method        String // gcash | bank
+  reference     String?
+  status        String    @default("pending") // pending | paid | rejected
+  note          String?
+  createdAt     DateTime  @default(now())
+  paidAt        DateTime?
+
+  interviewer Interviewer @relation(fields: [interviewerId], references: [id], onDelete: Cascade)
+  interviews  Interview[]
+
+  @@index([interviewerId, status])
 }
