@@ -79,7 +79,7 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
         expertise: iv.expertise,
         languages: iv.languages,
         yearsExperience: iv.yearsExperience,
-        priceUsd: employerPrice(iv.rateUsd),
+        priceUsd: employerPrice(),
       }))
     : [];
   const interviewedIds = new Set<string>();

@@ -4,10 +4,9 @@ import { ArrowRight, Check } from "lucide-react";
 import { PublicPage } from "@/components/public-chrome";
 import { JsonLd } from "@/components/json-ld";
 import { pageMeta } from "@/lib/site";
-import { INTERVIEWER_RATE_MIN, INTERVIEWER_RATE_MAX, employerPrice } from "@/lib/interviews";
+import { employerPrice } from "@/lib/interviews";
 
-const interviewLow = employerPrice(INTERVIEWER_RATE_MIN);
-const interviewHigh = employerPrice(INTERVIEWER_RATE_MAX);
+const interviewPrice = employerPrice();
 
 export const metadata: Metadata = pageMeta({
   title: "Pricing",
@@ -185,10 +184,9 @@ export default function PricingPage() {
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-ink-soft">
               Once your slate is unlocked, you can ask a vetted interviewer to run a recorded
-              30-minute session with any candidate and send back a written assessment. Pricing is
-              per interview and varies by interviewer, who set their own rate; with the platform fee
-              added it runs ${interviewLow} to ${interviewHigh}, and you see the exact total before
-              you confirm. The candidate consents before anything is charged.
+              30-minute session with any candidate and send back a written assessment. It&rsquo;s a
+              flat ${interviewPrice} per interview, whichever candidate and interviewer. The
+              candidate consents before anything is charged.
             </p>
           </div>
           <Link

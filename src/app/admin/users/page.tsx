@@ -4,7 +4,7 @@ import { Search, Users as UsersIcon } from "lucide-react";
 import { NOINDEX } from "@/lib/site";
 import { initials } from "@/lib/format";
 import { listUsers } from "@/lib/admin";
-import { UserStatusActions } from "./actions";
+import { EmployerCredits, UserStatusActions } from "./actions";
 
 export const metadata: Metadata = { title: "Admin · Users", ...NOINDEX };
 
@@ -121,6 +121,7 @@ export default async function AdminUsers({
                   published={u.talentProfile?.publishedAt != null}
                 />
               </div>
+              {u.employer && <EmployerCredits userId={u.id} credits={u.employer.credits} />}
             </div>
           ))
         )}

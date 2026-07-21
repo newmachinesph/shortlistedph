@@ -324,6 +324,61 @@ export async function unpublishProfile(args: { actorId: string; userId: string }
   return { id: args.userId, unpublished: true };
 }
 
+/**
+ * Grant, deduct, or set an employer's shortlist credits by hand — comps,
+ * refunds, corrections, or a support gesture. Every change is audited with the
+ * before/after balance and a reason, and a positive grant lays down matching
+ * Entitlement rows (source "admin_grant") so the ledger stays consistent with
+ * how a real purchase records them.
+ *
+ * Either `set` (absolute) or `delta` (relative) — not both. Balance never goes
+ * below zero.
+ */
+export async function adjustEmployerCredits(args: {
+  actorId: string;
+  userId: string;
+  set?: number;
+  delta?: number;
+  reason: string;
+}) {
+  if ((args.set == null) === (args.delta == null)) {
+    throw new HttpError(400, "Pass exactly one of set or delta");
+  }
+
+  const employer = await db.employerAccount.findUnique({
+    where: { userId: args.userId },
+    select: { id: true, credits: true, companyName: true },
+  });
+  if (!employer) throw new HttpError(404, "This account is not an employer");
+
+  const before = employer.credits;
+  const after = Math.max(0, args.set != null ? args.set : before + args.delta!);
+  const granted = after - before;
+
+  await db.$transaction(async (tx) => {
+    await tx.employerAccount.update({ where: { id: employer.id }, data: { credits: after } });
+    if (granted > 0) {
+      await tx.entitlement.createMany({
+        data: Array.from({ length: granted }, () => ({
+          employerId: employer.id,
+          kind: "credit",
+          source: "admin_grant",
+        })),
+      });
+    }
+    await tx.auditLog.create({
+      data: {
+        actorId: args.actorId,
+        action: "admin.credits.adjust",
+        target: args.userId,
+        meta: { employerId: employer.id, before, after, reason: args.reason },
+      },
+    });
+  });
+
+  return { id: args.userId, company: employer.companyName, before, after };
+}
+
 // ─── Stuck-JD recovery ───────────────────────────────────────────────────
 
 /**

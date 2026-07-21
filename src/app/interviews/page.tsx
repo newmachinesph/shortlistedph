@@ -14,8 +14,6 @@ import { JsonLd } from "@/components/json-ld";
 import { pageMeta, SITE_URL } from "@/lib/site";
 import {
   INTERVIEW_DURATION_MINUTES,
-  INTERVIEWER_RATE_MIN,
-  INTERVIEWER_RATE_MAX,
   employerPrice,
   interviewerPoolStats,
 } from "@/lib/interviews";
@@ -30,8 +28,7 @@ export const metadata: Metadata = pageMeta({
 /** Pool figures are read from the database; refresh hourly, not per request. */
 export const revalidate = 3600;
 
-const lowPrice = employerPrice(INTERVIEWER_RATE_MIN);
-const highPrice = employerPrice(INTERVIEWER_RATE_MAX);
+const price = employerPrice();
 
 const steps = [
   {
@@ -87,12 +84,10 @@ function serviceSchema(count: number) {
     areaServed: { "@type": "Country", name: "Philippines" },
     ...(count > 0 ? { audience: { "@type": "Audience", audienceType: "Employers hiring remote talent" } } : {}),
     offers: {
-      "@type": "AggregateOffer",
+      "@type": "Offer",
       priceCurrency: "USD",
-      lowPrice: String(lowPrice),
-      highPrice: String(highPrice),
-      description:
-        "Priced per interview. The interviewer sets their own rate; a flat platform fee is added on top.",
+      price: String(price),
+      description: "Flat price per interview — one recorded session and a written assessment.",
     },
   };
 }
@@ -254,15 +249,12 @@ export default async function InterviewsPage() {
               <div className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-ink-faint">
                 <Gauge className="h-4 w-4 text-brand" strokeWidth={1.75} /> What it costs
               </div>
-              <p className="font-display mt-4 text-4xl font-semibold text-ink">
-                ${lowPrice}&ndash;${highPrice}
-              </p>
+              <p className="font-display mt-4 text-4xl font-semibold text-ink">${price}</p>
               <p className="mt-1 text-sm text-ink-faint">per interview, paid once</p>
               <p className="mt-5 text-sm leading-relaxed text-ink-soft">
-                There&rsquo;s no single sticker price, because interviewers set their own rate
-                between ${INTERVIEWER_RATE_MIN} and ${INTERVIEWER_RATE_MAX}. A flat platform fee
-                sits on top, and you see the exact total for the interviewer you pick before you
-                confirm. Nothing is charged until the candidate has consented.
+                One flat price for any candidate, any interviewer &mdash; a recorded 30-minute
+                session and a written assessment. Nothing is charged until the candidate has
+                consented to being interviewed.
               </p>
             </div>
           </div>
