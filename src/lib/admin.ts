@@ -325,11 +325,12 @@ export async function unpublishProfile(args: { actorId: string; userId: string }
 }
 
 /**
- * Grant, deduct, or set an employer's shortlist credits by hand — comps,
- * refunds, corrections, or a support gesture. Every change is audited with the
- * before/after balance and a reason, and a positive grant lays down matching
- * Entitlement rows (source "admin_grant") so the ledger stays consistent with
- * how a real purchase records them.
+ * Grant, deduct, or set an employer's credits by hand — comps, refunds,
+ * corrections, or a support gesture. `kind` picks which balance: "shortlist"
+ * (unlock a slate) or "interview" (book one interview each). Every change is
+ * audited with the before/after balance and a reason, and a positive grant lays
+ * down matching Entitlement rows (source "admin_grant") so the ledger stays
+ * consistent with how a real purchase records them.
  *
  * Either `set` (absolute) or `delta` (relative) — not both. Balance never goes
  * below zero.
@@ -337,6 +338,7 @@ export async function unpublishProfile(args: { actorId: string; userId: string }
 export async function adjustEmployerCredits(args: {
   actorId: string;
   userId: string;
+  kind: "shortlist" | "interview";
   set?: number;
   delta?: number;
   reason: string;
@@ -347,21 +349,25 @@ export async function adjustEmployerCredits(args: {
 
   const employer = await db.employerAccount.findUnique({
     where: { userId: args.userId },
-    select: { id: true, credits: true, companyName: true },
+    select: { id: true, credits: true, interviewCredits: true, companyName: true },
   });
   if (!employer) throw new HttpError(404, "This account is not an employer");
 
-  const before = employer.credits;
+  const isInterview = args.kind === "interview";
+  const before = isInterview ? employer.interviewCredits : employer.credits;
   const after = Math.max(0, args.set != null ? args.set : before + args.delta!);
   const granted = after - before;
 
   await db.$transaction(async (tx) => {
-    await tx.employerAccount.update({ where: { id: employer.id }, data: { credits: after } });
+    await tx.employerAccount.update({
+      where: { id: employer.id },
+      data: isInterview ? { interviewCredits: after } : { credits: after },
+    });
     if (granted > 0) {
       await tx.entitlement.createMany({
         data: Array.from({ length: granted }, () => ({
           employerId: employer.id,
-          kind: "credit",
+          kind: isInterview ? "interview_credit" : "credit",
           source: "admin_grant",
         })),
       });
@@ -369,14 +375,14 @@ export async function adjustEmployerCredits(args: {
     await tx.auditLog.create({
       data: {
         actorId: args.actorId,
-        action: "admin.credits.adjust",
+        action: isInterview ? "admin.interview_credits.adjust" : "admin.credits.adjust",
         target: args.userId,
-        meta: { employerId: employer.id, before, after, reason: args.reason },
+        meta: { employerId: employer.id, kind: args.kind, before, after, reason: args.reason },
       },
     });
   });
 
-  return { id: args.userId, company: employer.companyName, before, after };
+  return { id: args.userId, company: employer.companyName, kind: args.kind, before, after };
 }
 
 // ─── Stuck-JD recovery ───────────────────────────────────────────────────
@@ -473,7 +479,7 @@ export async function listUsers(opts: { q?: string; page?: number }) {
         status: true,
         createdAt: true,
         talentProfile: { select: { headline: true, city: true, publishedAt: true, verifiedTier: true } },
-        employer: { select: { companyName: true, location: true, credits: true } },
+        employer: { select: { companyName: true, location: true, credits: true, interviewCredits: true } },
       },
     }),
   ]);

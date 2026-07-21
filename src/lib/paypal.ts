@@ -39,7 +39,11 @@ export async function createOrder(input: {
   currency: string;
   description: string;
   referenceId: string;
+  /** Where PayPal returns the buyer, e.g. "/employer/interviews". Defaults to
+   * billing. `?paid=1` / `?cancelled=1` are appended here. */
+  returnPath?: string;
 }): Promise<{ id: string; approveUrl: string | null }> {
+  const returnPath = input.returnPath ?? "/employer/billing";
   const res = await fetch(`${BASE()}/v2/checkout/orders`, {
     method: "POST",
     headers: {
@@ -60,8 +64,8 @@ export async function createOrder(input: {
         user_action: "PAY_NOW",
         // requireEnv, not interpolation — an unset value would silently send
         // buyers to "undefined/employer/billing" after paying.
-        return_url: `${requireEnv("NEXT_PUBLIC_APP_URL")}/employer/billing?paid=1`,
-        cancel_url: `${requireEnv("NEXT_PUBLIC_APP_URL")}/employer/billing?cancelled=1`,
+        return_url: `${requireEnv("NEXT_PUBLIC_APP_URL")}${returnPath}?paid=1`,
+        cancel_url: `${requireEnv("NEXT_PUBLIC_APP_URL")}${returnPath}?cancelled=1`,
       },
     }),
     cache: "no-store",

@@ -36,6 +36,23 @@ const contentTokens = (phrase: string): string[] =>
     .filter((t) => t.length > 2 && !STOPWORDS.has(t));
 
 /**
+ * Two content words match when they are equal or one is a prefix of the other
+ * (both ≥ 4 chars). A cheap stemmer: it makes "refunds" meet "refund",
+ * "scheduling" meet "schedule", "processing" meet "process" — the wording
+ * differences that were silently dropping qualified people. The length floor
+ * keeps it from matching on fragments ("art" in "smart").
+ */
+const STEM_MIN = 4;
+const tokenHit = (t: string, corpus: Set<string>): boolean => {
+  if (corpus.has(t)) return true;
+  if (t.length < STEM_MIN) return false;
+  for (const c of corpus) {
+    if (c.length >= STEM_MIN && (t.startsWith(c) || c.startsWith(t))) return true;
+  }
+  return false;
+};
+
+/**
  * How well a candidate covers the job's must-haves.
  *
  * Requirements are prose ("US dental practice experience") while skills are
@@ -68,10 +85,14 @@ export function scoreSkills(
       earned += exact ? CONFIRMED_SKILL_WEIGHT : 1;
       continue;
     }
-    // Partial credit: how much of this requirement shows up anywhere on the profile.
+    // Partial credit: how much of this requirement shows up anywhere on the
+    // profile, tolerant to plural/gerund wording (see tokenHit). Partial always
+    // scores below an exact confirmed match — coverage divides by the confirmed
+    // weight — so a loose match lifts a qualified person without outranking a
+    // proven one.
     const tokens = contentTokens(req);
     if (tokens.length === 0) continue;
-    const hits = tokens.filter((t) => corpus.has(t)).length;
+    const hits = tokens.filter((t) => tokenHit(t, corpus)).length;
     earned += (hits / tokens.length) * 1;
   }
   const coverage = earned / (required.length * CONFIRMED_SKILL_WEIGHT);
@@ -129,6 +150,34 @@ export function scoreExperience(years: number, confirmedEngagements: number): nu
  * all, is worth more than a padded one.
  */
 export const MIN_SLATE_SCORE = 62;
+
+/**
+ * The eligibility bar for rotation, set below the strong-match cutoff.
+ *
+ * Two thresholds, two jobs. MIN_SLATE_SCORE (62) still marks a *strong* match
+ * and is the score tiebreaker. QUALIFY (52) marks *eligible*: good enough to
+ * put in front of an employer, even if not the single best on paper. Everyone
+ * at or above QUALIFY enters the rotation so the same top profiles don't fill
+ * every slate — but nobody below it does, so fairness never ships a bad fit.
+ *
+ * Tuned against the real pool with scripts/eval-matching.ts: the support
+ * candidate (Zendesk, live chat, refunds, $9/hr, in-band) lands ~59 on a
+ * support brief and now qualifies, while the same profile scores 36–40 on
+ * unrelated dental/React/PPC briefs and is still correctly excluded. The
+ * ~12-point gap between wrong-domain padding (≤40) and a genuine imperfect
+ * match (~59) is where 52 sits.
+ */
+export const QUALIFY_SCORE = 52;
+
+/**
+ * Domain gate: a qualifying candidate must also show real skill overlap, not
+ * just a good rate and long tenure. Without this, a wrong-domain profile can
+ * pad past QUALIFY on rate + experience + availability alone (the recruiter who
+ * surfaced on an Amazon PPC brief). The support example scores skills 54 here;
+ * pure padding scores ~10–15. 40 keeps genuine partial matches while cutting
+ * off-domain padding — quality gating eligibility, exactly as intended.
+ */
+export const QUALIFY_SKILLS = 40;
 
 /**
  * Verified identity is a tiebreaker, not a dimension.

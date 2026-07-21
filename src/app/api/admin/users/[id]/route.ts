@@ -8,6 +8,8 @@ const Body = z.union([
   z.object({ unpublish: z.literal(true) }),
   z.object({
     credits: z.object({
+      // Which balance: shortlist (unlock a slate) or interview (book one each).
+      kind: z.enum(["shortlist", "interview"]),
       // Exactly one is used; the lib rejects passing both.
       set: z.number().int().min(0).max(9999).optional(),
       delta: z.number().int().min(-9999).max(9999).optional(),
@@ -37,6 +39,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         await adjustEmployerCredits({
           actorId: admin.id,
           userId: id,
+          kind: body.credits.kind,
           set: body.credits.set,
           delta: body.credits.delta,
           reason: body.credits.reason,

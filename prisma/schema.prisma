@@ -128,6 +128,12 @@ model TalentProfile {
   noticePeriodDays        Int? // how soon they can start if hired
   openToOffers            Boolean   @default(true)
 
+  // Rotational matching: among candidates who clear the qualifying bar, the
+  // slate favours those shown least and longest ago, so it isn't always the
+  // same top profiles. Incremented + stamped when a candidate is placed on a slate.
+  shortlistCount Int       @default(0)
+  lastShownAt    DateTime?
+
   publishedAt     DateTime?
   lastEditedAt    DateTime  @default(now())
   createdAt       DateTime  @default(now())
@@ -191,7 +197,8 @@ model EmployerAccount {
   blurb       String?
   location    String?
   contactName String?
-  credits     Int      @default(0)
+  credits     Int      @default(0) // shortlist credits — unlock a slate
+  interviewCredits Int @default(0) // interview credits — book one interview each
   createdAt   DateTime @default(now())
 
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)

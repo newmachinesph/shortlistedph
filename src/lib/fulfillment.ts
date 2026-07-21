@@ -61,6 +61,23 @@ export async function fulfillPurchase(input: {
         });
       }
 
+      if (product.kind === "interview_credits" && product.interviewCredits > 0) {
+        const employer = await tx.employerAccount.findUnique({ where: { userId: input.userId } });
+        if (!employer) throw new Error(`No employer account for user ${input.userId}`);
+
+        await tx.employerAccount.update({
+          where: { id: employer.id },
+          data: { interviewCredits: { increment: product.interviewCredits } },
+        });
+        await tx.entitlement.createMany({
+          data: Array.from({ length: product.interviewCredits }, () => ({
+            employerId: employer.id,
+            kind: "interview_credit",
+            source: input.providerRef,
+          })),
+        });
+      }
+
       if (product.kind === "verification") {
         // Payment only unlocks the verification attempt. The badge itself is
         // set by the Didit webhook once identity actually checks out — paying
@@ -151,137 +168,11 @@ async function afterFulfillment(input: {
   }
 }
 
-/**
- * Interview payment. Separate from fulfillPurchase because the amount is
- * dynamic (interviewer rate + platform fee, locked on the interview row at
- * request time) rather than a fixed catalog product.
- *
- * The candidate has already consented by this point — payment only happens in
- * the "consented" state — so paying confirms an interview both sides agreed
- * to, and no refund path is needed for a decline that never charged.
- */
-export async function fulfillInterview(input: {
-  employerUserId: string;
-  employerId: string;
-  interviewId: string;
-  providerRef: string;
-  amount: number;
-  currency: string;
-}): Promise<FulfillResult> {
-  const existing = await db.payment.findUnique({ where: { providerRef: input.providerRef } });
-  if (existing?.status === "paid") return { granted: false, alreadyProcessed: true };
-
-  const interview = await db.interview.findUnique({
-    where: { id: input.interviewId },
-    select: { id: true, employerId: true, status: true, priceUsd: true },
-  });
-  if (!interview || interview.employerId !== input.employerId) {
-    console.error("[interview] payment for missing/foreign interview", {
-      interviewId: input.interviewId,
-      captureId: input.providerRef,
-    });
-    return { granted: false, alreadyProcessed: false };
-  }
-  // Trust the price we locked, not the amount echoed back. Underpayment is
-  // logged but still recorded — chasing a few cents is not worth blocking a
-  // confirmed interview; overpayment is the buyer's loss, not ours to keep.
-  if (input.amount + 0.01 < interview.priceUsd) {
-    console.error("[interview] captured amount below locked price", {
-      interviewId: interview.id,
-      captured: input.amount,
-      locked: interview.priceUsd,
-    });
-  }
-
-  try {
-    await db.$transaction(async (tx) => {
-      await tx.payment.upsert({
-        where: { providerRef: input.providerRef },
-        create: {
-          userId: input.employerUserId,
-          provider: "paypal",
-          providerRef: input.providerRef,
-          amount: input.amount,
-          currency: input.currency,
-          purpose: "interview",
-          status: "paid",
-        },
-        update: { status: "paid" },
-      });
-      // Status guard so a webhook arriving after the interview has already
-      // advanced cannot drag it back to "paid".
-      await tx.interview.updateMany({
-        where: { id: interview.id, status: "consented" },
-        data: { status: "paid", paymentRef: input.providerRef },
-      });
-      await tx.auditLog.create({
-        data: {
-          actorId: input.employerUserId,
-          action: "interview.paid",
-          target: interview.id,
-          meta: { amount: input.amount, currency: input.currency, provider: "paypal" },
-        },
-      });
-    });
-
-    await afterInterviewPaid(interview.id, input.employerUserId);
-    return { granted: true, alreadyProcessed: false };
-  } catch (e) {
-    if (e instanceof Error && e.message.includes("Unique constraint")) {
-      return { granted: false, alreadyProcessed: true };
-    }
-    throw e;
-  }
-}
-
-/** Post-commit, best-effort: tell the interviewer they have a confirmed
- * assignment and the candidate the interview is booked. */
-async function afterInterviewPaid(interviewId: string, employerUserId: string) {
-  try {
-    const iv = await db.interview.findUnique({
-      where: { id: interviewId },
-      select: {
-        talentUserId: true,
-        priceUsd: true,
-        interviewer: { select: { userId: true } },
-        employer: { select: { companyName: true } },
-      },
-    });
-    if (!iv) return;
-
-    await notify({
-      userId: iv.interviewer.userId,
-      type: "interview_assigned",
-      payload: { interviewId, company: iv.employer.companyName },
-    });
-    await notify({
-      userId: iv.talentUserId,
-      type: "interview_booked",
-      payload: { interviewId, company: iv.employer.companyName },
-    });
-
-    const employer = await db.user.findUnique({
-      where: { id: employerUserId },
-      select: { email: true, name: true },
-    });
-    if (employer) {
-      await mail.paymentReceipt(employer.email, {
-        name: employer.name,
-        description: "Interview booking",
-        amount: iv.priceUsd,
-        currency: "USD",
-        reference: interviewId,
-        date: new Date().toLocaleDateString("en-PH", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        }),
-      });
-    }
-  } catch (e) {
-    console.error("[interview] post-payment side effects failed", e);
-  }
-}
+// Interviews are no longer paid inline per booking — an employer spends one
+// interview credit to confirm instead (see lib/interviews.ts confirmInterview
+// and /api/interviews/[id]/confirm). Interview credits are bought ahead through
+// fulfillPurchase like shortlist credits, so there is no dynamic-price interview
+// fulfillment path here anymore.
 
 export async function markPaymentFailed(providerRef: string) {
   await db.payment.updateMany({ where: { providerRef }, data: { status: "failed" } });
