@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { fail, ok, parseBody } from "@/lib/api";
-import { fulfillInterview, fulfillPurchase } from "@/lib/fulfillment";
-import { PRODUCTS, isCreditProduct } from "@/lib/payments";
+import { fulfillPurchase } from "@/lib/fulfillment";
+import { PRODUCTS, isEmployerCreditProduct } from "@/lib/payments";
 import { captureOrder } from "@/lib/paypal";
 import { HttpError, requireEmployer, requireRole } from "@/lib/session";
 
@@ -17,7 +17,7 @@ const Body = z.object({ orderId: z.string().min(1) });
  * The product credited is derived from the order's reference_id — which we set
  * server-side at order creation as "<employerId>:<productId>". Trusting a
  * client-supplied productId here would let a buyer pay for one credit and claim
- * the three-pack.
+ * the three-pack. Shortlist and interview credits both settle this way.
  */
 export async function POST(req: Request) {
   try {
@@ -31,27 +31,11 @@ export async function POST(req: Request) {
     }
 
     const reference = capture.referenceId ?? "";
-
-    // Interview payments carry "interview:<id>" and settle a dynamic,
-    // pre-locked price rather than a catalog product.
-    if (reference.startsWith("interview:")) {
-      const interviewId = reference.slice("interview:".length);
-      const result = await fulfillInterview({
-        employerUserId: user.id,
-        employerId: employer.id,
-        interviewId,
-        providerRef: capture.captureId,
-        amount: Number(capture.amount ?? 0),
-        currency: capture.currency ?? "USD",
-      });
-      return ok({ paid: result.granted, alreadyProcessed: result.alreadyProcessed });
-    }
-
     const [employerId, productId] = reference.split(":");
 
     // The webhook can still fulfil this from PayPal's own delivery, so failing
     // here loses nothing except the instant balance update.
-    if (!employerId || !productId || !isCreditProduct(productId)) {
+    if (!employerId || !productId || !isEmployerCreditProduct(productId)) {
       console.error("[paypal] capture without a usable reference_id", {
         captureId: capture.captureId,
         referenceId: capture.referenceId,

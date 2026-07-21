@@ -4,7 +4,8 @@ import { mail } from "./email";
 import { notify } from "./notify";
 import { MODELS, embed, openai, toVectorLiteral } from "./openai";
 import {
-  MIN_SLATE_SCORE,
+  QUALIFY_SCORE,
+  QUALIFY_SKILLS,
   composite,
   scoreExperience,
   scoreOverlap,
@@ -17,7 +18,10 @@ export type { Dims };
 
 export const SLATE_SIZE = 5;
 const CANDIDATE_POOL = 50;
-const REASONED = 8;
+
+// A candidate whose availability was confirmed within this window is treated as
+// "fresh" and gets a light nudge up the rotation — never a hard filter.
+const AVAILABILITY_FRESH_DAYS = 14;
 
 type Candidate = {
   id: string;
@@ -31,6 +35,10 @@ type Candidate = {
   committedHours: number;
   verifiedTier: string;
   lastEditedAt: Date;
+  shortlistCount: number;
+  lastShownAt: Date | null;
+  openToOffers: boolean;
+  availabilityConfirmedAt: Date | null;
   similarity: number;
 };
 
@@ -68,6 +76,7 @@ export async function buildSlate(jdId: string) {
   const pool = await db.$queryRawUnsafe<Candidate[]>(
     `SELECT p.id, p."userId", p.headline, p.summary, p.city, p."yearsExperience",
             p."rateUsd", p.availability, p."committedHours", p."verifiedTier", p."lastEditedAt",
+            p."shortlistCount", p."lastShownAt", p."openToOffers", p."availabilityConfirmedAt",
             1 - (p.embedding <=> $1::vector) AS similarity
        FROM "TalentProfile" p
        JOIN "user" u ON u.id = p."userId"
@@ -105,7 +114,9 @@ export async function buildSlate(jdId: string) {
     engBy.set(e.profileId, list);
   }
 
-  const ranked = pool
+  const freshCutoff = Date.now() - AVAILABILITY_FRESH_DAYS * 86_400_000;
+
+  const eligible = pool
     .map((c) => {
       const cSkills = skillsBy.get(c.id) ?? [];
       const cEng = engBy.get(c.id) ?? [];
@@ -118,19 +129,36 @@ export async function buildSlate(jdId: string) {
         overlap: scoreOverlap(c.availability, c.committedHours, jd.hoursPerWeek),
         experience: scoreExperience(c.yearsExperience, cEng.filter((e) => e.outcome === "confirmed").length),
       };
+      const fresh = c.openToOffers && (c.availabilityConfirmedAt?.getTime() ?? 0) >= freshCutoff;
       return {
         c,
         dims,
         score: composite(dims, c.verifiedTier === "id_verified"),
+        fresh,
         skills: cSkills,
         engagements: cEng,
       };
     })
-    .sort((a, b) => b.score - a.score)
-    .filter((r) => r.score >= MIN_SLATE_SCORE)
-    .slice(0, REASONED);
+    // Quality gates eligibility: a candidate rotates only if the composite
+    // clears QUALIFY *and* there is real skill overlap for this job. Fairness
+    // never places anyone below the bar; padding can't buy a wrong-domain slot.
+    .filter((r) => r.score >= QUALIFY_SCORE && r.dims.skills >= QUALIFY_SKILLS)
+    // Rotate among the qualified. Fewer prior placements first (shown least),
+    // then longest-waiting (older/null lastShownAt), then a light nudge for
+    // freshly-confirmed availability, and finally score as the tiebreaker.
+    // Because shortlistCount leads, once everyone qualified has been shown they
+    // all sit at higher counts and the least-shown return to the front — the
+    // cycle resets itself, and anyone placed (or hired) drifts back each turn.
+    .sort((a, b) => {
+      if (a.c.shortlistCount !== b.c.shortlistCount) return a.c.shortlistCount - b.c.shortlistCount;
+      const at = a.c.lastShownAt?.getTime() ?? 0;
+      const bt = b.c.lastShownAt?.getTime() ?? 0;
+      if (at !== bt) return at - bt;
+      if (a.fresh !== b.fresh) return Number(b.fresh) - Number(a.fresh);
+      return b.score - a.score;
+    });
 
-  const top = ranked.slice(0, SLATE_SIZE);
+  const top = eligible.slice(0, SLATE_SIZE);
 
   // Nobody cleared the bar. Record that honestly instead of creating an empty
   // slate the employer could be charged to "unlock".
@@ -192,6 +220,15 @@ export async function buildSlate(jdId: string) {
         },
       });
     }
+
+    // Stamp the rotation counters in the same transaction that wrote the
+    // entries: each placed candidate's shortlistCount rises and lastShownAt
+    // moves to now, so next time they order behind whoever has been shown less.
+    // Snapshots above stay frozen — this touches live rotation state only.
+    await tx.talentProfile.updateMany({
+      where: { id: { in: top.map((r) => r.c.id) } },
+      data: { shortlistCount: { increment: 1 }, lastShownAt: new Date() },
+    });
 
     await tx.jobDescription.update({ where: { id: jd.id }, data: { status: "slate_ready" } });
     return created;

@@ -121,7 +121,13 @@ export default async function AdminUsers({
                   published={u.talentProfile?.publishedAt != null}
                 />
               </div>
-              {u.employer && <EmployerCredits userId={u.id} credits={u.employer.credits} />}
+              {u.employer && (
+                <EmployerCredits
+                  userId={u.id}
+                  credits={u.employer.credits}
+                  interviewCredits={u.employer.interviewCredits}
+                />
+              )}
             </div>
           ))
         )}

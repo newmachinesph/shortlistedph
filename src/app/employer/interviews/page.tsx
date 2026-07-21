@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import { Video } from "lucide-react";
 import { db } from "@/lib/db";
 import { employerOrOnboard, requirePageUser } from "@/lib/queries";
-import { RECOMMENDATION_LABEL, type Recommendation } from "@/lib/interviews";
+import { INTERVIEW_PRICE_USD, RECOMMENDATION_LABEL, type Recommendation } from "@/lib/interviews";
+import { PRODUCTS } from "@/lib/payments";
 import { stamp } from "@/lib/notify";
 import { presignDownload } from "@/lib/r2";
 import { NOINDEX } from "@/lib/site";
-import { InterviewPayButton } from "@/components/interview-pay-button";
+import { BuyButton } from "@/app/employer/billing/buy-button";
+import { InterviewConfirmButton } from "@/components/interview-confirm-button";
 import { InterviewCancelButton } from "@/components/interview-cancel-button";
 import { InterviewCapture } from "@/components/interview-capture";
 
@@ -14,8 +16,8 @@ export const metadata: Metadata = { title: "Interviews", ...NOINDEX };
 
 const STATUS_LABEL: Record<string, string> = {
   requested: "Waiting on candidate",
-  consented: "Ready to pay",
-  paid: "Paid — scheduling",
+  consented: "Ready to confirm",
+  paid: "Confirmed — scheduling",
   scheduled: "Scheduled",
   recorded: "Recorded — assessment pending",
   reported: "Completed",
@@ -25,7 +27,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 const GROUPS: { title: string; statuses: string[] }[] = [
   { title: "Waiting on candidate", statuses: ["requested"] },
-  { title: "Ready to pay", statuses: ["consented"] },
+  { title: "Ready to confirm", statuses: ["consented"] },
   { title: "Scheduled", statuses: ["paid", "scheduled", "recorded"] },
   { title: "Completed — view report", statuses: ["reported"] },
   { title: "Declined", statuses: ["declined"] },
@@ -85,11 +87,55 @@ export default async function InterviewsPage({
       <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Interviews</h1>
       <p className="mt-1 text-sm leading-relaxed text-ink-soft">
         Have a vetted interviewer run a recorded 30-minute interview of a shortlisted candidate and
-        file an assessment. The candidate consents first — you pay only after they agree.
+        file an assessment. Each interview costs 1 interview credit (${INTERVIEW_PRICE_USD} each). The
+        candidate consents first — a credit is only spent once they agree.
       </p>
 
       <div className="mt-6">
         <InterviewCapture shouldCapture={paid === "1"} />
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-line bg-white p-6">
+        <p className="text-xs text-ink-faint">Interview credits</p>
+        <p className="font-display mt-1.5 text-4xl font-semibold text-brand">
+          {employer.interviewCredits}
+        </p>
+        <p className="mt-1 text-sm text-ink-soft">
+          Each credit books one interview (${INTERVIEW_PRICE_USD} each). Buy ahead so a credit is
+          ready the moment a candidate agrees.
+        </p>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-2xl border border-line bg-white p-5">
+            <h3 className="font-medium text-ink">{PRODUCTS.interview_single.label}</h3>
+            <p className="font-display mt-2 text-2xl font-semibold text-ink">
+              ${PRODUCTS.interview_single.amount}
+            </p>
+            <p className="mt-1 mb-4 text-sm text-ink-soft">1 interview credit</p>
+            <BuyButton
+              productId="interview_single"
+              label="Buy 1 credit"
+              variant="ghost"
+              pendingKey="pendingInterviewOrder"
+            />
+          </div>
+          <div className="rounded-2xl border-2 border-brand bg-white p-5">
+            <div className="flex items-center gap-2">
+              <h3 className="font-medium text-ink">{PRODUCTS.interview_five.label}</h3>
+              <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand">
+                best value
+              </span>
+            </div>
+            <p className="font-display mt-2 text-2xl font-semibold text-ink">
+              ${PRODUCTS.interview_five.amount}
+            </p>
+            <p className="mt-1 mb-4 text-sm text-ink-soft">5 interview credits · $14 each</p>
+            <BuyButton
+              productId="interview_five"
+              label="Buy 5 credits"
+              pendingKey="pendingInterviewOrder"
+            />
+          </div>
+        </div>
       </div>
 
       {interviews.length === 0 ? (
@@ -123,7 +169,7 @@ export default async function InterviewsPage({
                         <div className="min-w-0">
                           <h3 className="font-medium text-ink">{iv.talent.name}</h3>
                           <p className="mt-0.5 text-sm text-ink-soft">
-                            Interviewer: {iv.interviewer.user.name} · ${iv.priceUsd.toFixed(2)}
+                            Interviewer: {iv.interviewer.user.name} · 1 interview credit
                           </p>
                         </div>
                         <span className="shrink-0 rounded-full bg-brand-soft px-2.5 py-1 text-[11px] font-medium text-brand">
@@ -166,20 +212,32 @@ export default async function InterviewsPage({
                       {iv.status === "consented" && (
                         <>
                           <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-                            {firstName} agreed to the recorded interview. Pay to confirm and we&rsquo;ll
-                            schedule it. The interview is recorded, and the recording is shared with
-                            you.
+                            {firstName} agreed to the recorded interview. Confirm to spend 1 interview
+                            credit and we&rsquo;ll schedule it. The interview is recorded, and the
+                            recording is shared with you.
                           </p>
-                          <div className="mt-4 flex flex-wrap items-center gap-3">
-                            <InterviewPayButton interviewId={iv.id} priceUsd={iv.priceUsd} />
-                            <InterviewCancelButton interviewId={iv.id} />
-                          </div>
+                          {employer.interviewCredits > 0 ? (
+                            <div className="mt-4 flex flex-wrap items-center gap-3">
+                              <InterviewConfirmButton interviewId={iv.id} />
+                              <InterviewCancelButton interviewId={iv.id} />
+                            </div>
+                          ) : (
+                            <div className="mt-4 rounded-xl border border-line bg-paper p-4">
+                              <p className="text-sm leading-relaxed text-ink-soft">
+                                You have no interview credits left. Buy interview credits (${INTERVIEW_PRICE_USD}{" "}
+                                each) above to confirm this interview.
+                              </p>
+                              <div className="mt-3">
+                                <InterviewCancelButton interviewId={iv.id} />
+                              </div>
+                            </div>
+                          )}
                         </>
                       )}
 
                       {(iv.status === "paid" || iv.status === "scheduled") && (
                         <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-                          Paid and confirmed.
+                          Confirmed.
                           {iv.scheduledAt
                             ? ` Scheduled for ${stamp(iv.scheduledAt)}.`
                             : " We're arranging a time with the interviewer."}{" "}

@@ -112,10 +112,19 @@ export function UserStatusActions({
   );
 }
 
-/** Grant, deduct, or set an employer's shortlist credits. */
-export function EmployerCredits({ userId, credits }: { userId: string; credits: number }) {
+/** Grant, deduct, or set an employer's shortlist OR interview credits. */
+export function EmployerCredits({
+  userId,
+  credits,
+  interviewCredits,
+}: {
+  userId: string;
+  credits: number;
+  interviewCredits: number;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [kind, setKind] = useState<"shortlist" | "interview">("shortlist");
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -132,7 +141,7 @@ export function EmployerCredits({ userId, credits }: { userId: string; credits: 
       const res = await fetch(`/api/admin/users/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ credits: { ...payload, reason: reason.trim() } }),
+        body: JSON.stringify({ credits: { ...payload, kind, reason: reason.trim() } }),
       });
       const body = (await res.json().catch(() => null)) as { error?: string } | null;
       if (!res.ok) {
@@ -156,8 +165,20 @@ export function EmployerCredits({ userId, credits }: { userId: string; credits: 
   return (
     <div className="mt-2 flex w-full flex-wrap items-center gap-2 border-t border-line pt-2">
       <span className="text-xs text-ink-faint">
-        Credits: <span className="font-medium text-ink">{credits}</span>
+        Shortlist: <span className="font-medium text-ink">{credits}</span>
       </span>
+      <span className="text-xs text-ink-faint">
+        Interview: <span className="font-medium text-ink">{interviewCredits}</span>
+      </span>
+      <select
+        value={kind}
+        onChange={(e) => setKind(e.target.value as "shortlist" | "interview")}
+        className="rounded-lg border border-line bg-paper px-2 py-1.5 text-base sm:text-xs"
+        aria-label="Which credit balance"
+      >
+        <option value="shortlist">Shortlist</option>
+        <option value="interview">Interview</option>
+      </select>
       <input
         type="number"
         value={amount}

@@ -12,10 +12,14 @@ export function BuyButton({
   productId,
   label,
   variant = "primary",
+  pendingKey = "pendingOrder",
 }: {
-  productId: "single" | "three_pack";
+  productId: "single" | "three_pack" | "interview_single" | "interview_five";
   label: string;
   variant?: "primary" | "ghost";
+  /** Which sessionStorage slot the return page reads. Interview-credit buys
+   * return to /employer/interviews, whose capture reads "pendingInterviewOrder". */
+  pendingKey?: "pendingOrder" | "pendingInterviewOrder";
 }) {
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +33,7 @@ export function BuyButton({
         { method: "POST", body: JSON.stringify({ productId }) },
       );
       if (!approveUrl) throw new Error("PayPal did not return an approval link");
-      sessionStorage.setItem("pendingOrder", JSON.stringify({ orderId, productId }));
+      sessionStorage.setItem(pendingKey, JSON.stringify({ orderId, productId }));
       window.location.href = approveUrl;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not start checkout");

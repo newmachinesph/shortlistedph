@@ -15,6 +15,8 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
   MIN_SLATE_SCORE,
+  QUALIFY_SCORE,
+  QUALIFY_SKILLS,
   composite,
   scoreExperience,
   scoreOverlap,
@@ -57,6 +59,13 @@ const JOBS = [
     budgetMin: 10,
     budgetMax: 16,
     hoursPerWeek: 30,
+  },
+  {
+    title: "Customer support agent for a US SaaS",
+    mustHaves: ["Zendesk", "Live chat", "Refunds"],
+    budgetMin: 8,
+    budgetMax: 12,
+    hoursPerWeek: 40,
   },
 ];
 
@@ -131,19 +140,20 @@ async function main() {
       })
       .sort((a, b) => b.score - a.score);
 
-    const qualified = ranked.filter((r) => r.score >= MIN_SLATE_SCORE).slice(0, 5);
-    const rejected = ranked.filter((r) => r.score < MIN_SLATE_SCORE).length;
+    const isQualified = (r: (typeof ranked)[number]) =>
+      r.score >= QUALIFY_SCORE && r.dims.skills >= QUALIFY_SKILLS;
+    const qualified = ranked.filter(isQualified).slice(0, 5);
+    const rejected = ranked.filter((r) => !isQualified(r)).length;
+    const strong = ranked.filter((r) => r.score >= MIN_SLATE_SCORE).length;
 
     console.log(`━━━ ${jd.title}`);
     console.log(`    budget $${jd.budgetMin}-${jd.budgetMax}/hr · must: ${jd.mustHaves.join(", ")}`);
     if (qualified.length === 0) {
-      console.log(`    NO QUALIFIED CANDIDATES — ${rejected} below the bar (top was ${ranked[0]?.score ?? 0})`);
+      console.log(`    NO QUALIFIED CANDIDATES — ${rejected} below QUALIFY ${QUALIFY_SCORE} (top was ${ranked[0]?.score ?? 0})`);
       console.log();
       continue;
     }
-    if (qualified.length < 5) {
-      console.log(`    only ${qualified.length} met the bar (${rejected} below)`);
-    }
+    console.log(`    ${qualified.length} qualify (≥${QUALIFY_SCORE}), of which ${strong} strong (≥${MIN_SLATE_SCORE}); ${rejected} below`);
     for (const [i, r] of qualified.entries()) {
       const headline = (r.c.headline ?? "(no headline)").slice(0, 58);
       console.log(
