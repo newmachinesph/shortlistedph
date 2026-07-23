@@ -13,9 +13,7 @@ export function LoginForm({ showGoogle }: { showGoogle: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
 
-  async function routeByRole() {
-    const { data } = await authClient.getSession();
-    const role = (data?.user as { role?: string } | undefined)?.role;
+  function routeByRole(role: string | undefined) {
     router.push(role === "employer" ? "/employer" : role === "admin" ? "/admin" : "/talent");
     router.refresh();
   }
@@ -24,13 +22,20 @@ export function LoginForm({ showGoogle }: { showGoogle: boolean }) {
     e.preventDefault();
     setError(null);
     setIsBusy(true);
-    const { error } = await signIn.email({ email, password });
+    const { data, error } = await signIn.email({ email, password });
     if (error) {
       setError(error.message ?? "Invalid email or password");
       setIsBusy(false);
       return;
     }
-    await routeByRole();
+    // The sign-in response already carries the user; only fall back to a
+    // second getSession() roundtrip if role is somehow missing from it.
+    let role = (data?.user as { role?: string } | undefined)?.role;
+    if (!role) {
+      const { data: session } = await authClient.getSession();
+      role = (session?.user as { role?: string } | undefined)?.role;
+    }
+    routeByRole(role);
   }
 
   return (

@@ -129,6 +129,9 @@ export function EmployerCredits({
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Server response is the source of truth for the new balance — shown
+  // immediately instead of waiting for router.refresh() to re-render the page.
+  const [balances, setBalances] = useState({ shortlist: credits, interview: interviewCredits });
 
   async function send(payload: { set?: number; delta?: number }) {
     if (!reason.trim()) {
@@ -143,10 +146,18 @@ export function EmployerCredits({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ credits: { ...payload, kind, reason: reason.trim() } }),
       });
-      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      const body = (await res.json().catch(() => null)) as
+        | { error?: string; kind?: string; after?: number }
+        | null;
       if (!res.ok) {
         setError(body?.error ?? "Failed");
         return;
+      }
+      if (typeof body?.after === "number") {
+        setBalances((prev) => ({
+          ...prev,
+          [body.kind === "interview" ? "interview" : "shortlist"]: body.after!,
+        }));
       }
       setAmount("");
       setReason("");
@@ -165,10 +176,10 @@ export function EmployerCredits({
   return (
     <div className="mt-2 flex w-full flex-wrap items-center gap-2 border-t border-line pt-2">
       <span className="text-xs text-ink-faint">
-        Shortlist: <span className="font-medium text-ink">{credits}</span>
+        Shortlist: <span className="font-medium text-ink">{balances.shortlist}</span>
       </span>
       <span className="text-xs text-ink-faint">
-        Interview: <span className="font-medium text-ink">{interviewCredits}</span>
+        Interview: <span className="font-medium text-ink">{balances.interview}</span>
       </span>
       <select
         value={kind}
