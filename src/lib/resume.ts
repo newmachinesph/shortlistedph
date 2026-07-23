@@ -35,13 +35,18 @@ export const ParsedResume = z.object({
   city: z.string().nullable(),
   yearsExperience: z.number().int().min(0).max(60),
   suggestedRateUsd: z.number().min(1).max(200).nullable(),
+  // Technical-skills group — concrete tools and capabilities, never soft-skill filler.
   skills: z.array(z.string()).max(20),
+  // Experience group — highlights are the resume's own achievement bullets,
+  // trimmed. They enrich facet text at extraction time; Engagement rows store
+  // role/company/span only.
   engagements: z
     .array(
       z.object({
         role: z.string(),
         company: z.string(),
         span: z.string().describe('e.g. "2022 - 2025"'),
+        highlights: z.array(z.string()).max(4).describe("Achievement bullets as written, trimmed"),
       }),
     )
     .max(12),
@@ -50,13 +55,29 @@ export const ParsedResume = z.object({
   portfolioUrl: z.string().nullable().describe("Personal site or portfolio, absolute http(s) URL"),
   linkedinUrl: z.string().nullable(),
   githubUrl: z.string().nullable(),
-  education: z.string().nullable().describe('Highest attainment, e.g. "BS Nursing, UST"'),
+  // Education group — one entry per degree/diploma the resume states.
+  education: z
+    .array(
+      z.object({
+        institution: z.string(),
+        credential: z.string().describe('e.g. "BS Nursing"'),
+        year: z.number().int().nullable(),
+      }),
+    )
+    .max(6),
   englishLevel: z
     .string()
     .nullable()
     .describe("native | fluent | conversational | basic, only if the resume states it"),
   tools: z.string().nullable().describe("Comma-separated software the resume names"),
-  certifications: z.string().nullable().describe("Comma-separated, only real named certifications"),
+  certifications: z.array(z.string()).max(12).describe("Only real named certifications"),
+  // Preferences group — only what the resume itself states, never inferred.
+  preferences: z.object({
+    desiredRateUsd: z.number().nullable().describe("Rate the resume states, not an estimate"),
+    hoursPerWeek: z.number().int().nullable(),
+    timezoneOverlap: z.string().nullable().describe('e.g. "4h US Eastern"'),
+    noticePeriodDays: z.number().int().nullable(),
+  }),
 });
 export type ParsedResume = z.infer<typeof ParsedResume>;
 
@@ -141,12 +162,17 @@ export function computeGaps(
 
 const SYSTEM = `You build standing talent profiles for shortlisted.ph, a Philippine remote-hiring platform.
 
-Extract ONLY what the resume actually supports. Rules:
+Extract ONLY what the resume actually supports, mined group by group:
+- education: one entry per degree or diploma, institution and credential as written, year only if stated.
+- skills: concrete technical tools and capabilities (e.g. "Dentrix", "insurance verification"), not soft-skill filler.
+- engagements: every real role with company and span; highlights are the resume's own achievement bullets, trimmed, never rewritten into new claims.
+- preferences: desired rate, hours per week, timezone overlap, notice period — only if the resume states them, null otherwise.
+
+Rules:
 - Never invent skills, employers, dates, or seniority. Omit rather than guess.
-- Skills: concrete tools and capabilities (e.g. "Dentrix", "insurance verification"), not soft-skill filler.
 - suggestedRateUsd: realistic USD/hour for this experience level in the PH remote market, or null if unclear.
 - Links: copy them exactly as written, absolute http(s) only. Never reconstruct a URL from a name or handle.
-- education, certifications, tools, englishLevel: null unless the resume states them. A degree is not implied by a job title, and English proficiency is not implied by the resume being in English.
+- certifications, tools, englishLevel: empty or null unless the resume states them. A degree is not implied by a job title, and English proficiency is not implied by the resume being in English.
 - Everything you output is shown to employers as the candidate's claim, so accuracy beats flattery.`;
 
 export async function parseResume(text: string): Promise<ParsedResume> {
@@ -165,6 +191,12 @@ export async function parseResume(text: string): Promise<ParsedResume> {
   if (!raw) throw new HttpError(502, "Extraction returned nothing");
   return sanitizeParsedUrls(ParsedResume.parse(JSON.parse(raw)));
 }
+
+/** Typed education entries flatten into the profile's single education column. */
+export const educationSummary = (rows: ParsedResume["education"]): string | null =>
+  rows
+    .map((e) => `${e.credential}, ${e.institution}${e.year ? ` (${e.year})` : ""}`)
+    .join("; ") || null;
 
 // Single owner is scoring.ts — profile writes and match scoring must normalize
 // identically or skills silently stop matching.

@@ -5,13 +5,12 @@ import { PAYOUT_METHODS, requestPayout, savePayoutDetails } from "@/lib/referral
 
 const Details = z.object({
   method: z.enum(PAYOUT_METHODS),
-  accountName: z.string().trim().min(2).max(120),
-  accountNumber: z.string().trim().min(4).max(64),
+  email: z.string().trim().email().max(254),
 });
 
 /**
- * Where to send the money. Account number is written straight to the row and
- * never echoed back in full — the response confirms the save and nothing else.
+ * Where to send the money — a PayPal email. The response confirms the save
+ * and nothing else.
  */
 export async function PATCH(req: Request) {
   try {

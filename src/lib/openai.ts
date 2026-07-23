@@ -25,6 +25,15 @@ export async function embed(text: string): Promise<number[]> {
   return res.data[0].embedding;
 }
 
+/** One request, many inputs, order preserved. Inputs must be non-empty — the API rejects "". */
+export async function embedMany(texts: string[]): Promise<number[][]> {
+  const res = await openai().embeddings.create({
+    model: MODELS.embed,
+    input: texts.map((t) => t.slice(0, 8000)),
+  });
+  return res.data.map((d) => d.embedding);
+}
+
 /** pgvector literal — Prisma can't bind number[] to a vector column. */
 export function toVectorLiteral(vec: number[]): string {
   return `[${vec.join(",")}]`;

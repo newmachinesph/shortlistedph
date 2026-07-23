@@ -28,6 +28,11 @@ export async function talentOrOnboard(userId: string) {
   return profile;
 }
 
+/** Header bell dot — cheap count, backed by the [userId, readAt] index. */
+export async function hasUnreadNotifications(userId: string) {
+  return (await db.notification.count({ where: { userId, readAt: null } })) > 0;
+}
+
 export async function listJds(employerId: string) {
   return db.jobDescription.findMany({
     where: { employerId },
@@ -142,7 +147,7 @@ export async function listEmployerConnections(employerId: string) {
               id: true,
               frozenJson: true,
               jd: { select: { id: true, title: true } },
-              profile: { select: { user: { select: { name: true, email: true } } } },
+              profile: { select: { user: { select: { id: true, name: true, email: true } } } },
             },
           },
         },
@@ -171,7 +176,7 @@ export async function listTalentConnections(userId: string) {
                   hoursPerWeek: true,
                   overlap: true,
                   mustHaves: true,
-                  employer: { select: { companyName: true, blurb: true, location: true } },
+                  employer: { select: { userId: true, companyName: true, blurb: true, location: true } },
                 },
               },
             },

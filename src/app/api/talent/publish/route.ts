@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { fail, ok } from "@/lib/api";
-import { embed, toVectorLiteral } from "@/lib/openai";
+import { buildFacetTexts } from "@/lib/facets";
+import { embedMany, toVectorLiteral } from "@/lib/openai";
 import { profileEmbedText } from "@/lib/resume";
 import { HttpError, requireRole, requireTalentProfile } from "@/lib/session";
 
@@ -21,11 +22,27 @@ export async function POST() {
     if (profile.skills.length === 0) missing.push("at least one skill");
     if (missing.length) throw new HttpError(422, `Add ${missing.join(", ")} before publishing`);
 
-    const vector = await embed(profileEmbedText(profile));
+    // One batch call: whole-profile vector (the hnsw pool cut) + three facets.
+    const facets = buildFacetTexts(profile);
+    const [whole, fSkills, fExp, fPrefs] = await embedMany([
+      profileEmbedText(profile),
+      facets.skills,
+      facets.experience,
+      facets.prefs,
+    ]);
 
     await db.$executeRawUnsafe(
-      `UPDATE "TalentProfile" SET embedding = $1::vector, "publishedAt" = COALESCE("publishedAt", now()) WHERE id = $2`,
-      toVectorLiteral(vector),
+      `UPDATE "TalentProfile"
+          SET embedding = $1::vector,
+              "embeddingSkills" = $2::vector,
+              "embeddingExperience" = $3::vector,
+              "embeddingPrefs" = $4::vector,
+              "publishedAt" = COALESCE("publishedAt", now())
+        WHERE id = $5`,
+      toVectorLiteral(whole),
+      toVectorLiteral(fSkills),
+      toVectorLiteral(fExp),
+      toVectorLiteral(fPrefs),
       profile.id,
     );
 

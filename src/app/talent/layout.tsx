@@ -4,17 +4,21 @@ import { NOINDEX } from "@/lib/site";
 export const metadata: Metadata = { title: "Talent workspace", ...NOINDEX };
 
 import { WorkspaceShell } from "@/components/workspace";
-import { requirePageUser, talentOrOnboard } from "@/lib/queries";
+import { hasUnreadNotifications, requirePageUser, talentOrOnboard } from "@/lib/queries";
 import { initials } from "@/lib/format";
 
 
 export default async function TalentLayout({ children }: { children: React.ReactNode }) {
   const user = await requirePageUser("talent");
-  const profile = await talentOrOnboard(user.id);
+  const [profile, hasUnread] = await Promise.all([
+    talentOrOnboard(user.id),
+    hasUnreadNotifications(user.id),
+  ]);
 
   return (
     <WorkspaceShell
       role="talent"
+      hasUnread={hasUnread}
       persona={{
         name: user.name,
         sub: profile.headline ?? user.email,

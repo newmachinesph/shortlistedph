@@ -7,7 +7,6 @@ import { ReferralSettle, ReferralVoid } from "@/components/referral-admin-action
 import {
   REFERRAL_REWARD,
   getSelfReferralSignals,
-  maskAccount,
   type RiskFlag,
 } from "@/lib/referral";
 
@@ -50,16 +49,9 @@ async function load() {
   const signals = await getSelfReferralSignals();
 
   // Payout destination per affiliate, keyed by userId so a pending payout can
-  // show where the money is going. The account number is masked the moment it
-  // leaves the database — the full value never reaches the page.
+  // show where the money is going — the PayPal email on file.
   const details = new Map(
-    referrals.map((r) => [
-      r.userId,
-      {
-        name: r.payoutAccountName,
-        masked: r.payoutAccountNumber ? maskAccount(r.payoutAccountNumber) : null,
-      },
-    ]),
+    referrals.map((r) => [r.userId, { email: r.payoutAccountNumber }]),
   );
 
   // Only conversions belonging to a flagged affiliate: the chips said "worth a
@@ -186,8 +178,8 @@ export default async function AdminAffiliates() {
       <p className="mt-2 max-w-2xl text-xs leading-relaxed text-ink-faint">
         Earnings are shown in the currency each payment cleared in and are never added together —
         there is no FX rate in this system. A payout request is recorded in the currency it was
-        earned in, normally {REFERRAL_REWARD.currency}; you convert to pesos at the rate on the day
-        you transfer and put the peso reference in the settle field.
+        earned in, normally {REFERRAL_REWARD.currency}; you send it by hand to the affiliate&apos;s
+        PayPal and put the transfer reference in the settle field.
       </p>
 
       <h2 className="mt-8 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
@@ -205,10 +197,11 @@ export default async function AdminAffiliates() {
               <div className="min-w-0 flex-1 basis-48">
                 <p className="truncate text-sm font-medium text-ink">{p.user.name}</p>
                 <p className="break-all text-xs text-ink-faint">
-                  {p.user.email} · {p.method} · requested {date(p.createdAt)}
+                  {p.user.email} · {p.method === "paypal" ? "PayPal" : p.method} · requested{" "}
+                  {date(p.createdAt)}
                 </p>
                 <p className="break-all text-xs text-ink-faint">
-                  Pay to {p.payTo?.name ?? "—"} · {p.payTo?.masked ?? "no account on file"}
+                  Pay to {p.payTo?.email ?? "no PayPal on file"}
                 </p>
                 <RiskChips flags={p.flags} />
               </div>

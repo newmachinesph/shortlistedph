@@ -10,6 +10,7 @@
     "postinstall": "prisma generate",
     "preflight": "node --experimental-strip-types scripts/preflight.ts",
     "db:harden": "prisma db execute --file scripts/db-hardening.sql",
+    "backfill:facets": "node --experimental-strip-types scripts/backfill-facet-embeddings.ts",
     "seed:admin": "node --experimental-strip-types scripts/seed-admin.ts",
     "seed:interviewers": "node --experimental-strip-types scripts/seed-interviewers.ts"
   },

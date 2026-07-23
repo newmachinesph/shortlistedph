@@ -7,26 +7,20 @@ import { api } from "@/lib/auth-client";
 
 type Props = {
   method: string | null;
-  accountName: string | null;
-  /** Already masked server-side — the full number never reaches the browser. */
-  accountMasked: string | null;
+  /** PayPal email on file. */
+  payoutEmail: string | null;
   /** Pre-formatted owed balance, one line per currency. Empty means nothing owed. */
   owed: { currency: string; formatted: string }[];
   hasPendingRequest: boolean;
 };
 
-export function ReferralPayout({
-  method,
-  accountName,
-  accountMasked,
-  owed,
-  hasPendingRequest,
-}: Props) {
+/** Looks-like-an-email gate for the save button; the server validates properly. */
+const EMAIL_RE = /^\S+@\S+\.\S+$/;
+
+export function ReferralPayout({ method, payoutEmail, owed, hasPendingRequest }: Props) {
   const router = useRouter();
   const [editing, setEditing] = useState(!method);
-  const [draftMethod, setDraftMethod] = useState(method ?? "gcash");
-  const [draftName, setDraftName] = useState(accountName ?? "");
-  const [draftNumber, setDraftNumber] = useState("");
+  const [draftEmail, setDraftEmail] = useState(payoutEmail ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,13 +30,8 @@ export function ReferralPayout({
     try {
       await api("/api/referral/payout", {
         method: "PATCH",
-        body: JSON.stringify({
-          method: draftMethod,
-          accountName: draftName,
-          accountNumber: draftNumber,
-        }),
+        body: JSON.stringify({ method: "paypal", email: draftEmail.trim() }),
       });
-      setDraftNumber("");
       setEditing(false);
       router.refresh();
     } catch (err) {
@@ -71,40 +60,19 @@ export function ReferralPayout({
         <p className="text-sm font-medium uppercase tracking-wider text-ink-faint">Payout details</p>
         {editing ? (
           <div className="mt-3 space-y-3">
-            <div className="flex flex-wrap gap-2">
-              {(["gcash", "bank"] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setDraftMethod(m)}
-                  className={`inline-flex min-h-11 flex-1 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition-colors sm:min-h-0 sm:flex-none ${
-                    draftMethod === m
-                      ? "bg-brand-soft text-brand ring-1 ring-inset ring-brand"
-                      : "text-ink-soft ring-1 ring-inset ring-line hover:bg-paper"
-                  }`}
-                >
-                  {m === "gcash" ? "GCash" : "Bank transfer"}
-                </button>
-              ))}
-            </div>
             <input
-              value={draftName}
-              onChange={(e) => setDraftName(e.target.value)}
-              placeholder="Account name"
-              className="min-h-11 w-full rounded-xl border border-line bg-white px-3 py-2 text-base text-ink outline-none placeholder:text-ink-faint focus:border-brand sm:min-h-0 sm:text-sm"
-            />
-            <input
-              value={draftNumber}
-              onChange={(e) => setDraftNumber(e.target.value)}
-              placeholder={draftMethod === "gcash" ? "GCash number" : "Account number"}
-              autoComplete="off"
+              type="email"
+              value={draftEmail}
+              onChange={(e) => setDraftEmail(e.target.value)}
+              placeholder="PayPal email"
+              autoComplete="email"
               className="min-h-11 w-full rounded-xl border border-line bg-white px-3 py-2 text-base text-ink outline-none placeholder:text-ink-faint focus:border-brand sm:min-h-0 sm:text-sm"
             />
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={saveDetails}
-                disabled={busy || draftName.trim().length < 2 || draftNumber.trim().length < 4}
+                disabled={busy || !EMAIL_RE.test(draftEmail.trim())}
                 className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:opacity-50 sm:min-h-0 sm:flex-none"
               >
                 {busy && <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.75} />}
@@ -121,13 +89,13 @@ export function ReferralPayout({
               )}
             </div>
             <p className="text-xs text-ink-faint">
-              Only the last four digits are ever shown back to you or to us on screen.
+              Payouts are sent to this PayPal address, so make sure it can receive money.
             </p>
           </div>
         ) : (
           <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl bg-paper px-4 py-3">
             <span className="min-w-0 flex-1 break-words text-sm text-ink">
-              {method === "gcash" ? "GCash" : "Bank transfer"} · {accountName} · {accountMasked}
+              PayPal · {payoutEmail}
             </span>
             <button
               type="button"
@@ -155,8 +123,8 @@ export function ReferralPayout({
           <>
             <p className="mt-2 text-sm text-ink-soft">
               {owed.map((o) => o.formatted).join(" + ")} owed. Requesting records the amount in the
-              currency it was earned in; the peso figure is worked out by hand at the rate on the
-              day it is transferred, so it will not match exactly.
+              currency it was earned in; it is paid to your PayPal by hand, so allow a few days for
+              it to arrive.
             </p>
             <button
               type="button"

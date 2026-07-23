@@ -253,8 +253,9 @@ export function PayoutSent({
     <Shell preview="Your referral payout is on its way">
       <Text style={s.heading}>Payout sent</Text>
       <Text style={s.text}>
-        Hi {name}, we sent your {requested} payout to your {method} account
-        {currency === "PHP"
+        Hi {name}, we sent your {requested} payout to your{" "}
+        {method === "paypal" ? "PayPal" : `${method} account`}
+        {method === "paypal" || currency === "PHP"
           ? "."
           : ", converted to pesos at the rate on the day it was transferred."}
       </Text>
@@ -265,8 +266,8 @@ export function PayoutSent({
         </Text>
       </Section>
       <Text style={s.small}>
-        Bank and wallet transfers usually land the same day. Tell us if it
-        hasn&apos;t arrived within three working days.
+        Transfers usually land the same day. Tell us if it hasn&apos;t arrived
+        within three working days.
       </Text>
     </Shell>
   );

@@ -13,6 +13,7 @@ import { config } from "dotenv";
 import OpenAI from "openai";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { blendSimilarity, jdFacetTexts } from "../src/lib/facets.ts";
 import {
   MIN_SLATE_SCORE,
   QUALIFY_SCORE,
@@ -76,12 +77,14 @@ async function main() {
   console.log(`Pool: ${count} embedded profiles\n`);
 
   for (const jd of JOBS) {
-    const text = [jd.title, `Must have: ${jd.mustHaves.join(", ")}`, `${jd.hoursPerWeek} hours per week`].join("\n");
+    // Same two query vectors production uses: whole-role text + skills facet.
+    const q = jdFacetTexts(jd);
     const { data } = await openai.embeddings.create({
       model: "text-embedding-3-small",
-      input: text,
+      input: [q.role, q.skills],
     });
-    const vec = `[${data[0].embedding.join(",")}]`;
+    const roleVec = `[${data[0].embedding.join(",")}]`;
+    const skillsVec = `[${data[1].embedding.join(",")}]`;
 
     const pool = await db.$queryRawUnsafe<
       {
@@ -92,16 +95,22 @@ async function main() {
         rateUsd: number | null;
         availability: string;
         committedHours: number;
-        similarity: number;
+        dskills: number;
+        dexp: number;
+        dprefs: number;
       }[]
     >(
       `SELECT id, headline, city, "yearsExperience", "rateUsd", availability,
-              "committedHours", 1 - (embedding <=> $1::vector) AS similarity
+              "committedHours",
+              COALESCE("embeddingSkills" <=> $2::vector, embedding <=> $1::vector) AS dskills,
+              COALESCE("embeddingExperience" <=> $1::vector, embedding <=> $1::vector) AS dexp,
+              COALESCE("embeddingPrefs" <=> $1::vector, embedding <=> $1::vector) AS dprefs
          FROM "TalentProfile"
         WHERE embedding IS NOT NULL
         ORDER BY embedding <=> $1::vector
         LIMIT 50`,
-      vec,
+      roleVec,
+      skillsVec,
     );
 
     const ids = pool.map((p) => p.id);
@@ -127,8 +136,9 @@ async function main() {
 
     const ranked = pool
       .map((c) => {
+        const sim = blendSimilarity(c.dskills, c.dexp, c.dprefs);
         const dims = {
-          skills: scoreSkills(jd.mustHaves, skillsBy.get(c.id) ?? [], c.similarity, {
+          skills: scoreSkills(jd.mustHaves, skillsBy.get(c.id) ?? [], sim, {
             headline: c.headline,
             roles: rolesBy.get(c.id) ?? [],
           }),
@@ -136,7 +146,7 @@ async function main() {
           overlap: scoreOverlap(c.availability, c.committedHours, jd.hoursPerWeek),
           experience: scoreExperience(c.yearsExperience, engCount.get(c.id) ?? 0),
         };
-        return { c, dims, score: composite(dims) };
+        return { c, dims, sim, score: composite(dims) };
       })
       .sort((a, b) => b.score - a.score);
 
@@ -160,7 +170,7 @@ async function main() {
         `  ${i + 1}. ${String(r.score).padStart(3)}  ${headline.padEnd(60)} ` +
           `$${r.c.rateUsd ?? "?"}/hr ${r.c.yearsExperience}y  ` +
           `[sk ${r.dims.skills} rt ${r.dims.rate} ov ${r.dims.overlap} ex ${r.dims.experience}] ` +
-          `sim ${r.c.similarity.toFixed(3)}`,
+          `sim ${r.sim.toFixed(3)}`,
       );
     }
     console.log();

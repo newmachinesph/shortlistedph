@@ -143,6 +143,14 @@ model TalentProfile {
   // pgvector column; Prisma has no native type for it.
   embedding Unsupported("vector(1536)")?
 
+  // Facet vectors — one per extraction group, so a JD's skill requirements
+  // compare against skills, not a blended blob. `embedding` stays the
+  // whole-profile vector and the hnsw pool cut; these refine ranking inside
+  // the pool. Nullable: matching COALESCEs to the whole-profile distance.
+  embeddingSkills     Unsupported("vector(1536)")?
+  embeddingExperience Unsupported("vector(1536)")?
+  embeddingPrefs      Unsupported("vector(1536)")?
+
   user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   skills      Skill[]
   engagements Engagement[]
@@ -228,6 +236,9 @@ model JobDescription {
   createdAt           DateTime  @default(now())
 
   embedding Unsupported("vector(1536)")?
+
+  // Skills-facet query vector; `embedding` doubles as the role/experience query.
+  embeddingSkills Unsupported("vector(1536)")?
 
   employer  EmployerAccount   @relation(fields: [employerId], references: [id], onDelete: Cascade)
   slates    Slate[]

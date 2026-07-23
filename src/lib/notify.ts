@@ -117,6 +117,18 @@ export function renderNotification(
       };
     case "agreement_active":
       return { text: `The agreement for ${jobTitle} is active.`, href: `/${side}/agreements` };
+    case "agreement_signed":
+      return {
+        text: `The other side signed the agreement for ${jobTitle} — your signature is pending.`,
+        href: `/${side}/agreements`,
+      };
+    case "outcome_confirmed": {
+      const period = field(payload, "period");
+      return {
+        text: `${period ? `The ${period} outcome` : "An outcome"} for ${jobTitle} was confirmed by both sides.`,
+        href: `/${side}/agreements`,
+      };
+    }
     case "payment_received": {
       const amount = field(payload, "amount");
       const currency = field(payload, "currency") || "USD";
