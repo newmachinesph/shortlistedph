@@ -42,6 +42,10 @@ ALTER TABLE "Slate" DROP CONSTRAINT IF EXISTS slate_status_check;
 ALTER TABLE "Slate" ADD CONSTRAINT slate_status_check
   CHECK (status IN ('pending_review', 'preview', 'unlocked'));
 
+ALTER TABLE "MatchConsent" DROP CONSTRAINT IF EXISTS match_consent_status_check;
+ALTER TABLE "MatchConsent" ADD CONSTRAINT match_consent_status_check
+  CHECK (status IN ('pending', 'accepted', 'declined', 'expired'));
+
 ALTER TABLE "Connection" DROP CONSTRAINT IF EXISTS connection_state_check;
 ALTER TABLE "Connection" ADD CONSTRAINT connection_state_check
   CHECK (state IN ('requested', 'consented', 'declined', 'expired'));

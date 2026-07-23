@@ -133,6 +133,90 @@ export function ConnectionRequested({
   );
 }
 
+export function MatchConsentRequest({
+  token,
+  title,
+  budgetMin,
+  budgetMax,
+  hoursPerWeek,
+  overlap,
+  mustHaves,
+}: {
+  token: string;
+  title: string;
+  budgetMin: number | null;
+  budgetMax: number | null;
+  hoursPerWeek: number | null;
+  overlap: string | null;
+  mustHaves: string[];
+}) {
+  // GENERIC role facts only — never the employer or company name. The JD stays
+  // hidden; the candidate decides on the role, not the brand.
+  const rate =
+    budgetMin != null && budgetMax != null
+      ? budgetMin === budgetMax
+        ? `$${budgetMin}/hr`
+        : `$${budgetMin}–${budgetMax}/hr`
+      : null;
+  const accept = `${SITE_URL}/consent/${token}?a=yes`;
+  const decline = `${SITE_URL}/consent/${token}?a=no`;
+  return (
+    <Shell
+      preview="You've been shortlisted — are you interested?"
+      footnote="This request expires 48 hours after it was sent. If we don't hear from you, we'll assume you're not interested this time and pause matching you with new roles until you next log in."
+    >
+      <Text style={s.heading}>You&apos;ve been shortlisted</Text>
+      <Text style={s.text}>
+        An employer&apos;s role matched your profile, and we&apos;d like to put you on
+        their shortlist. Before we do, we need your yes — nothing about you is
+        shown until you accept.
+      </Text>
+      <Section style={s.card}>
+        <Text style={s.label}>Role</Text>
+        <Text style={{ ...s.value, marginBottom: "14px" }}>{title}</Text>
+        {rate && (
+          <>
+            <Text style={s.label}>Pays within</Text>
+            <Text style={{ ...s.value, marginBottom: "14px" }}>{rate}</Text>
+          </>
+        )}
+        {hoursPerWeek != null && (
+          <>
+            <Text style={s.label}>Hours</Text>
+            <Text style={{ ...s.value, marginBottom: "14px" }}>{hoursPerWeek}h/week</Text>
+          </>
+        )}
+        {overlap && (
+          <>
+            <Text style={s.label}>Timezone overlap</Text>
+            <Text style={{ ...s.value, marginBottom: "14px" }}>{overlap}</Text>
+          </>
+        )}
+        {mustHaves.length > 0 && (
+          <>
+            <Text style={s.label}>Must-haves</Text>
+            <Text style={{ ...s.value, fontWeight: 500 }}>{mustHaves.join(" · ")}</Text>
+          </>
+        )}
+      </Section>
+      {rate && (
+        <Text style={s.small}>The rate shown is what this job pays within.</Text>
+      )}
+      <Section style={{ padding: "6px 0 4px" }}>
+        <Link href={accept} style={s.button}>
+          I&apos;m interested
+        </Link>
+      </Section>
+      <Section style={{ padding: "0 0 18px" }}>
+        <Link href={decline} style={s.link}>
+          Not this one, thanks
+        </Link>
+      </Section>
+      <Fallback url={accept} />
+    </Shell>
+  );
+}
+
 export function SlateDelivered({
   company,
   jobTitle,
@@ -145,19 +229,21 @@ export function SlateDelivered({
   jdId: string;
 }) {
   return (
-    <Shell preview={`Your shortlist for ${jobTitle} is ready`}>
-      <Text style={s.heading}>Your shortlist is ready</Text>
+    <Shell preview={`We found matches for ${jobTitle}`}>
+      <Text style={s.heading}>We found your matches</Text>
       <Text style={s.text}>
         {company} — we matched {count}{" "}
         {count === 1 ? "candidate" : "candidates"} against {jobTitle}. Each one
-        cleared your must-haves, your budget band, and your overlap hours.
+        cleared your must-haves, your budget band, and your overlap hours, and
+        we&apos;re confirming availability with them now.
       </Text>
       <Text style={s.text}>
-        Scores and reasoning are visible now. Names and contact details unlock
-        when you are ready to reach out.
+        Your shortlist fills in as candidates confirm — we&apos;re also sourcing
+        from other channels in parallel. Names and contact details unlock when
+        you are ready to reach out.
       </Text>
       <Button href={`${SITE_URL}/employer/briefs/${jdId}`}>
-        See the shortlist
+        See your shortlist
       </Button>
     </Shell>
   );

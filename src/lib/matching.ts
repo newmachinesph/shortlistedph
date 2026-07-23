@@ -1,4 +1,5 @@
 import "server-only";
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { db } from "./db";
 import { blendSimilarity, jdFacetTexts } from "./facets";
@@ -52,7 +53,7 @@ type Candidate = {
   dprefs: number;
 };
 
-type Jd = {
+export type Jd = {
   id: string;
   title: string;
   mustHaves: string[];
@@ -68,12 +69,96 @@ export function jdEmbedText(jd: Jd): string {
   return jdFacetTexts(jd).role;
 }
 
+export type RankedCandidate = {
+  c: Candidate;
+  dims: Dims;
+  score: number;
+  fresh: boolean;
+  skills: { name: string; confirmed: boolean; normalizedName: string }[];
+  engagements: { role: string; company: string; span: string; outcome: string }[];
+};
+
 /**
- * Ranks the market against one job description.
- * The LLM writes prose reasons only — it never decides rank.
+ * The four scored dimensions for one candidate against one JD. Shared by the
+ * full ranking below and the consent-accept path, which re-scores a single
+ * candidate when they land on the slate.
  */
-export async function buildSlate(jdId: string) {
-  const jd = await db.jobDescription.findUniqueOrThrow({ where: { id: jdId } });
+export function candidateDims(
+  jd: Pick<Jd, "mustHaves" | "budgetMin" | "budgetMax" | "hoursPerWeek">,
+  c: {
+    headline: string | null;
+    yearsExperience: number;
+    rateUsd: number | null;
+    availability: string;
+    committedHours: number;
+  },
+  cSkills: { normalizedName: string; confirmed: boolean }[],
+  cEng: { role: string; outcome: string }[],
+  sim: number,
+): Dims {
+  return {
+    skills: scoreSkills(jd.mustHaves, cSkills, sim, {
+      headline: c.headline,
+      roles: cEng.map((e) => e.role),
+    }),
+    rate: scoreRate(c.rateUsd, jd.budgetMin, jd.budgetMax),
+    overlap: scoreOverlap(c.availability, c.committedHours, jd.hoursPerWeek),
+    experience: scoreExperience(c.yearsExperience, cEng.filter((e) => e.outcome === "confirmed").length),
+  };
+}
+
+/**
+ * The frozen profile JSON a ProfileSnapshot stores. One shape, one owner —
+ * created at consent-accept time, read by maskEntry and the dossier pages.
+ */
+export function frozenProfileJson(
+  c: {
+    userId: string;
+    headline: string | null;
+    summary: string | null;
+    city: string | null;
+    yearsExperience: number;
+    rateUsd: number | null;
+    availability: string;
+    committedHours: number;
+    verifiedTier: string;
+    lastEditedAt: Date;
+  },
+  skills: { name: string; confirmed: boolean }[],
+  engagements: { role: string; company: string; span: string; outcome: string }[],
+  publishedAt: Date,
+) {
+  return {
+    name: null, // filled from user at read time; masked while locked
+    userId: c.userId,
+    headline: c.headline,
+    summary: c.summary,
+    city: c.city,
+    yearsExperience: c.yearsExperience,
+    rateUsd: c.rateUsd,
+    availability: c.availability,
+    committedHours: c.committedHours,
+    verifiedTier: c.verifiedTier,
+    profileStableDays: Math.max(
+      0,
+      Math.floor((publishedAt.getTime() - c.lastEditedAt.getTime()) / 86_400_000),
+    ),
+    skills: skills.map((s) => ({ name: s.name, confirmed: s.confirmed })),
+    engagements: engagements.map((e) => ({
+      role: e.role,
+      company: e.company,
+      span: e.span,
+      outcome: e.outcome,
+    })),
+  };
+}
+
+/**
+ * Ranks the market against one JD and returns everyone who clears the bar, in
+ * rotation order. Shared by buildSlate (initial consent fan-out) and the
+ * consent-refresh cron (backfill re-runs this instead of persisting a queue).
+ */
+export async function rankQualifiedForJd(jd: Jd): Promise<{ scanned: number; eligible: RankedCandidate[] }> {
   // Two query vectors, one batch call: the whole-JD role text (also the hnsw
   // pool cut) and the skills-facet text.
   const q = jdFacetTexts(jd);
@@ -90,6 +175,7 @@ export async function buildSlate(jdId: string) {
        JOIN "user" u ON u.id = p."userId"
       WHERE p."publishedAt" IS NOT NULL
         AND p.visibility = true
+        AND p."dormantAt" IS NULL
         AND p.embedding IS NOT NULL
         AND u.status = 'active'
       ORDER BY p.embedding <=> $1::vector
@@ -98,11 +184,7 @@ export async function buildSlate(jdId: string) {
     toVectorLiteral(skillsVec),
   );
 
-  if (pool.length === 0) {
-    // Terminal state, not "still matching" — otherwise the dashboard spins forever.
-    await db.jobDescription.update({ where: { id: jd.id }, data: { status: "no_matches" } });
-    return { slateId: null, scanned: 0, entries: 0 };
-  }
+  if (pool.length === 0) return { scanned: 0, eligible: [] };
 
   const ids = pool.map((c) => c.id);
   const [skills, engagements] = await Promise.all([
@@ -130,15 +212,7 @@ export async function buildSlate(jdId: string) {
       const cSkills = skillsBy.get(c.id) ?? [];
       const cEng = engBy.get(c.id) ?? [];
       const sim = blendSimilarity(c.dskills, c.dexp, c.dprefs);
-      const dims: Dims = {
-        skills: scoreSkills(jd.mustHaves, cSkills, sim, {
-          headline: c.headline,
-          roles: cEng.map((e) => e.role),
-        }),
-        rate: scoreRate(c.rateUsd, jd.budgetMin, jd.budgetMax),
-        overlap: scoreOverlap(c.availability, c.committedHours, jd.hoursPerWeek),
-        experience: scoreExperience(c.yearsExperience, cEng.filter((e) => e.outcome === "confirmed").length),
-      };
+      const dims = candidateDims(jd, c, cSkills, cEng, sim);
       const fresh = c.openToOffers && (c.availabilityConfirmedAt?.getTime() ?? 0) >= freshCutoff;
       return {
         c,
@@ -168,94 +242,80 @@ export async function buildSlate(jdId: string) {
       return b.score - a.score;
     });
 
+  return { scanned: pool.length, eligible };
+}
+
+/**
+ * Consent-first matching: ranking is unchanged, but nobody appears on a slate
+ * without saying yes first. This creates the Slate EMPTY (pending_review) plus
+ * a pending MatchConsent for each of the top qualified candidates. Consent
+ * emails go out at admin approval (lib/admin.ts), entries + snapshots +
+ * rotation stamps happen at consent ACCEPT (lib/consent.ts), and the hourly
+ * consent-refresh cron expires non-responders and backfills from the ranking —
+ * re-run, not persisted, so there is no queue table to drift.
+ */
+export async function buildSlate(jdId: string) {
+  const jd = await db.jobDescription.findUniqueOrThrow({ where: { id: jdId } });
+  const { scanned, eligible } = await rankQualifiedForJd(jd);
+
+  if (scanned === 0) {
+    // Terminal state, not "still matching" — otherwise the dashboard spins forever.
+    await db.jobDescription.update({ where: { id: jd.id }, data: { status: "no_matches" } });
+    return { slateId: null, scanned: 0, invited: 0 };
+  }
+
   const top = eligible.slice(0, SLATE_SIZE);
 
   // Nobody cleared the bar. Record that honestly instead of creating an empty
   // slate the employer could be charged to "unlock".
   if (top.length === 0) {
     await db.jobDescription.update({ where: { id: jd.id }, data: { status: "no_matches" } });
-    return { slateId: null, scanned: pool.length, entries: 0 };
+    return { slateId: null, scanned, invited: 0 };
   }
-
-  const reasons = await explain(jd, top);
-
-  const publishedAt = jd.publishedAt ?? new Date();
 
   const slate = await db.$transaction(async (tx) => {
     // Every slate starts behind the curtain: an admin approves it (lib/admin.ts
-    // approveSlate) before the employer sees it or hears about it. The employer
-    // notify + slateDelivered email fire on approval, not here.
+    // approveSlate) before the employer hears anything and before any candidate
+    // is emailed. expiresAt stays null until the email is actually sent.
     const created = await tx.slate.create({ data: { jdId: jd.id, status: "pending_review" } });
 
-    for (const [i, r] of top.entries()) {
-      // Freeze the profile as of this JD. Later edits cannot change what the
-      // employer sees — this is what makes the anti-tailoring claim literal.
-      const snapshot = await tx.profileSnapshot.upsert({
-        where: { profileId_jdId: { profileId: r.c.id, jdId: jd.id } },
-        create: {
-          profileId: r.c.id,
-          jdId: jd.id,
-          frozenJson: {
-            name: null, // filled from user at read time; masked while locked
-            userId: r.c.userId,
-            headline: r.c.headline,
-            summary: r.c.summary,
-            city: r.c.city,
-            yearsExperience: r.c.yearsExperience,
-            rateUsd: r.c.rateUsd,
-            availability: r.c.availability,
-            committedHours: r.c.committedHours,
-            verifiedTier: r.c.verifiedTier,
-            profileStableDays: Math.max(
-              0,
-              Math.floor((publishedAt.getTime() - r.c.lastEditedAt.getTime()) / 86_400_000),
-            ),
-            skills: r.skills.map((s) => ({ name: s.name, confirmed: s.confirmed })),
-            engagements: r.engagements.map((e) => ({
-              role: e.role,
-              company: e.company,
-              span: e.span,
-              outcome: e.outcome,
-            })),
-          },
-        },
-        update: {},
-      });
-
-      await tx.slateEntry.create({
-        data: {
-          slateId: created.id,
-          snapshotId: snapshot.id,
-          rank: i + 1,
-          score: r.score,
-          dims: r.dims,
-          reasons: reasons[i] ?? [],
-        },
-      });
-    }
-
-    // Stamp the rotation counters in the same transaction that wrote the
-    // entries: each placed candidate's shortlistCount rises and lastShownAt
-    // moves to now, so next time they order behind whoever has been shown less.
-    // Snapshots above stay frozen — this touches live rotation state only.
-    await tx.talentProfile.updateMany({
-      where: { id: { in: top.map((r) => r.c.id) } },
-      data: { shortlistCount: { increment: 1 }, lastShownAt: new Date() },
+    await tx.matchConsent.createMany({
+      data: top.map((r) => ({ jdId: jd.id, profileId: r.c.id, token: newConsentToken() })),
+      // A candidate already asked for this JD keeps their original consent row
+      // (jdId+profileId is unique) — never two invites for the same job.
+      skipDuplicates: true,
     });
 
     await tx.jobDescription.update({ where: { id: jd.id }, data: { status: "slate_ready" } });
     return created;
-    // ~15 sequential queries; Prisma's 5s default expires on cold starts and
-    // remote-operator runs. Generous ceiling — the writes themselves are tiny.
   }, { timeout: 30_000 });
 
-  return { slateId: slate.id, scanned: pool.length, entries: top.length };
+  return { slateId: slate.id, scanned, invited: top.length };
 }
 
-type Ranked = { c: Candidate; dims: Dims; score: number; skills: { name: string; confirmed: boolean }[] };
+/** 32 hex chars (128 bits) — the consent link credential. */
+export function newConsentToken(): string {
+  return randomBytes(16).toString("hex");
+}
+
+// Only the fields the narration prompt actually reads — so the consent-accept
+// path can pass a live TalentProfile row without shaping it into a Candidate.
+type Ranked = {
+  c: {
+    headline: string | null;
+    city: string | null;
+    yearsExperience: number;
+    rateUsd: number | null;
+    availability: string;
+    verifiedTier: string;
+  };
+  dims: Dims;
+  score: number;
+  skills: { name: string; confirmed: boolean }[];
+};
 
 /** Prose only. If this call fails the slate still ships, just without narration. */
-async function explain(jd: Jd, ranked: Ranked[]): Promise<string[][]> {
+export async function explain(jd: Jd, ranked: Ranked[]): Promise<string[][]> {
   if (ranked.length === 0) return [];
   try {
     const res = await openai().responses.create({

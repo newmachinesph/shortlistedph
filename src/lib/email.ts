@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 import {
   AvailabilityPrompt,
   ConnectionRequested,
+  MatchConsentRequest,
   PaymentReceipt,
   PayoutSent,
   ReferralConverted,
@@ -204,7 +205,24 @@ export const mail = {
   slateDelivered: (
     to: string,
     args: { company: string; jobTitle: string; count: number; jdId: string },
-  ) => send(to, `Your shortlist for ${args.jobTitle} is ready`, SlateDelivered(args)),
+  ) => send(to, `We found matches for ${args.jobTitle}`, SlateDelivered(args)),
+
+  // Consent-first matching: the candidate's yes/no. The caller (lib/consent.ts)
+  // stamps sentAt/expiresAt only when this returns true, so the kill switch
+  // (send() suppresses non-auth mail) can never start a countdown for an email
+  // nobody received.
+  matchConsentRequest: (
+    to: string,
+    args: {
+      token: string;
+      title: string;
+      budgetMin: number | null;
+      budgetMax: number | null;
+      hoursPerWeek: number | null;
+      overlap: string | null;
+      mustHaves: string[];
+    },
+  ) => send(to, "You've been shortlisted", MatchConsentRequest(args)),
 
   paymentReceipt: (
     to: string,

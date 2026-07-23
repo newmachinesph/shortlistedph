@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "./db";
 import { mail } from "./email";
+import { sendConsentRequests } from "./consent";
 import { buildSlate } from "./matching";
 import { notify } from "./notify";
 import { presignDownload } from "./r2";
@@ -481,8 +482,11 @@ export async function failJd(args: { actorId: string; jdId: string; note?: strin
 /**
  * Releases a slate to its employer. buildSlate creates every slate as
  * "pending_review"; the employer sees nothing and hears nothing until an
- * operator approves it here. The approval carries the notify + email that
- * used to fire from buildSlate — the email rides the outreach kill switch.
+ * operator approves it here — and no CANDIDATE is emailed either. Approval is
+ * the moment the consent requests go out (sendConsentRequests stamps sentAt +
+ * the 48h expiresAt per email). Both employer and candidate mail ride the
+ * outreach kill switch; suppressed consents stay unsent and unexpirable, and
+ * the consent-refresh cron retries them once outreach is back on.
  */
 export async function approveSlate(args: { actorId: string; slateId: string }) {
   // Conditional flip is the lock: a double-click or second operator matches
@@ -502,16 +506,16 @@ export async function approveSlate(args: { actorId: string; slateId: string }) {
   });
 
   // Post-approval delivery, best-effort: a bounced email must not undo an
-  // approval that already happened. Same block buildSlate used to run.
+  // approval that already happened.
   try {
     const slate = await db.slate.findUnique({
       where: { id: args.slateId },
       select: {
-        _count: { select: { entries: true } },
         jd: {
           select: {
             id: true,
             title: true,
+            _count: { select: { matchConsents: true } },
             employer: { select: { companyName: true, user: { select: { id: true, email: true } } } },
           },
         },
@@ -520,14 +524,15 @@ export async function approveSlate(args: { actorId: string; slateId: string }) {
     const employer = slate?.jd.employer;
     if (slate && employer) {
       // In-app row and email are separate deliveries of the same fact. The
-      // email can bounce; the bell has to be right either way.
+      // email can bounce; the bell has to be right either way. Count = matches
+      // being confirmed, not entries — the slate is empty until candidates say yes.
       await notify({
         userId: employer.user.id,
         type: "slate_delivered",
         payload: {
           company: employer.companyName,
           jobTitle: slate.jd.title,
-          count: slate._count.entries,
+          count: slate.jd._count.matchConsents,
           jdId: slate.jd.id,
         },
       });
@@ -535,9 +540,14 @@ export async function approveSlate(args: { actorId: string; slateId: string }) {
       await mail.slateDelivered(employer.user.email, {
         company: employer.companyName,
         jobTitle: slate.jd.title,
-        count: slate._count.entries,
+        count: slate.jd._count.matchConsents,
         jdId: slate.jd.id,
       });
+
+      // Candidate outreach starts only now, after an operator vouched for the
+      // slate. Each send stamps its own sentAt + 48h expiry inside.
+      const { sent } = await sendConsentRequests(slate.jd.id);
+      console.info(`[admin] slate ${args.slateId} approved — ${sent} consent request(s) sent`);
     }
   } catch (e) {
     console.error("[admin] slate-approved delivery failed", e);
@@ -720,10 +730,26 @@ export async function getSlateForReview(slateId: string) {
   });
   if (!slate) return null;
 
-  const profiles = await db.talentProfile.findMany({
-    where: { id: { in: slate.entries.map((e) => e.snapshot.profileId) } },
-    select: { id: true, user: { select: { name: true, image: true } } },
-  });
+  const [profiles, consents] = await Promise.all([
+    db.talentProfile.findMany({
+      where: { id: { in: slate.entries.map((e) => e.snapshot.profileId) } },
+      select: { id: true, user: { select: { name: true, image: true } } },
+    }),
+    // Proposed candidates = the consent rows, in invitation order. Score lives
+    // on the entry a consent becomes when accepted — here rank order is enough.
+    db.matchConsent.findMany({
+      where: { jdId: slate.jd.id },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        status: true,
+        sentAt: true,
+        respondedAt: true,
+        expiresAt: true,
+        profile: { select: { user: { select: { name: true, image: true } } } },
+      },
+    }),
+  ]);
   const byProfile = new Map(profiles.map((p) => [p.id, p.user]));
 
   return {
@@ -732,6 +758,16 @@ export async function getSlateForReview(slateId: string) {
       ...e,
       name: byProfile.get(e.snapshot.profileId)?.name ?? "Unknown",
       image: byProfile.get(e.snapshot.profileId)?.image ?? null,
+    })),
+    consents: consents.map((c) => ({
+      id: c.id,
+      // "pending" splits on whether the email actually went out yet.
+      status: c.status === "pending" ? (c.sentAt ? "sent" : "pending") : c.status,
+      sentAt: c.sentAt,
+      respondedAt: c.respondedAt,
+      expiresAt: c.expiresAt,
+      name: c.profile.user.name,
+      image: c.profile.user.image,
     })),
   };
 }

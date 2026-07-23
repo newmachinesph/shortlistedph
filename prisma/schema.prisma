@@ -132,9 +132,15 @@ model TalentProfile {
 
   // Rotational matching: among candidates who clear the qualifying bar, the
   // slate favours those shown least and longest ago, so it isn't always the
-  // same top profiles. Incremented + stamped when a candidate is placed on a slate.
+  // same top profiles. Incremented + stamped when a candidate ACCEPTS a
+  // consent request and lands on a slate — an unanswered invite costs nothing.
   shortlistCount Int       @default(0)
   lastShownAt    DateTime?
+
+  // One-strike dormancy: set when a consent request expires unanswered.
+  // Dormant profiles are excluded from matching until they next visit the
+  // talent workspace, which clears it.
+  dormantAt DateTime?
 
   publishedAt     DateTime?
   lastEditedAt    DateTime  @default(now())
@@ -151,11 +157,12 @@ model TalentProfile {
   embeddingExperience Unsupported("vector(1536)")?
   embeddingPrefs      Unsupported("vector(1536)")?
 
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  skills      Skill[]
-  engagements Engagement[]
-  rateChanges RateChange[]
-  snapshots   ProfileSnapshot[]
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skills        Skill[]
+  engagements   Engagement[]
+  rateChanges   RateChange[]
+  snapshots     ProfileSnapshot[]
+  matchConsents MatchConsent[]
 
   @@index([publishedAt, visibility])
 }
@@ -240,12 +247,36 @@ model JobDescription {
   // Skills-facet query vector; `embedding` doubles as the role/experience query.
   embeddingSkills Unsupported("vector(1536)")?
 
-  employer  EmployerAccount   @relation(fields: [employerId], references: [id], onDelete: Cascade)
-  slates    Slate[]
-  snapshots ProfileSnapshot[]
+  employer      EmployerAccount   @relation(fields: [employerId], references: [id], onDelete: Cascade)
+  slates        Slate[]
+  snapshots     ProfileSnapshot[]
+  matchConsents MatchConsent[]
 
   @@index([employerId, status])
   @@index([status]) // stuck-JD recovery + admin counts filter by status alone
+}
+
+// Consent-first matching: a slate starts empty and candidates are ASKED before
+// they appear on it. The token is the whole credential — the migrated pool has
+// no passwords, so the email link must work without a login. expiresAt is set
+// at SEND time (sentAt + 48h) and stays null until the email actually goes out,
+// so a consent suppressed by the outreach kill switch can never expire anyone.
+model MatchConsent {
+  id          String    @id @default(cuid())
+  jdId        String
+  profileId   String
+  status      String    @default("pending") // pending | accepted | declined | expired
+  token       String    @unique
+  sentAt      DateTime?
+  respondedAt DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  jd      JobDescription @relation(fields: [jdId], references: [id], onDelete: Cascade)
+  profile TalentProfile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([jdId, profileId])
+  @@index([status, expiresAt])
 }
 
 // ─── Slates (the product) ────────────────────────────────────────────────
