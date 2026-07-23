@@ -64,10 +64,10 @@ function sender(stream: Stream): string | undefined {
 function provider(): "smtp" | "resend" {
   if (process.env.EMAIL_PROVIDER === "resend") return "resend";
   if (process.env.EMAIL_PROVIDER === "smtp") return "smtp";
-  // No explicit choice: use whichever transport is actually configured.
-  // Defaulting blindly to SMTP left production (Resend key set, SMTP_HOST
-  // unset per DEPLOY.md) silently skipping every send — including resets.
-  return process.env.SMTP_HOST ? "smtp" : "resend";
+  // No explicit choice: Resend when its key exists, otherwise SMTP. Keyed on
+  // the credential itself so a half-configured environment still routes to
+  // whichever transport can actually send.
+  return process.env.RESEND_API_KEY ? "resend" : "smtp";
 }
 
 /**
