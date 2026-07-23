@@ -244,7 +244,9 @@ export async function buildSlate(jdId: string) {
 
     await tx.jobDescription.update({ where: { id: jd.id }, data: { status: "slate_ready" } });
     return created;
-  });
+    // ~15 sequential queries; Prisma's 5s default expires on cold starts and
+    // remote-operator runs. Generous ceiling — the writes themselves are tiny.
+  }, { timeout: 30_000 });
 
   // Outside the transaction on purpose: a bounced email must not undo a slate
   // that was built correctly.
