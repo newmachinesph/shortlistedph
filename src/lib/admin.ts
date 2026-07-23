@@ -676,6 +676,64 @@ export async function listStuckJds() {
   });
 }
 
+/**
+ * One slate with everything an operator needs to approve it with eyes open:
+ * the JD it answers, and every entry UNMASKED. Admin review is exempt from
+ * the employer paywall by design — names resolve the same way getSlateForJd
+ * does for unlocked slates (snapshot.profileId → user.name).
+ */
+export async function getSlateForReview(slateId: string) {
+  const slate = await db.slate.findUnique({
+    where: { id: slateId },
+    select: {
+      id: true,
+      status: true,
+      deliveredAt: true,
+      unlockedAt: true,
+      jd: {
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          mustHaves: true,
+          niceToHaves: true,
+          budgetMin: true,
+          budgetMax: true,
+          hoursPerWeek: true,
+          overlap: true,
+          employer: { select: { companyName: true } },
+        },
+      },
+      entries: {
+        orderBy: { rank: "asc" },
+        select: {
+          id: true,
+          rank: true,
+          score: true,
+          dims: true,
+          reasons: true,
+          snapshot: { select: { frozenJson: true, profileId: true } },
+        },
+      },
+    },
+  });
+  if (!slate) return null;
+
+  const profiles = await db.talentProfile.findMany({
+    where: { id: { in: slate.entries.map((e) => e.snapshot.profileId) } },
+    select: { id: true, user: { select: { name: true } } },
+  });
+  const names = new Map(profiles.map((p) => [p.id, p.user.name]));
+
+  return {
+    ...slate,
+    entries: slate.entries.map((e) => ({
+      ...e,
+      name: names.get(e.snapshot.profileId) ?? "Unknown",
+    })),
+  };
+}
+
 export async function listSlates(status?: "pending_review" | "preview" | "unlocked") {
   return db.slate.findMany({
     where: status ? { status } : {},

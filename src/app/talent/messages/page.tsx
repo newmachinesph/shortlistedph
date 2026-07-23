@@ -5,6 +5,7 @@ import { NOINDEX } from "@/lib/site";
 import { db } from "@/lib/db";
 import { requirePageUser } from "@/lib/queries";
 import { initials } from "@/lib/format";
+import { Avatar } from "@/components/avatar";
 import { openThreadWhere, stamp } from "@/lib/notify";
 import { MessageSend } from "@/components/messages-send";
 
@@ -116,9 +117,7 @@ export default async function TalentMessagesPage({
 
           <div className="flex min-h-0 flex-col">
             <div className="flex items-center gap-3 border-b border-line px-4 py-4 sm:px-6">
-              <span className="font-display flex h-9 w-9 items-center justify-center rounded-lg bg-brand-soft font-semibold text-brand">
-                {initials(activeCompany)}
-              </span>
+              <Avatar name={activeCompany} size="md" />
               <div>
                 <p className="text-sm font-medium text-ink">{activeCompany}</p>
                 <p className="text-xs text-ink-faint">{activeSub || activeJd?.title}</p>

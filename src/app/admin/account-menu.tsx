@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ExternalLink, LogOut } from "lucide-react";
-import { initials } from "@/lib/format";
+import { Avatar } from "@/components/avatar";
 import { signOut } from "@/lib/auth-client";
 
 /** Same account-menu pattern as the workspace shell, sized for the back office. */
@@ -21,9 +21,7 @@ export function AccountMenu({ name, email }: { name: string; email: string }) {
         aria-expanded={open}
         className="flex h-11 w-11 items-center justify-center rounded-xl transition-colors hover:bg-brand-soft"
       >
-        <span className="font-display flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft text-xs font-semibold text-brand">
-          {initials(name)}
-        </span>
+        <Avatar name={name} size="sm" />
       </button>
       {open && (
         <>

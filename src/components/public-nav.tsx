@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { signOut } from "@/lib/auth-client";
-import { initials } from "@/lib/format";
+import { Avatar } from "./avatar";
 import { Logo } from "./logo";
 
 const NAV_LINKS: [string, string][] = [
@@ -19,21 +19,6 @@ export type NavUser = { name: string; image: string | null; role: string };
 
 const dashboardHref = (role: string) =>
   role === "employer" ? "/employer" : role === "admin" ? "/admin" : "/talent";
-
-function Avatar({ user }: { user: NavUser }) {
-  return user.image ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={user.image}
-      alt=""
-      className="h-8 w-8 rounded-full border border-line object-cover"
-    />
-  ) : (
-    <span className="font-display flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-brand">
-      {initials(user.name)}
-    </span>
-  );
-}
 
 function AccountMenu({ user }: { user: NavUser }) {
   const router = useRouter();
@@ -52,9 +37,9 @@ function AccountMenu({ user }: { user: NavUser }) {
         onClick={() => setIsOpen((v) => !v)}
         aria-expanded={isOpen}
         aria-label="Account menu"
-        className="flex items-center rounded-full transition-shadow hover:ring-2 hover:ring-brand/30"
+        className="flex items-center rounded-lg transition-shadow hover:ring-2 hover:ring-brand/30"
       >
-        <Avatar user={user} />
+        <Avatar name={user.name} image={user.image} size="sm" />
       </button>
       {isOpen && (
         <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-2xl border border-line bg-white p-1.5 shadow-lg shadow-ink/5">
@@ -170,7 +155,7 @@ export function PublicNav({ user = null }: { user?: NavUser | null }) {
                   href={dashboardHref(user.role)}
                   className="flex min-h-[44px] items-center gap-2.5 border-b border-line text-sm font-medium text-ink"
                 >
-                  <Avatar user={user} /> Dashboard
+                  <Avatar name={user.name} image={user.image} size="sm" /> Dashboard
                 </Link>
                 <button
                   type="button"

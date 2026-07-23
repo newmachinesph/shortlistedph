@@ -22,6 +22,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import { Avatar } from "./avatar";
 import { Logo } from "./logo";
 import { WorkspaceSearch } from "./workspace-search";
 import { signOut } from "@/lib/auth-client";
@@ -59,7 +60,7 @@ const talentNav: NavItem[] = [
   { label: "Profile", icon: User, href: "/talent/profile" },
 ];
 
-export type Persona = { name: string; sub: string; initials: string };
+export type Persona = { name: string; sub: string };
 
 export function WorkspaceShell({
   role,
@@ -200,9 +201,7 @@ export function WorkspaceShell({
                 aria-expanded={menuOpen}
                 className="flex h-11 w-11 items-center justify-center rounded-xl transition-colors hover:bg-brand-soft"
               >
-                <span className="font-display flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft text-xs font-semibold text-brand">
-                  {persona.initials}
-                </span>
+                <Avatar name={persona.name} size="sm" />
               </button>
               {menuOpen && (
                 <>

@@ -12,7 +12,12 @@ import { maskEntry, type MaskedEntry } from "./slate";
 export async function requirePageUser(role: "talent" | "employer") {
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  if (user.role !== role) redirect(user.role === "employer" ? "/employer" : "/talent");
+  if (user.role !== role) {
+    // Admins land on their own console — these pages query the viewer's own
+    // employer/talent rows, which an admin does not have. Admin review of a
+    // specific slate lives under /admin/slates.
+    redirect(user.role === "employer" ? "/employer" : user.role === "admin" ? "/admin" : "/talent");
+  }
   return user;
 }
 
