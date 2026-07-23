@@ -40,7 +40,7 @@ ALTER TABLE "JobDescription" ADD CONSTRAINT jd_status_check
 
 ALTER TABLE "Slate" DROP CONSTRAINT IF EXISTS slate_status_check;
 ALTER TABLE "Slate" ADD CONSTRAINT slate_status_check
-  CHECK (status IN ('preview', 'unlocked'));
+  CHECK (status IN ('pending_review', 'preview', 'unlocked'));
 
 ALTER TABLE "Connection" DROP CONSTRAINT IF EXISTS connection_state_check;
 ALTER TABLE "Connection" ADD CONSTRAINT connection_state_check

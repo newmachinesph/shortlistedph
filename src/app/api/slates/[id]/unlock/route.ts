@@ -20,6 +20,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       },
     });
     if (!slate || slate.jd.employerId !== employer.id) throw new HttpError(404, "Slate not found");
+    // Awaiting admin review: invisible to the employer, so not unlockable either.
+    if (slate.status === "pending_review") throw new HttpError(404, "Slate not found");
     if (slate.status === "unlocked") return ok({ status: "unlocked", alreadyUnlocked: true });
     // Belt and braces: buildSlate no longer creates empty slates, but a credit
     // must never be spendable on nothing.

@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "./db";
+import { mail } from "./email";
 import { buildSlate } from "./matching";
 import { notify } from "./notify";
 import { presignDownload } from "./r2";
@@ -477,6 +478,74 @@ export async function failJd(args: { actorId: string; jdId: string; note?: strin
   return { id: args.jdId, status: "failed" };
 }
 
+/**
+ * Releases a slate to its employer. buildSlate creates every slate as
+ * "pending_review"; the employer sees nothing and hears nothing until an
+ * operator approves it here. The approval carries the notify + email that
+ * used to fire from buildSlate — the email rides the outreach kill switch.
+ */
+export async function approveSlate(args: { actorId: string; slateId: string }) {
+  // Conditional flip is the lock: a double-click or second operator matches
+  // 0 rows and gets a 409 instead of a duplicate notify/email.
+  const { count } = await db.slate.updateMany({
+    where: { id: args.slateId, status: "pending_review" },
+    data: { status: "preview" },
+  });
+  if (count !== 1) {
+    const slate = await db.slate.findUnique({ where: { id: args.slateId }, select: { status: true } });
+    if (!slate) throw new HttpError(404, "Slate not found");
+    throw new HttpError(409, `Only a slate awaiting review can be approved — this one is "${slate.status}"`);
+  }
+
+  await db.auditLog.create({
+    data: { actorId: args.actorId, action: "admin.slate.approve", target: args.slateId },
+  });
+
+  // Post-approval delivery, best-effort: a bounced email must not undo an
+  // approval that already happened. Same block buildSlate used to run.
+  try {
+    const slate = await db.slate.findUnique({
+      where: { id: args.slateId },
+      select: {
+        _count: { select: { entries: true } },
+        jd: {
+          select: {
+            id: true,
+            title: true,
+            employer: { select: { companyName: true, user: { select: { id: true, email: true } } } },
+          },
+        },
+      },
+    });
+    const employer = slate?.jd.employer;
+    if (slate && employer) {
+      // In-app row and email are separate deliveries of the same fact. The
+      // email can bounce; the bell has to be right either way.
+      await notify({
+        userId: employer.user.id,
+        type: "slate_delivered",
+        payload: {
+          company: employer.companyName,
+          jobTitle: slate.jd.title,
+          count: slate._count.entries,
+          jdId: slate.jd.id,
+        },
+      });
+
+      await mail.slateDelivered(employer.user.email, {
+        company: employer.companyName,
+        jobTitle: slate.jd.title,
+        count: slate._count.entries,
+        jdId: slate.jd.id,
+      });
+    }
+  } catch (e) {
+    console.error("[admin] slate-approved delivery failed", e);
+  }
+
+  return { id: args.slateId, status: "preview" };
+}
+
 export const USERS_PAGE_SIZE = 25;
 
 export const USER_ROLES = ["talent", "employer", "interviewer", "admin"] as const;
@@ -607,7 +676,7 @@ export async function listStuckJds() {
   });
 }
 
-export async function listSlates(status?: "preview" | "unlocked") {
+export async function listSlates(status?: "pending_review" | "preview" | "unlocked") {
   return db.slate.findMany({
     where: status ? { status } : {},
     orderBy: { deliveredAt: "desc" },

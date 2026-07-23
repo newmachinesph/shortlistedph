@@ -77,8 +77,13 @@ export default async function EmployerDashboard() {
       ) : (
         <div className="space-y-4">
           {jds.map((jd) => {
-            const chip = statusChip[jd.status] ?? statusChip.draft;
             const slate = jd.slates[0];
+            // slate_ready with no visible slate = built but still in admin
+            // review; say "in review", not "ready".
+            const chip =
+              jd.status === "slate_ready" && !slate
+                ? { label: "In review", cls: "bg-ember-soft text-ember" }
+                : (statusChip[jd.status] ?? statusChip.draft);
             const locked = slate && slate.status !== "unlocked";
             return (
               <div key={jd.id} className="rounded-2xl border border-line bg-white p-6">

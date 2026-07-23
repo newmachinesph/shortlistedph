@@ -151,10 +151,11 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
       ) : !slate || slate.entries.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-line bg-white p-6 text-center sm:p-10">
           <ScanSearch className="mx-auto h-8 w-8 text-ember" strokeWidth={1.5} />
-          <h2 className="font-display mt-4 text-lg font-semibold text-ink">Matching in progress</h2>
+          <h2 className="font-display mt-4 text-lg font-semibold text-ink">
+            Matching and review in progress
+          </h2>
           <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-ink-soft">
-            We&rsquo;re ranking the market against this job description. Your shortlist will appear
-            here shortly.
+            Your shortlist appears here once it clears review.
           </p>
         </div>
       ) : (

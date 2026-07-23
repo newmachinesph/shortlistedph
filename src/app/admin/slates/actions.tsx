@@ -3,6 +3,45 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+export function ApproveSlateButton({ slateId }: { slateId: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function approve() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/slates/${slateId}/approve`, { method: "POST" });
+      const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) {
+        setError(payload?.error ?? "Approval failed");
+        return;
+      }
+      startTransition(() => router.refresh());
+    } catch {
+      setError("Network error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
+      {error && <span className="w-full text-xs text-ember sm:w-auto sm:text-[11px]">{error}</span>}
+      <button
+        type="button"
+        disabled={busy || pending}
+        onClick={approve}
+        className="inline-flex min-h-11 items-center rounded-xl bg-brand px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-dark disabled:opacity-50 sm:min-h-0"
+      >
+        {busy || pending ? "Approving…" : "Approve"}
+      </button>
+    </div>
+  );
+}
+
 export function StuckJdActions({ jdId, status }: { jdId: string; status: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();

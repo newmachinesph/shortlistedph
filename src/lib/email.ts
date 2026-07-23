@@ -14,6 +14,7 @@ import {
   VerifyEmail,
   WelcomeTalent,
 } from "@/emails/templates";
+import { outreachEmailsEnabled } from "@/lib/settings";
 
 /**
  * All outbound mail funnels through send().
@@ -117,12 +118,34 @@ async function sendViaSmtp(
   }
 }
 
+/**
+ * Kill switch for testing with real data: when the outreach_emails setting is
+ * "off", only auth mail (password reset, email verification) is delivered —
+ * everything else is logged and dropped. In-app notifications are not gated.
+ */
+type Kind = "auth" | "outreach";
+
 async function send(
   to: string,
   subject: string,
   react: ReactElement,
-  stream: Stream = "transactional",
+  opts: { stream?: Stream; kind?: Kind } = {},
 ): Promise<boolean> {
+  const { stream = "transactional", kind = "outreach" } = opts;
+
+  if (kind !== "auth") {
+    try {
+      if (!(await outreachEmailsEnabled())) {
+        console.info(`[email] suppressed (outreach off): ${subject} to ${to}`);
+        return false;
+      }
+    } catch (e) {
+      // Same best-effort contract as the transports: a settings read that
+      // fails must not throw out of send(). Fail open — mail still goes.
+      console.error("[email] could not read outreach setting — sending anyway", e);
+    }
+  }
+
   const from = sender(stream);
   const which = provider();
 
@@ -162,10 +185,10 @@ async function send(
 
 export const mail = {
   resetPassword: (to: string, name: string, url: string) =>
-    send(to, "Reset your shortlisted.ph password", ResetPassword({ name, url })),
+    send(to, "Reset your shortlisted.ph password", ResetPassword({ name, url }), { kind: "auth" }),
 
   verifyEmail: (to: string, name: string, url: string) =>
-    send(to, "Confirm your email address", VerifyEmail({ name, url })),
+    send(to, "Confirm your email address", VerifyEmail({ name, url }), { kind: "auth" }),
 
   welcomeTalent: (to: string, name: string) =>
     send(to, "Welcome to shortlisted.ph", WelcomeTalent({ name })),
@@ -204,11 +227,11 @@ export const mail = {
       to,
       `${args.referredName} signed up through your link`,
       ReferralConverted(args),
-      "program",
+      { stream: "program" },
     ),
 
   payoutSent: (
     to: string,
     args: { name: string; amount: number; currency: string; method: string; reference: string },
-  ) => send(to, "Your referral payout is on its way", PayoutSent(args), "program"),
+  ) => send(to, "Your referral payout is on its way", PayoutSent(args), { stream: "program" }),
 };
