@@ -68,6 +68,12 @@ export default async function AdminSlates({
                     {s._count.entries === 1 ? "" : "s"} · built {timeAgo(s.deliveredAt)}
                   </p>
                 </div>
+                <Link
+                  href={`/admin/slates/${s.id}`}
+                  className="inline-flex min-h-11 items-center rounded-xl px-3 py-1.5 text-xs font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper sm:min-h-0"
+                >
+                  Review
+                </Link>
                 <ApproveSlateButton slateId={s.id} />
               </div>
             ))}
@@ -192,7 +198,7 @@ export default async function AdminSlates({
                   {s.status.replace(/_/g, " ")}
                 </span>
                 <Link
-                  href={`/employer/briefs/${s.jd.id}`}
+                  href={`/admin/slates/${s.id}`}
                   className="inline-flex min-h-11 items-center rounded-xl px-3 py-1.5 text-xs font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper sm:min-h-0"
                 >
                   Open

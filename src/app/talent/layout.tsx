@@ -5,7 +5,6 @@ export const metadata: Metadata = { title: "Talent workspace", ...NOINDEX };
 
 import { WorkspaceShell } from "@/components/workspace";
 import { hasUnreadNotifications, requirePageUser, talentOrOnboard } from "@/lib/queries";
-import { initials } from "@/lib/format";
 
 
 export default async function TalentLayout({ children }: { children: React.ReactNode }) {
@@ -22,7 +21,6 @@ export default async function TalentLayout({ children }: { children: React.React
       persona={{
         name: user.name,
         sub: profile.headline ?? user.email,
-        initials: initials(user.name),
       }}
     >
       {children}

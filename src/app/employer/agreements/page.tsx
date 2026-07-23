@@ -3,7 +3,8 @@ import { Check, FileSignature } from "lucide-react";
 import { NOINDEX } from "@/lib/site";
 import { db } from "@/lib/db";
 import { employerOrOnboard, requirePageUser } from "@/lib/queries";
-import { initials, rateBand } from "@/lib/format";
+import { rateBand } from "@/lib/format";
+import { Avatar } from "@/components/avatar";
 import { stamp } from "@/lib/notify";
 import { currentPeriod, periodLabel, readTerms } from "@/lib/agreements";
 import { ConfirmOutcomeButton, SignAgreementButton } from "@/components/agreement-actions";
@@ -77,9 +78,7 @@ export default async function EmployerAgreementsPage() {
               <div key={a.id} className="rounded-2xl border border-line bg-white p-6">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <span className="font-display flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft font-semibold text-brand">
-                      {initials(snap.profile.user.name)}
-                    </span>
+                    <Avatar name={snap.profile.user.name} size="md" />
                     <div>
                       <h2 className="font-medium text-ink">{snap.jd.title}</h2>
                       <p className="text-sm text-ink-soft">{snap.profile.user.name}</p>

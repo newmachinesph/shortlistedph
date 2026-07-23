@@ -5,7 +5,6 @@ export const metadata: Metadata = { title: "Employer workspace", ...NOINDEX };
 
 import { WorkspaceShell } from "@/components/workspace";
 import { employerOrOnboard, hasUnreadNotifications, requirePageUser } from "@/lib/queries";
-import { initials } from "@/lib/format";
 
 
 export default async function EmployerLayout({ children }: { children: React.ReactNode }) {
@@ -22,7 +21,6 @@ export default async function EmployerLayout({ children }: { children: React.Rea
       persona={{
         name: employer.companyName,
         sub: employer.location ?? user.email,
-        initials: initials(employer.companyName),
       }}
     >
       {children}

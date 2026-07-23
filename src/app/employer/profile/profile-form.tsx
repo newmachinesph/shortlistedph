@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ImageUp, Loader2 } from "lucide-react";
 import { api } from "@/lib/auth-client";
-import { initials } from "@/lib/format";
+import { Avatar } from "@/components/avatar";
 import { Field, TextArea, TextInput } from "@/components/onboarding-fields";
 
 export function ProfileForm({
@@ -132,18 +132,7 @@ export function ProfileForm({
   return (
     <div className="mt-7 rounded-2xl border border-line bg-white p-5 sm:p-7">
       <div className="flex flex-wrap items-start gap-5">
-        {preview ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={preview}
-            alt={`${companyName} logo`}
-            className="h-16 w-16 rounded-2xl border border-line object-cover"
-          />
-        ) : (
-          <span className="font-display flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-soft text-xl font-semibold text-brand">
-            {initials(companyName)}
-          </span>
-        )}
+        <Avatar name={companyName} image={preview} size="lg" />
         <div className="min-w-0 flex-1">
           <h2 className="font-display text-xl font-semibold text-ink">{companyName}</h2>
           <p className="mt-1 text-sm text-ink-soft">{email}</p>

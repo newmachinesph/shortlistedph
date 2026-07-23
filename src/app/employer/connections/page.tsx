@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Clock, Mail, Users, X } from "lucide-react";
 import { employerOrOnboard, listEmployerConnections, requirePageUser } from "@/lib/queries";
-import { initials } from "@/lib/format";
+import { Avatar } from "@/components/avatar";
 import type { FrozenProfile } from "@/lib/slate";
 
 export default async function EmployerConnectionsPage() {
@@ -44,10 +44,8 @@ export default async function EmployerConnectionsPage() {
               <div key={c.id} className="rounded-2xl border border-line bg-white p-5 sm:p-6">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
-                    <span className="font-display flex h-11 w-11 items-center justify-center rounded-xl bg-brand-soft font-semibold text-brand">
-                      {/* A declined candidate stays anonymous — the slot simply closed. */}
-                      {declined ? "—" : initials(contact.name)}
-                    </span>
+                    {/* A declined candidate stays anonymous — the slot simply closed. */}
+                    <Avatar name={declined ? "—" : contact.name} size="md" />
                     <div>
                       <h2 className="font-medium text-ink">
                         {declined ? "Candidate declined" : contact.name}

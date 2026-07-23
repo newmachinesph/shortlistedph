@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Search, Users as UsersIcon } from "lucide-react";
 import { NOINDEX } from "@/lib/site";
-import { initials } from "@/lib/format";
+import { Avatar } from "@/components/avatar";
 import { listUsers } from "@/lib/admin";
 import { EmployerCredits, UserStatusActions } from "./actions";
 
@@ -168,9 +168,7 @@ export default async function AdminUsers({
                 i < users.length - 1 ? "border-b border-line" : ""
               }`}
             >
-              <span className="font-display flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-sm font-semibold text-brand">
-                {initials(u.employer?.companyName ?? u.name)}
-              </span>
+              <Avatar name={u.employer?.companyName ?? u.name} size="md" />
               <div className="min-w-0 flex-1 basis-48">
                 <p className="truncate text-sm font-medium text-ink">
                   {u.employer?.companyName ?? u.name}{" "}

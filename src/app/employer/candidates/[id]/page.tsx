@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { BadgeCheck, CalendarClock, Camera, Check, Lock } from "lucide-react";
 import { employerOrOnboard, getSnapshotForEmployer, requirePageUser } from "@/lib/queries";
 import type { FrozenProfile } from "@/lib/slate";
-import { initials } from "@/lib/format";
+import { Avatar } from "@/components/avatar";
 import { availabilityStatus, freshnessNote, isStale } from "@/lib/availability";
 import { RequestConnection } from "@/components/request-connection";
 
@@ -69,9 +69,7 @@ export default async function CandidateDossier({ params }: { params: Promise<{ i
 
       <div className="mt-5 rounded-2xl border border-line bg-white p-5 sm:p-7">
         <div className="flex flex-wrap items-start gap-5">
-          <span className="font-display flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-soft text-xl font-semibold text-brand">
-            {initials(name)}
-          </span>
+          <Avatar name={name} size="lg" />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">{name}</h1>

@@ -4,7 +4,7 @@ import { MessageSquare } from "lucide-react";
 import { NOINDEX } from "@/lib/site";
 import { db } from "@/lib/db";
 import { employerOrOnboard, requirePageUser } from "@/lib/queries";
-import { initials } from "@/lib/format";
+import { Avatar } from "@/components/avatar";
 import { openThreadWhere, stamp } from "@/lib/notify";
 import { MessageSend } from "@/components/messages-send";
 
@@ -94,9 +94,7 @@ export default async function EmployerMessagesPage({
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <span className="font-display flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-sm font-semibold text-brand">
-                      {initials(name)}
-                    </span>
+                    <Avatar name={name} size="md" />
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-ink">{name}</p>
                       <p className="truncate text-xs text-ink-faint">
