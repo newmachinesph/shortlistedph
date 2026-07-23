@@ -17,13 +17,15 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+      // GA (@next/third-parties) + the beacon Cloudflare auto-injects.
+      `script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://static.cloudflareinsights.com${isDev ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
       "font-src 'self' data:",
       // R2: resume/recording uploads PUT directly to presigned bucket URLs
-      // from the browser — blocking this breaks onboarding.
-      "connect-src 'self' https://*.r2.cloudflarestorage.com",
+      // from the browser — blocking this breaks onboarding. GA4 posts to
+      // regional google-analytics endpoints; CF beacon posts to /cdn-cgi/rum.
+      "connect-src 'self' https://*.r2.cloudflarestorage.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://cloudflareinsights.com",
       "frame-ancestors 'none'",
       "frame-src 'none'",
       "object-src 'none'",

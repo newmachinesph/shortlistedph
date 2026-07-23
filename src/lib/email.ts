@@ -62,7 +62,12 @@ function sender(stream: Stream): string | undefined {
  * NODE_ENV, so a stray NODE_ENV can never silently reroute real user mail.
  */
 function provider(): "smtp" | "resend" {
-  return process.env.EMAIL_PROVIDER === "resend" ? "resend" : "smtp";
+  if (process.env.EMAIL_PROVIDER === "resend") return "resend";
+  if (process.env.EMAIL_PROVIDER === "smtp") return "smtp";
+  // No explicit choice: use whichever transport is actually configured.
+  // Defaulting blindly to SMTP left production (Resend key set, SMTP_HOST
+  // unset per DEPLOY.md) silently skipping every send — including resets.
+  return process.env.SMTP_HOST ? "smtp" : "resend";
 }
 
 /**
