@@ -1,4 +1,5 @@
 import "server-only";
+import { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { mail } from "./email";
 import { notify } from "./notify";
@@ -30,9 +31,12 @@ export async function fulfillPurchase(input: {
 
   try {
     await db.$transaction(async (tx) => {
-      await tx.payment.upsert({
-        where: { providerRef: input.providerRef },
-        create: {
+      // MUST be create, not upsert: upsert never throws on conflict, which
+      // would let a concurrent duplicate delivery fall through to the grant
+      // block below and double-credit. The unique violation from create is
+      // what makes the loser of the race abort before granting anything.
+      await tx.payment.create({
+        data: {
           userId: input.userId,
           provider: input.provider,
           providerRef: input.providerRef,
@@ -41,7 +45,6 @@ export async function fulfillPurchase(input: {
           purpose: input.productId,
           status: "paid",
         },
-        update: { status: "paid" },
       });
 
       if (product.kind === "credits" && product.credits > 0) {
@@ -107,7 +110,7 @@ export async function fulfillPurchase(input: {
     return { granted: true, alreadyProcessed: false };
   } catch (e) {
     // Unique violation = a concurrent delivery won the race. Not an error.
-    if (e instanceof Error && e.message.includes("Unique constraint")) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       return { granted: false, alreadyProcessed: true };
     }
     throw e;

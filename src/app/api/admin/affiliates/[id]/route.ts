@@ -56,7 +56,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (status === "paid") {
       await mail.payoutSent(payout.user.email, {
         name: payout.user.name,
-        amount: payout.amount,
+        amount: Number(payout.amount),
         currency: payout.currency,
         method: payout.method,
         reference: reference!,

@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     if (interviews.length === 0) throw new HttpError(409, "No unpaid reported interviews for this interviewer");
 
     const amount =
-      Math.round(interviews.reduce((n, i) => n + i.interviewerPayoutUsd, 0) * 100) / 100;
+      Math.round(interviews.reduce((n, i) => n + Number(i.interviewerPayoutUsd), 0) * 100) / 100;
     const ids = interviews.map((i) => i.id);
 
     const payout = await db.$transaction(async (tx) => {

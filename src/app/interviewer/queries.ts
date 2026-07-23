@@ -60,7 +60,7 @@ export async function listAssignments(interviewerId: string) {
 
 /** Reported interviews (money earned) plus the payout ledger. */
 export async function listEarnings(interviewerId: string) {
-  const [reported, payouts] = await Promise.all([
+  const [reportedRaw, payoutsRaw] = await Promise.all([
     db.interview.findMany({
       where: { interviewerId, status: "reported" },
       orderBy: { createdAt: "desc" },
@@ -78,6 +78,9 @@ export async function listEarnings(interviewerId: string) {
       orderBy: { createdAt: "desc" },
     }),
   ]);
+
+  const reported = reportedRaw.map((i) => ({ ...i, interviewerPayoutUsd: Number(i.interviewerPayoutUsd) }));
+  const payouts = payoutsRaw.map((p) => ({ ...p, amount: Number(p.amount) }));
 
   const totalEarned = reported.reduce((n, i) => n + i.interviewerPayoutUsd, 0);
   const totalPaid = payouts

@@ -1,4 +1,5 @@
 import "server-only";
+import { z } from "zod";
 import { db } from "./db";
 import { mail } from "./email";
 import { notify } from "./notify";
@@ -22,6 +23,12 @@ const CANDIDATE_POOL = 50;
 // A candidate whose availability was confirmed within this window is treated as
 // "fresh" and gets a light nudge up the rotation — never a hard filter.
 const AVAILABILITY_FRESH_DAYS = 14;
+
+const ReasonsOutput = z.object({
+  candidates: z
+    .array(z.object({ index: z.number().int(), reasons: z.array(z.string()) }))
+    .optional(),
+});
 
 type Candidate = {
   id: string;
@@ -313,9 +320,10 @@ async function explain(jd: Jd, ranked: Ranked[]): Promise<string[][]> {
       text: { format: { type: "json_object" } },
     });
 
-    const parsed = JSON.parse(res.output_text ?? "{}") as {
-      candidates?: { index: number; reasons: string[] }[];
-    };
+    // Same trust-nothing rule as resume.ts: model output is validated, never
+    // cast. A malformed reply throws into the catch below and degrades to
+    // empty reason bullets instead of propagating a wrong shape.
+    const parsed = ReasonsOutput.parse(JSON.parse(res.output_text ?? "{}"));
     const out: string[][] = ranked.map(() => []);
     for (const c of parsed.candidates ?? []) {
       if (out[c.index]) out[c.index] = c.reasons.slice(0, 3);

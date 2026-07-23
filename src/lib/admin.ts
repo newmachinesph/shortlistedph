@@ -145,14 +145,14 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     slatesDelivered,
     slatesUnlocked,
     revenue: revenueRows
-      .map((r) => ({ currency: r.currency, total: r._sum.amount ?? 0 }))
+      .map((r) => ({ currency: r.currency, total: Number(r._sum.amount ?? 0) }))
       .sort((a, b) => b.total - a.total),
     openReports,
     slatesAwaitingUnlock,
     jdsMatching,
     recentAudit,
     recentSignups,
-    recentPayments,
+    recentPayments: recentPayments.map((p) => ({ ...p, amount: Number(p.amount) })),
     recentConnections,
   };
 }
@@ -347,22 +347,32 @@ export async function adjustEmployerCredits(args: {
     throw new HttpError(400, "Pass exactly one of set or delta");
   }
 
-  const employer = await db.employerAccount.findUnique({
-    where: { userId: args.userId },
-    select: { id: true, credits: true, interviewCredits: true, companyName: true },
-  });
-  if (!employer) throw new HttpError(404, "This account is not an employer");
-
   const isInterview = args.kind === "interview";
-  const before = isInterview ? employer.interviewCredits : employer.credits;
-  const after = Math.max(0, args.set != null ? args.set : before + args.delta!);
-  const granted = after - before;
 
-  await db.$transaction(async (tx) => {
-    await tx.employerAccount.update({
-      where: { id: employer.id },
+  const { employer, before, after } = await db.$transaction(async (tx) => {
+    const employer = await tx.employerAccount.findUnique({
+      where: { userId: args.userId },
+      select: { id: true, credits: true, interviewCredits: true, companyName: true },
+    });
+    if (!employer) throw new HttpError(404, "This account is not an employer");
+
+    const before = isInterview ? employer.interviewCredits : employer.credits;
+    const after = Math.max(0, args.set != null ? args.set : before + args.delta!);
+    const granted = after - before;
+
+    // Conditional on the balance just read: if a concurrent purchase or spend
+    // moved it between read and write, this matches 0 rows and the admin
+    // retries against fresh numbers instead of silently clobbering that write.
+    const updated = await tx.employerAccount.updateMany({
+      where: {
+        id: employer.id,
+        ...(isInterview ? { interviewCredits: before } : { credits: before }),
+      },
       data: isInterview ? { interviewCredits: after } : { credits: after },
     });
+    if (updated.count === 0) {
+      throw new HttpError(409, "Balance changed while adjusting — reload and retry");
+    }
     if (granted > 0) {
       await tx.entitlement.createMany({
         data: Array.from({ length: granted }, () => ({
@@ -380,6 +390,7 @@ export async function adjustEmployerCredits(args: {
         meta: { employerId: employer.id, kind: args.kind, before, after, reason: args.reason },
       },
     });
+    return { employer, before, after };
   });
 
   return { id: args.userId, company: employer.companyName, kind: args.kind, before, after };

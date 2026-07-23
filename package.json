@@ -9,6 +9,7 @@
     "lint": "eslint",
     "postinstall": "prisma generate",
     "preflight": "node --experimental-strip-types scripts/preflight.ts",
+    "db:harden": "prisma db execute --file scripts/db-hardening.sql",
     "seed:admin": "node --experimental-strip-types scripts/seed-admin.ts",
     "seed:interviewers": "node --experimental-strip-types scripts/seed-interviewers.ts"
   },
@@ -23,7 +24,7 @@
     "better-auth": "^1.6.23",
     "lucide-react": "^1.25.0",
     "mammoth": "^1.12.0",
-    "next": "16.2.10",
+    "next": "^16.2.11",
     "nodemailer": "^9.0.3",
     "openai": "^6.48.0",
     "pg": "^8.22.0",
@@ -34,6 +35,10 @@
     "unpdf": "^1.6.2",
     "zod": "^4.4.3"
   },
+  "overrides": {
+    "sharp": "^0.35.0",
+    "postcss": "^8.5.10"
+  },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
@@ -42,7 +47,7 @@
     "@types/react-dom": "^19",
     "dotenv": "^17.4.2",
     "eslint": "^9",
-    "eslint-config-next": "16.2.10",
+    "eslint-config-next": "^16.2.11",
     "prisma": "^7.8.0",
     "tailwindcss": "^4",
     "typescript": "^5"
