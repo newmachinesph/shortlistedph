@@ -1,13 +1,19 @@
 import type { Metadata } from "next";
-import { MailX } from "lucide-react";
+import { Construction, MailX } from "lucide-react";
 import { NOINDEX } from "@/lib/site";
-import { OUTREACH_EMAILS_KEY, outreachEmailsEnabled } from "@/lib/settings";
+import {
+  MAINTENANCE_MODE_KEY,
+  OUTREACH_EMAILS_KEY,
+  maintenanceModeEnabled,
+  outreachEmailsEnabled,
+} from "@/lib/settings";
 import { SettingToggle } from "./toggle";
 
 export const metadata: Metadata = { title: "Admin · Settings", ...NOINDEX };
 
 export default async function AdminSettings() {
   const outreachOn = await outreachEmailsEnabled();
+  const maintenanceOn = await maintenanceModeEnabled();
 
   return (
     <>
@@ -30,6 +36,20 @@ export default async function AdminSettings() {
       <p className="mt-2 text-xs text-ink-faint">
         In-app notifications are never suppressed — only email delivery.
       </p>
+
+      <div className="mt-5 rounded-2xl border border-line bg-white">
+        <div className="flex flex-wrap items-start gap-4 px-4 py-5 sm:px-6">
+          <Construction className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint" strokeWidth={1.75} />
+          <div className="min-w-0 flex-1 basis-64">
+            <p className="text-sm font-medium text-ink">Maintenance mode</p>
+            <p className="mt-1 max-w-xl text-sm leading-relaxed text-ink-soft">
+              On = The public site shows a maintenance page. Admin (/admin) and sign-in for
+              admins keep working.
+            </p>
+          </div>
+          <SettingToggle settingKey={MAINTENANCE_MODE_KEY} enabled={maintenanceOn} />
+        </div>
+      </div>
     </>
   );
 }
