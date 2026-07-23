@@ -52,6 +52,9 @@ export type AdminOverview = {
   openReports: number;
   slatesAwaitingUnlock: number;
   jdsMatching: number;
+  jdsNoMatches: number;
+  pendingInterviewerPayouts: number;
+  pendingReferralPayouts: number;
   recentAudit: { id: string; action: string; target: string | null; createdAt: Date }[];
   recentSignups: { id: string; name: string; email: string; role: string; createdAt: Date }[];
   recentPayments: {
@@ -82,6 +85,9 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     openReports,
     slatesAwaitingUnlock,
     jdsMatching,
+    jdsNoMatches,
+    pendingInterviewerPayouts,
+    pendingReferralPayouts,
     recentAudit,
     recentSignups,
     recentPayments,
@@ -99,6 +105,9 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     db.report.count({ where: { status: "open" } }),
     db.slate.count({ where: { status: "preview" } }),
     db.jobDescription.count({ where: { status: { in: ["matching", "rematching"] } } }),
+    db.jobDescription.count({ where: { status: "no_matches" } }),
+    db.interviewerPayout.count({ where: { status: "pending" } }),
+    db.referralPayout.count({ where: { status: "pending" } }),
     db.auditLog.findMany({
       orderBy: { createdAt: "desc" },
       take: 12,
@@ -152,6 +161,9 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     openReports,
     slatesAwaitingUnlock,
     jdsMatching,
+    jdsNoMatches,
+    pendingInterviewerPayouts,
+    pendingReferralPayouts,
     recentAudit,
     recentSignups,
     recentPayments: recentPayments.map((p) => ({ ...p, amount: Number(p.amount) })),
@@ -467,19 +479,35 @@ export async function failJd(args: { actorId: string; jdId: string; note?: strin
 
 export const USERS_PAGE_SIZE = 25;
 
-export async function listUsers(opts: { q?: string; page?: number }) {
+export const USER_ROLES = ["talent", "employer", "interviewer", "admin"] as const;
+export const USER_STATUSES = ["active", "suspended", "banned"] as const;
+
+export async function listUsers(opts: { q?: string; role?: string; status?: string; page?: number }) {
   const page = Math.max(1, opts.page ?? 1);
   const q = opts.q?.trim();
-  const where = q
-    ? {
-        OR: [
-          { email: { contains: q, mode: "insensitive" as const } },
-          { name: { contains: q, mode: "insensitive" as const } },
-        ],
-      }
-    : {};
+  // Unknown values from the URL fall back to "no filter" rather than a 500.
+  const role = (USER_ROLES as readonly string[]).includes(opts.role ?? "") ? opts.role : undefined;
+  const status = (USER_STATUSES as readonly string[]).includes(opts.status ?? "")
+    ? opts.status
+    : undefined;
 
-  const [total, users] = await Promise.all([
+  // Search and status apply to every role tab; role picks the tab. The tab
+  // counts share the first two, so each tab shows how many rows it holds under
+  // the current search — not a site-wide total that stops matching the list.
+  const base = {
+    ...(q
+      ? {
+          OR: [
+            { email: { contains: q, mode: "insensitive" as const } },
+            { name: { contains: q, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+    ...(status ? { status } : {}),
+  };
+  const where = role ? { ...base, role } : base;
+
+  const [total, users, roleGroups] = await Promise.all([
     db.user.count({ where }),
     db.user.findMany({
       where,
@@ -493,13 +521,28 @@ export async function listUsers(opts: { q?: string; page?: number }) {
         role: true,
         status: true,
         createdAt: true,
-        talentProfile: { select: { headline: true, city: true, publishedAt: true, verifiedTier: true } },
+        talentProfile: {
+          select: { headline: true, city: true, publishedAt: true, verifiedTier: true, rateUsd: true },
+        },
         employer: { select: { companyName: true, location: true, credits: true, interviewCredits: true } },
+        interviewer: { select: { status: true, rateUsd: true } },
       },
     }),
+    db.user.groupBy({ by: ["role"], where: base, _count: true }),
   ]);
 
-  return { users, total, page, pageCount: Math.max(1, Math.ceil(total / USERS_PAGE_SIZE)) };
+  const roleCounts: Record<string, number> = {};
+  for (const g of roleGroups) roleCounts[g.role] = g._count;
+
+  return {
+    users,
+    total,
+    page,
+    pageCount: Math.max(1, Math.ceil(total / USERS_PAGE_SIZE)),
+    roleCounts,
+    role,
+    status,
+  };
 }
 
 /**
@@ -564,8 +607,9 @@ export async function listStuckJds() {
   });
 }
 
-export async function listSlates() {
+export async function listSlates(status?: "preview" | "unlocked") {
   return db.slate.findMany({
+    where: status ? { status } : {},
     orderBy: { deliveredAt: "desc" },
     take: 100,
     select: {

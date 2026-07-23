@@ -48,6 +48,9 @@ export default async function AdminInterviewers() {
 
       <h2 className="mt-8 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
         Pending applications
+        <span className="ml-2 rounded-full bg-line px-2 py-0.5 text-[11px] font-medium normal-case tracking-normal text-ink-soft">
+          {pending.length}
+        </span>
       </h2>
       <div className="overflow-hidden rounded-2xl border border-line bg-white">
         {pending.length === 0 ? (
@@ -97,6 +100,9 @@ export default async function AdminInterviewers() {
 
       <h2 className="mt-8 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
         Roster
+        <span className="ml-2 rounded-full bg-line px-2 py-0.5 text-[11px] font-medium normal-case tracking-normal text-ink-soft">
+          {roster.length}
+        </span>
       </h2>
       <div className="overflow-hidden rounded-2xl border border-line bg-white">
         {roster.length === 0 ? (

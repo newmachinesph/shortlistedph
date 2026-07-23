@@ -87,6 +87,35 @@ export default async function AdminOverview() {
       </p>
 
       <h2 className="mt-10 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
+        Pipeline
+      </h2>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {(
+          [
+            ["Open reports", o.openReports, "/admin/reports"],
+            ["Briefs with no matches", o.jdsNoMatches, "/admin/slates"],
+            ["Interviewer payouts pending", o.pendingInterviewerPayouts, "/admin/interviews"],
+            ["Referral payouts pending", o.pendingReferralPayouts, "/admin/affiliates"],
+          ] as [string, number, string][]
+        ).map(([label, count, link]) => (
+          <Link
+            key={label}
+            href={link}
+            className="rounded-2xl border border-line bg-white p-5 transition-colors hover:border-brand"
+          >
+            <p className="text-xs text-ink-faint">{label}</p>
+            <p
+              className={`font-display mt-1.5 text-2xl font-semibold ${
+                count > 0 ? "text-ink" : "text-ink-faint"
+              }`}
+            >
+              {count}
+            </p>
+          </Link>
+        ))}
+      </div>
+
+      <h2 className="mt-10 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
         Needs you
       </h2>
       <div className="overflow-hidden rounded-2xl border border-line bg-white">

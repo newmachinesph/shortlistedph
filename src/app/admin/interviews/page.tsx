@@ -109,6 +109,9 @@ export default async function AdminInterviews({
 
       <h2 className="mt-8 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
         Interviewer payouts
+        <span className="ml-2 rounded-full bg-line px-2 py-0.5 text-[11px] font-medium normal-case tracking-normal text-ink-soft">
+          {owed.length + pendingPayouts.length}
+        </span>
       </h2>
       <p className="mb-3 max-w-2xl text-xs leading-relaxed text-ink-faint">
         Reported interviews owe the interviewer their locked USD rate. A payout covers every unpaid
@@ -165,6 +168,9 @@ export default async function AdminInterviews({
 
       <h2 className="mt-8 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
         All interviews
+        <span className="ml-2 rounded-full bg-line px-2 py-0.5 text-[11px] font-medium normal-case tracking-normal text-ink-soft">
+          {interviews.length}
+        </span>
       </h2>
       <div className="mb-3 flex flex-wrap gap-2">
         <Link
