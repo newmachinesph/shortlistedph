@@ -119,10 +119,19 @@ export default async function EmployerDashboard() {
                     >
                       Continue editing
                     </Link>
-                  ) : (
+                  ) : jd.status === "matching" || jd.status === "rematching" ? (
                     <span className="inline-flex items-center gap-1.5 rounded-xl bg-ember-soft px-4 py-2 text-sm text-ember">
                       <ScanSearch className="h-4 w-4" /> Matching…
                     </span>
+                  ) : (
+                    // no_matches / failed: the chip already says what happened —
+                    // showing a perpetual "Matching…" here contradicted it.
+                    <Link
+                      href={`/employer/briefs/${jd.id}`}
+                      className="rounded-xl px-4 py-2 text-sm font-medium text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft"
+                    >
+                      See details
+                    </Link>
                   )}
                 </div>
               </div>

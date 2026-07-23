@@ -199,6 +199,7 @@ model EmployerAccount {
   blurb       String?
   location    String?
   contactName String?
+  logoKey     String?
   credits     Int      @default(0) // shortlist credits — unlock a slate
   interviewCredits Int @default(0) // interview credits — book one interview each
   createdAt   DateTime @default(now())

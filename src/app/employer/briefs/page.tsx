@@ -82,12 +82,21 @@ export default async function JobDescriptionsPage() {
                       {locked ? "View preview" : "View shortlist"} ({slate._count.entries}){" "}
                       <ArrowRight className="h-4 w-4" />
                     </Link>
-                  ) : (
+                  ) : jd.status === "draft" ? (
                     <Link
                       href="/employer/briefs/new"
                       className="rounded-xl px-4 py-2 text-sm font-medium text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft"
                     >
                       Continue editing
+                    </Link>
+                  ) : (
+                    // matching / no_matches / failed without a slate: the chip
+                    // carries the status; the action is to open the JD page.
+                    <Link
+                      href={`/employer/briefs/${jd.id}`}
+                      className="rounded-xl px-4 py-2 text-sm font-medium text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft"
+                    >
+                      See details
                     </Link>
                   )}
                 </div>
