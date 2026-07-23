@@ -23,9 +23,10 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     // Awaiting admin review: invisible to the employer, so not unlockable either.
     if (slate.status === "pending_review") throw new HttpError(404, "Slate not found");
     if (slate.status === "unlocked") return ok({ status: "unlocked", alreadyUnlocked: true });
-    // Belt and braces: buildSlate no longer creates empty slates, but a credit
-    // must never be spendable on nothing.
-    if (slate._count.entries === 0) throw new HttpError(409, "This shortlist has no candidates to unlock");
+    // Consent-first: a slate stays empty until candidates accept, and a credit
+    // must never be spendable on nothing. Unlocking works at any size ≥ 1;
+    // entries added after unlock appear unmasked automatically.
+    if (slate._count.entries === 0) throw new HttpError(409, "This shortlist has no confirmed candidates yet — check back soon");
 
     const result = await db.$transaction(async (tx) => {
       // Conditional decrement — two concurrent unlocks can't both spend the

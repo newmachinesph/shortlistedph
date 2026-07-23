@@ -25,6 +25,16 @@ const dimLabels: [key: keyof Dims, label: string][] = [
   ["experience", "Experience"],
 ];
 
+// Consent lifecycle chips. "pending" = created but not yet emailed (approval or
+// the kill switch hasn't released it); "sent" = candidate is deciding.
+const consentChip: Record<string, string> = {
+  pending: "bg-line text-ink-soft",
+  sent: "bg-ember-soft text-ember",
+  accepted: "bg-brand-soft text-brand",
+  declined: "bg-line text-ink-soft",
+  expired: "bg-ember-soft text-ember",
+};
+
 /**
  * Read-only review of one slate, unmasked. Admins cannot open the employer's
  * brief page (role redirect, by design) — this is where a pending_review slate
@@ -93,9 +103,51 @@ export default async function AdminSlateReview({ params }: { params: Promise<{ i
         </div>
       </div>
 
+      {slate.consents.length > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
+            Proposed candidates — consent status
+          </h2>
+          <div className="overflow-hidden rounded-2xl border border-line bg-white">
+            {slate.consents.map((c, i) => (
+              <div
+                key={c.id}
+                className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-6 ${
+                  i < slate.consents.length - 1 ? "border-b border-line" : ""
+                }`}
+              >
+                <span className="font-display w-5 text-sm font-semibold text-ink-faint">
+                  {i + 1}
+                </span>
+                <Avatar name={c.name} image={c.image} size="sm" />
+                <p className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{c.name}</p>
+                <span className="text-xs text-ink-faint">
+                  {c.respondedAt
+                    ? `responded ${timeAgo(c.respondedAt)}`
+                    : c.sentAt
+                      ? `sent ${timeAgo(c.sentAt)}`
+                      : "not emailed yet"}
+                </span>
+                <span
+                  className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${
+                    consentChip[c.status] ?? consentChip.pending
+                  }`}
+                >
+                  {c.status}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-ink-faint">
+            In invitation order — scores are computed when a candidate accepts and lands below.
+            Consent emails go out when you approve; unanswered requests expire after 48 hours.
+          </p>
+        </section>
+      )}
+
       <div className="mt-8 mb-4 flex items-baseline justify-between">
         <h2 className="text-sm font-medium uppercase tracking-wider text-ink-faint">
-          {slate.entries.length} ranked — names visible to you only
+          {slate.entries.length} confirmed — names visible to you only
         </h2>
         <span className="text-xs text-ink-faint">built {timeAgo(slate.deliveredAt)}</span>
       </div>

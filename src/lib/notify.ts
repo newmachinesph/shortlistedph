@@ -104,9 +104,9 @@ export function renderNotification(
       return { text: `Your connection request for ${jobTitle} was declined.`, href: "/employer/connections" };
     case "slate_delivered": {
       const count = field(payload, "count");
-      const size = count ? `${count} candidates` : "your shortlist";
+      const size = count ? `${count} matches` : "your matches";
       return {
-        text: `Shortlist ready for ${jobTitle} — ${size}.`,
+        text: `We found ${size} for ${jobTitle} — confirming availability now.`,
         href: jdId ? `/employer/briefs/${jdId}` : "/employer/briefs",
       };
     }

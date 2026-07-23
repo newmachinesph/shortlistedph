@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, CalendarClock, Camera, EyeOff, Lock, ScanSearch, SearchX } from "lucide-react";
+import { ArrowRight, CalendarClock, Camera, EyeOff, Lock, Radar, ScanSearch, SearchX } from "lucide-react";
 import { db } from "@/lib/db";
+import { SLATE_SIZE } from "@/lib/matching";
 import { employerOrOnboard, getSlateForJd, requirePageUser } from "@/lib/queries";
 import { availabilityHint, availabilityStatus, freshnessNote } from "@/lib/availability";
 import { activeInterviewers, employerPrice, INTERVIEW_DURATION_MINUTES } from "@/lib/interviews";
@@ -148,7 +149,7 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
             Adjust and try again
           </Link>
         </div>
-      ) : !slate || slate.entries.length === 0 ? (
+      ) : !slate ? (
         <div className="mt-6 rounded-2xl border border-line bg-white p-6 text-center sm:p-10">
           <ScanSearch className="mx-auto h-8 w-8 text-ember" strokeWidth={1.5} />
           <h2 className="font-display mt-4 text-lg font-semibold text-ink">
@@ -156,6 +157,20 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
           </h2>
           <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-ink-soft">
             Your shortlist appears here once it clears review.
+          </p>
+        </div>
+      ) : slate.entries.length === 0 ? (
+        // Approved, but nobody has confirmed yet: candidates consent before
+        // they appear, so the slate starts empty and fills in live.
+        <div className="mt-6 rounded-2xl border border-line bg-white p-6 text-center sm:p-10">
+          <Radar className="mx-auto h-8 w-8 text-brand" strokeWidth={1.5} />
+          <h2 className="font-display mt-4 text-lg font-semibold text-ink">
+            Confirming availability with your matches
+          </h2>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-ink-soft">
+            We matched candidates against this brief and are confirming each one is
+            available and interested. Confirmed candidates appear here as they
+            respond — we&rsquo;re also sourcing from other channels in parallel.
           </p>
         </div>
       ) : (
@@ -173,11 +188,21 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
             </div>
           )}
 
+          {slate.entries.length < SLATE_SIZE && (
+            <div className="mt-6 flex items-start gap-3 rounded-2xl border border-line bg-white px-6 py-4">
+              <Radar className="mt-0.5 h-4 w-4 shrink-0 text-brand" strokeWidth={1.75} />
+              <p className="text-sm leading-relaxed text-ink-soft">
+                Your shortlist is still growing — we&rsquo;re confirming availability
+                with more matched candidates and sourcing from other channels.
+              </p>
+            </div>
+          )}
+
           <div className="mt-8 mb-4 flex items-baseline justify-between">
             <h2 className="text-sm font-medium uppercase tracking-wider text-ink-faint">
-              Your shortlist — {slate.entries.length} ranked
+              Your shortlist — {slate.entries.length} confirmed
             </h2>
-            <span className="text-xs text-ink-faint">Ranked by fit</span>
+            <span className="text-xs text-ink-faint">In order of confirmation</span>
           </div>
 
           <ol className="space-y-4">

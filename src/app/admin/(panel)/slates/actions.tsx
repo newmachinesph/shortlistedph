@@ -66,7 +66,7 @@ export function StuckJdActions({ jdId, status }: { jdId: string; status: string 
         body: JSON.stringify({ action, jdId }),
       });
       const payload = (await res.json().catch(() => null)) as
-        | { error?: string; entries?: number; scanned?: number }
+        | { error?: string; invited?: number; scanned?: number }
         | null;
       if (!res.ok) {
         setError(payload?.error ?? "Action failed");
@@ -74,8 +74,8 @@ export function StuckJdActions({ jdId, status }: { jdId: string; status: string 
       }
       if (action === "rematch") {
         setResult(
-          payload?.entries
-            ? `Shortlisted ${payload.entries} of ${payload.scanned} scanned.`
+          payload?.invited
+            ? `Matched ${payload.invited} of ${payload.scanned} scanned — consent requests go out on approval.`
             : "Matching finished with no candidates above the bar.",
         );
       }
