@@ -111,7 +111,7 @@ export default async function AdminSlateReview({ params }: { params: Promise<{ i
                   <span className="font-display text-lg font-semibold text-ink-faint">
                     {entry.rank}
                   </span>
-                  <Avatar name={entry.name} size="md" />
+                  <Avatar name={entry.name} image={entry.image} size="md" />
                 </div>
                 <div className="w-full min-w-0 sm:w-auto sm:flex-1">
                   <h3 className="font-medium text-ink">{entry.name}</h3>

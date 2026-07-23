@@ -587,6 +587,7 @@ export async function listUsers(opts: { q?: string; role?: string; status?: stri
         id: true,
         name: true,
         email: true,
+        image: true,
         role: true,
         status: true,
         createdAt: true,
@@ -721,15 +722,16 @@ export async function getSlateForReview(slateId: string) {
 
   const profiles = await db.talentProfile.findMany({
     where: { id: { in: slate.entries.map((e) => e.snapshot.profileId) } },
-    select: { id: true, user: { select: { name: true } } },
+    select: { id: true, user: { select: { name: true, image: true } } },
   });
-  const names = new Map(profiles.map((p) => [p.id, p.user.name]));
+  const byProfile = new Map(profiles.map((p) => [p.id, p.user]));
 
   return {
     ...slate,
     entries: slate.entries.map((e) => ({
       ...e,
-      name: names.get(e.snapshot.profileId) ?? "Unknown",
+      name: byProfile.get(e.snapshot.profileId)?.name ?? "Unknown",
+      image: byProfile.get(e.snapshot.profileId)?.image ?? null,
     })),
   };
 }
