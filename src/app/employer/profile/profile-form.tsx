@@ -33,6 +33,35 @@ export function ProfileForm({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
+  /** Center-crop to a 512px square. PNG keeps transparency; others re-encode as-is. */
+  async function cropSquare(file: File): Promise<Blob> {
+    const bitmap = await createImageBitmap(file);
+    const side = Math.min(bitmap.width, bitmap.height);
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(
+      bitmap,
+      (bitmap.width - side) / 2,
+      (bitmap.height - side) / 2,
+      side,
+      side,
+      0,
+      0,
+      512,
+      512,
+    );
+    bitmap.close();
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("Could not process the image"))),
+        file.type,
+        0.9,
+      );
+    });
+  }
+
   async function handleFile(file: File) {
     setError(null);
     setSaved(false);
@@ -46,16 +75,17 @@ export function ProfileForm({
     }
     setUploading(true);
     try {
+      const cropped = await cropSquare(file);
       const { uploadUrl, key } = await api<{ uploadUrl: string; key: string }>(
         "/api/employer/logo/upload-url",
         {
           method: "POST",
-          body: JSON.stringify({ contentType: file.type, sizeBytes: file.size }),
+          body: JSON.stringify({ contentType: file.type, sizeBytes: cropped.size }),
         },
       );
       const put = await fetch(uploadUrl, {
         method: "PUT",
-        body: file,
+        body: cropped,
         headers: { "Content-Type": file.type },
       });
       if (!put.ok) throw new Error("Upload failed. Check your connection and try again");
@@ -63,7 +93,7 @@ export function ProfileForm({
         method: "PATCH",
         body: JSON.stringify({ logoKey: key }),
       });
-      setPreview(URL.createObjectURL(file));
+      setPreview(URL.createObjectURL(cropped));
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");

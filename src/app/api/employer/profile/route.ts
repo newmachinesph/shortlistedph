@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
+import { deleteObject } from "@/lib/r2";
 import { HttpError, requireEmployer, requireRole } from "@/lib/session";
 
 const optionalText = (max: number) =>
@@ -29,6 +30,25 @@ export async function PATCH(req: Request) {
     }
 
     await db.employerAccount.update({ where: { id: employer.id }, data: body });
+
+    // Replacing the logo orphans the old object — delete it so storage does
+    // not grow with every swap. Best-effort after the DB write: a failed
+    // delete leaves a stray file, never a broken profile. Own-prefix check
+    // keeps this from ever deleting outside the employer's folder.
+    const previous = employer.logoKey;
+    if (
+      body.logoKey !== undefined &&
+      previous &&
+      previous !== body.logoKey &&
+      previous.startsWith(`employer-logos/${employer.id}/`)
+    ) {
+      try {
+        await deleteObject(previous);
+      } catch (e) {
+        console.error("[profile] could not delete replaced logo", e);
+      }
+    }
+
     return ok({ updated: true });
   } catch (e) {
     return fail(e);
