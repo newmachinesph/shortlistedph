@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   ListChecks,
   Menu,
+  Settings,
   Share2,
   UserCheck,
   Users,
@@ -26,6 +27,7 @@ const nav: { label: string; icon: LucideIcon; href: string }[] = [
   { label: "Interviewers", icon: UserCheck, href: "/admin/interviewers" },
   { label: "Interviews", icon: Video, href: "/admin/interviews" },
   { label: "Affiliates", icon: Share2, href: "/admin/affiliates" },
+  { label: "Settings", icon: Settings, href: "/admin/settings" },
 ];
 
 function isActive(href: string, pathname: string) {

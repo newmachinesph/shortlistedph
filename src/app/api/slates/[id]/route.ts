@@ -21,6 +21,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     });
 
     if (!slate || slate.jd.employerId !== employer.id) throw new HttpError(404, "Slate not found");
+    // Awaiting admin review: does not exist for the employer yet.
+    if (slate.status === "pending_review") throw new HttpError(404, "Slate not found");
 
     const unlocked = slate.status === "unlocked";
 

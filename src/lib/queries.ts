@@ -39,6 +39,9 @@ export async function listJds(employerId: string) {
     orderBy: { createdAt: "desc" },
     include: {
       slates: {
+        // A slate awaiting admin review does not exist for the employer yet —
+        // lists show the matching/in-review state instead of "View preview".
+        where: { status: { not: "pending_review" } },
         orderBy: { deliveredAt: "desc" },
         take: 1,
         select: { id: true, status: true, _count: { select: { entries: true } } },
@@ -67,6 +70,9 @@ export async function getSlateForJd(jdId: string, employerId: string): Promise<S
     },
   });
   if (!slate) return null;
+  // Awaiting admin review: not yet visible to the employer at all. The brief
+  // page falls back to its "review in progress" card.
+  if (slate.status === "pending_review") return null;
 
   const unlocked = slate.status === "unlocked";
 

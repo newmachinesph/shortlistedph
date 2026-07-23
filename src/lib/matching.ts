@@ -1,8 +1,6 @@
 import "server-only";
 import { z } from "zod";
 import { db } from "./db";
-import { mail } from "./email";
-import { notify } from "./notify";
 import { blendSimilarity, jdFacetTexts } from "./facets";
 import { MODELS, embedMany, openai, toVectorLiteral } from "./openai";
 import {
@@ -184,7 +182,10 @@ export async function buildSlate(jdId: string) {
   const publishedAt = jd.publishedAt ?? new Date();
 
   const slate = await db.$transaction(async (tx) => {
-    const created = await tx.slate.create({ data: { jdId: jd.id, status: "preview" } });
+    // Every slate starts behind the curtain: an admin approves it (lib/admin.ts
+    // approveSlate) before the employer sees it or hears about it. The employer
+    // notify + slateDelivered email fire on approval, not here.
+    const created = await tx.slate.create({ data: { jdId: jd.id, status: "pending_review" } });
 
     for (const [i, r] of top.entries()) {
       // Freeze the profile as of this JD. Later edits cannot change what the
@@ -247,43 +248,6 @@ export async function buildSlate(jdId: string) {
     // ~15 sequential queries; Prisma's 5s default expires on cold starts and
     // remote-operator runs. Generous ceiling — the writes themselves are tiny.
   }, { timeout: 30_000 });
-
-  // Outside the transaction on purpose: a bounced email must not undo a slate
-  // that was built correctly.
-  try {
-    // The local Jd type carries only matching inputs, so the employer is
-    // resolved from the row rather than assumed to be in scope.
-    const row = await db.jobDescription.findUnique({
-      where: { id: jd.id },
-      select: {
-        employer: { select: { companyName: true, user: { select: { id: true, email: true } } } },
-      },
-    });
-    const employer = row?.employer;
-    if (employer) {
-      // In-app row and email are separate deliveries of the same fact. The
-      // email can bounce; the bell has to be right either way.
-      await notify({
-        userId: employer.user.id,
-        type: "slate_delivered",
-        payload: {
-          company: employer.companyName,
-          jobTitle: jd.title,
-          count: top.length,
-          jdId: jd.id,
-        },
-      });
-
-      await mail.slateDelivered(employer.user.email, {
-        company: employer.companyName,
-        jobTitle: jd.title,
-        count: top.length,
-        jdId: jd.id,
-      });
-    }
-  } catch (e) {
-    console.error("[matching] slate-ready email failed", e);
-  }
 
   return { slateId: slate.id, scanned: pool.length, entries: top.length };
 }

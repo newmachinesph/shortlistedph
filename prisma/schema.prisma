@@ -267,7 +267,7 @@ model ProfileSnapshot {
 model Slate {
   id          String    @id @default(cuid())
   jdId        String
-  status      String    @default("preview") // preview | unlocked
+  status      String    @default("preview") // pending_review | preview | unlocked
   unlockedAt  DateTime?
   deliveredAt DateTime  @default(now())
 
@@ -441,6 +441,14 @@ model Notification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, readAt])
+}
+
+// Operator-controlled switches, e.g. the outreach-email kill switch used while
+// testing with real data. Key-value keeps it one table for all of them.
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
 
 model AuditLog {
