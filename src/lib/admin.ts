@@ -20,7 +20,9 @@ const PAID = "paid";
 const DELIVERED_JD_STATUSES = ["slate_ready", "closed"];
 
 /** JD statuses an operator can act on from the slates page. */
-export const STUCK_JD_STATUSES = ["matching", "rematching", "failed"];
+// no_matches included: after tuning must-haves or thresholds an operator can
+// re-run the match without asking the employer to repost.
+export const STUCK_JD_STATUSES = ["matching", "rematching", "failed", "no_matches"];
 
 /** "5h ago", "Jul 17". Rendered on the server, so no hydration drift. */
 export function timeAgo(date: Date): string {
@@ -412,8 +414,10 @@ export async function adjustEmployerCredits(args: {
  * Swap for a queue with a lease when matching moves off the request path.
  */
 export async function rematchJd(args: { actorId: string; jdId: string }) {
+  // Claimable from "matching" (wedged run) and "no_matches" (re-run after the
+  // operator tunes must-haves/thresholds). "failed" stays terminal by design.
   const claimed = await db.jobDescription.updateMany({
-    where: { id: args.jdId, status: "matching" },
+    where: { id: args.jdId, status: { in: ["matching", "no_matches"] } },
     data: { status: "rematching" },
   });
   if (claimed.count !== 1) {
