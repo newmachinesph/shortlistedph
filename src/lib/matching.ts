@@ -3,7 +3,8 @@ import { z } from "zod";
 import { db } from "./db";
 import { mail } from "./email";
 import { notify } from "./notify";
-import { MODELS, embed, openai, toVectorLiteral } from "./openai";
+import { blendSimilarity, jdFacetTexts } from "./facets";
+import { MODELS, embedMany, openai, toVectorLiteral } from "./openai";
 import {
   QUALIFY_SCORE,
   QUALIFY_SKILLS,
@@ -46,7 +47,11 @@ type Candidate = {
   lastShownAt: Date | null;
   openToOffers: boolean;
   availabilityConfirmedAt: Date | null;
-  similarity: number;
+  // Facet cosine distances; each COALESCEs to the whole-profile distance when
+  // the facet column is NULL, so un-backfilled profiles rank as before.
+  dskills: number;
+  dexp: number;
+  dprefs: number;
 };
 
 type Jd = {
@@ -60,16 +65,9 @@ type Jd = {
   overlap: string | null;
 };
 
+// Single owner is facets.ts — the eval harness and backfill embed this exact text.
 export function jdEmbedText(jd: Jd): string {
-  return [
-    jd.title,
-    `Must have: ${jd.mustHaves.join(", ")}`,
-    jd.niceToHaves.length ? `Nice to have: ${jd.niceToHaves.join(", ")}` : "",
-    jd.hoursPerWeek ? `${jd.hoursPerWeek} hours per week` : "",
-    jd.overlap ? `Timezone overlap: ${jd.overlap}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  return jdFacetTexts(jd).role;
 }
 
 /**
@@ -78,13 +76,18 @@ export function jdEmbedText(jd: Jd): string {
  */
 export async function buildSlate(jdId: string) {
   const jd = await db.jobDescription.findUniqueOrThrow({ where: { id: jdId } });
-  const vector = await embed(jdEmbedText(jd));
+  // Two query vectors, one batch call: the whole-JD role text (also the hnsw
+  // pool cut) and the skills-facet text.
+  const q = jdFacetTexts(jd);
+  const [roleVec, skillsVec] = await embedMany([q.role, q.skills]);
 
   const pool = await db.$queryRawUnsafe<Candidate[]>(
     `SELECT p.id, p."userId", p.headline, p.summary, p.city, p."yearsExperience",
             p."rateUsd", p.availability, p."committedHours", p."verifiedTier", p."lastEditedAt",
             p."shortlistCount", p."lastShownAt", p."openToOffers", p."availabilityConfirmedAt",
-            1 - (p.embedding <=> $1::vector) AS similarity
+            COALESCE(p."embeddingSkills" <=> $2::vector, p.embedding <=> $1::vector) AS dskills,
+            COALESCE(p."embeddingExperience" <=> $1::vector, p.embedding <=> $1::vector) AS dexp,
+            COALESCE(p."embeddingPrefs" <=> $1::vector, p.embedding <=> $1::vector) AS dprefs
        FROM "TalentProfile" p
        JOIN "user" u ON u.id = p."userId"
       WHERE p."publishedAt" IS NOT NULL
@@ -93,7 +96,8 @@ export async function buildSlate(jdId: string) {
         AND u.status = 'active'
       ORDER BY p.embedding <=> $1::vector
       LIMIT ${CANDIDATE_POOL}`,
-    toVectorLiteral(vector),
+    toVectorLiteral(roleVec),
+    toVectorLiteral(skillsVec),
   );
 
   if (pool.length === 0) {
@@ -127,8 +131,9 @@ export async function buildSlate(jdId: string) {
     .map((c) => {
       const cSkills = skillsBy.get(c.id) ?? [];
       const cEng = engBy.get(c.id) ?? [];
+      const sim = blendSimilarity(c.dskills, c.dexp, c.dprefs);
       const dims: Dims = {
-        skills: scoreSkills(jd.mustHaves, cSkills, c.similarity, {
+        skills: scoreSkills(jd.mustHaves, cSkills, sim, {
           headline: c.headline,
           roles: cEng.map((e) => e.role),
         }),

@@ -125,9 +125,9 @@ export default async function ReferralsPage() {
                   yourself does not count.
                 </li>
                 <li>
-                  Payouts are sent in pesos by GCash or bank transfer, converted at the rate on the
-                  payout date. The minimum is {peso.format(REFERRAL_REWARD.minPayout)}, which one
-                  conversion normally covers. No cap on how many companies you refer.
+                  Payouts are sent to your PayPal in USD, settled by hand. The minimum is the
+                  equivalent of {peso.format(REFERRAL_REWARD.minPayout)}, which one conversion
+                  normally covers. No cap on how many companies you refer.
                 </li>
               </ul>
             </div>
@@ -184,15 +184,14 @@ export default async function ReferralsPage() {
 
         <p className="mt-3 text-xs leading-relaxed text-ink-faint">
           Earnings are held in the currency the company paid in, and payout requests are recorded in
-          that same currency. Transfers are sent in pesos, converted at the rate on the day they are
-          paid, so the peso amount you receive will not match the figure above exactly.
+          that same currency. Transfers are settled by hand to your PayPal, so allow a few days for
+          them to arrive.
         </p>
 
         <section className="mt-5 rounded-2xl border border-line bg-white p-4 sm:p-6">
           <ReferralPayout
             method={stats.payoutMethod}
-            accountName={stats.payoutAccountName}
-            accountMasked={stats.payoutAccountMasked}
+            payoutEmail={stats.payoutEmail}
             owed={stats.owed.map((o) => ({
               currency: o.currency,
               formatted: money(o.amount, o.currency),

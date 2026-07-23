@@ -1,20 +1,31 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRight, Mail } from "lucide-react";
+import { ChevronRight, Flag, Mail } from "lucide-react";
 import { NOINDEX } from "@/lib/site";
-import { requirePageUser } from "@/lib/queries";
+import { employerOrOnboard, listEmployerConnections, requirePageUser } from "@/lib/queries";
+import { ReportForm } from "@/components/report-form";
 
 export const metadata: Metadata = { title: "Support", ...NOINDEX };
 
 const faqs = [
   { label: "Billing & credits", href: "/employer/billing" },
   { label: "Re-slate policy", href: "/employer/briefs" },
-  { label: "Report a candidate", href: "mailto:support@shortlisted.ph?subject=Report%20a%20candidate" },
+  { label: "Report a candidate", href: "#report" },
   { label: "Code of Conduct", href: "/conduct" },
 ];
 
 export default async function EmployerSupportPage() {
-  await requirePageUser("employer");
+  const user = await requirePageUser("employer");
+  const employer = await employerOrOnboard(user.id);
+  const connections = await listEmployerConnections(employer.id);
+  const counterparts = Array.from(
+    new Map(
+      connections.map((c) => {
+        const u = c.slateEntry.snapshot.profile.user;
+        return [u.id, { id: u.id, label: u.name }];
+      }),
+    ).values(),
+  );
 
   return (
     <>
@@ -45,6 +56,23 @@ export default async function EmployerSupportPage() {
           Support runs over email — there is no ticket queue in the app, so nothing to track here.
         </p>
       </div>
+
+      <section id="report" className="mt-5 rounded-2xl border border-line bg-white p-6">
+        <div className="flex items-center gap-2">
+          <Flag className="h-4 w-4 text-brand" strokeWidth={1.75} />
+          <h2 className="text-sm font-medium uppercase tracking-wider text-ink-faint">
+            Report a candidate
+          </h2>
+        </div>
+        <p className="mt-3 max-w-xl text-sm leading-relaxed text-ink-soft">
+          Misrepresented experience, no-shows, or conduct issues — file it here and our team
+          investigates.
+        </p>
+        <ReportForm
+          counterparts={counterparts}
+          detailPlaceholder="What happened, when, and in which engagement — include anything that helps us verify it."
+        />
+      </section>
 
       <h2 className="mt-9 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
         Frequently asked

@@ -15,15 +15,16 @@ import { HttpError } from "./session";
  * cost per acquisition rather than a share of revenue.
  *
  * The bounty is denominated in USD because that is what the credits products
- * sell in. Payouts are PHP and settled by hand; there is no FX rate anywhere
- * in this codebase and none is invented here.
+ * sell in. Payouts go to the affiliate's PayPal in USD and are settled by
+ * hand; there is no FX rate anywhere in this codebase and none is invented
+ * here.
  */
 export const REFERRAL_REWARD = {
   amount: 9.99,
   currency: "USD" as const,
-  /** Payouts are always PHP — settlement is manual. */
+  /** Fallback currency label for older rows — settlement itself is manual, via PayPal. */
   payoutCurrency: "PHP" as const,
-  /** Applies to the PHP-converted total the operator computes at payout time. */
+  /** Applies to the peso-equivalent total the operator computes at payout time. */
   minPayout: 500,
 } as const;
 
@@ -242,7 +243,7 @@ export async function qualifyConversion(
 
 // ─── Payouts ──────────────────────────────────────────────────────────────
 
-export const PAYOUT_METHODS = ["gcash", "bank"] as const;
+export const PAYOUT_METHODS = ["paypal"] as const;
 export type PayoutMethod = (typeof PAYOUT_METHODS)[number];
 
 /**
@@ -283,30 +284,24 @@ export async function getOwed(referralId: string): Promise<OwedBalance[]> {
 
 export function hasPayoutDetails(r: {
   payoutMethod: string | null;
-  payoutAccountName: string | null;
   payoutAccountNumber: string | null;
 }) {
-  return Boolean(r.payoutMethod && r.payoutAccountName && r.payoutAccountNumber);
-}
-
-/** Last 4 only. The stored number never reaches a page or a log in full. */
-export function maskAccount(number: string | null): string {
-  if (!number) return "—";
-  const tail = number.slice(-4);
-  return tail.length < 4 ? "••••" : `•••• ${tail}`;
+  return Boolean(r.payoutMethod && r.payoutAccountNumber);
 }
 
 export async function savePayoutDetails(
   userId: string,
-  d: { method: PayoutMethod; accountName: string; accountNumber: string },
+  d: { method: PayoutMethod; email: string },
 ) {
   await getOrCreateReferral(userId, "");
   await db.referral.update({
     where: { userId },
     data: {
       payoutMethod: d.method,
-      payoutAccountName: d.accountName.trim(),
-      payoutAccountNumber: d.accountNumber.trim(),
+      // Same detail column the bank number used to live in — for PayPal the
+      // "account number" is the email. No schema change.
+      payoutAccountNumber: d.email.trim(),
+      payoutAccountName: null,
     },
   });
 }
@@ -380,8 +375,7 @@ const EMPTY_STATS = {
   owed: [] as OwedBalance[],
   hasPayoutDetails: false,
   payoutMethod: null as string | null,
-  payoutAccountName: null as string | null,
-  payoutAccountMasked: null as string | null,
+  payoutEmail: null as string | null,
   hasPendingRequest: false,
   activity: [] as {
     id: string;
@@ -462,10 +456,8 @@ export async function getAffiliateStats(userId: string) {
     owed,
     hasPayoutDetails: hasPayoutDetails(referral),
     payoutMethod: referral.payoutMethod,
-    payoutAccountName: referral.payoutAccountName,
-    payoutAccountMasked: referral.payoutAccountNumber
-      ? maskAccount(referral.payoutAccountNumber)
-      : null,
+    // The PayPal email, shown back in full — it is the affiliate's own address.
+    payoutEmail: referral.payoutAccountNumber,
     hasPendingRequest: payouts.some((p) => p.status === "pending"),
     activity: activity.map((c) => ({
       id: c.id,

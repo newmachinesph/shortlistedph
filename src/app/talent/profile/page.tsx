@@ -4,6 +4,7 @@ import { getTalentProfile, requirePageUser, talentOrOnboard } from "@/lib/querie
 import { initials } from "@/lib/format";
 import { availabilityLabel, freshnessNote, isStale } from "@/lib/availability";
 import { AvailabilitySection } from "./availability-section";
+import { VerifyIdentity } from "./verify-identity";
 
 
 export default async function TalentProfilePage() {
@@ -121,10 +122,7 @@ export default async function TalentProfilePage() {
             Verification
           </h2>
           <ul className="mt-4 space-y-3 text-sm">
-            <li className="flex items-center gap-2.5 text-ink-faint">
-              <span className="h-4 w-4 rounded-full border border-line" />
-              <span>Identity verification: optional, ₱60 for the check</span>
-            </li>
+            <VerifyIdentity verified={profile.verifiedTier === "id_verified"} />
             <li className="flex items-center gap-2.5 text-ink-faint">
               <span className="h-4 w-4 rounded-full border border-line" />
               <span>NBI clearance — on hand, shown at hire</span>

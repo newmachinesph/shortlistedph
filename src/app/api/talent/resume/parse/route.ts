@@ -2,7 +2,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
 import { getObjectBuffer } from "@/lib/r2";
-import { extractText, normalizeSkill, parseResume } from "@/lib/resume";
+import { educationSummary, extractText, normalizeSkill, parseResume } from "@/lib/resume";
 import { HttpError, requireRole, requireTalentProfile } from "@/lib/session";
 
 const Body = z.object({ key: z.string().min(1) });
@@ -52,7 +52,9 @@ export async function POST(req: Request) {
     const haveEngagement = new Set(existingEngagements.map(engagementKey));
     const newEngagements = parsed.engagements
       .filter((e) => !haveEngagement.has(engagementKey(e)))
-      .filter((e, i, all) => all.findIndex((o) => engagementKey(o) === engagementKey(e)) === i);
+      .filter((e, i, all) => all.findIndex((o) => engagementKey(o) === engagementKey(e)) === i)
+      // Highlights enrich facet text at extraction time only — Engagement has no column.
+      .map(({ role, company, span }) => ({ role, company, span }));
 
     await db.talentProfile.update({
       where: { id: profile.id },
@@ -61,16 +63,19 @@ export async function POST(req: Request) {
         summary: parsed.summary,
         city: parsed.city,
         yearsExperience: parsed.yearsExperience,
-        rateUsd: profile.rateUsd ?? parsed.suggestedRateUsd,
+        // A rate the resume itself states beats the model's market estimate.
+        rateUsd: profile.rateUsd ?? parsed.preferences.desiredRateUsd ?? parsed.suggestedRateUsd,
         // Parsed values only ever FILL a blank field here. Anything the user
         // already answered outranks a fresh guess about the same fact.
         portfolioUrl: profile.portfolioUrl ?? parsed.portfolioUrl,
         linkedinUrl: profile.linkedinUrl ?? parsed.linkedinUrl,
         githubUrl: profile.githubUrl ?? parsed.githubUrl,
-        education: profile.education ?? parsed.education,
+        education: profile.education ?? educationSummary(parsed.education),
         englishLevel: profile.englishLevel ?? parsed.englishLevel,
         tools: profile.tools ?? parsed.tools,
-        certifications: profile.certifications ?? parsed.certifications,
+        certifications: profile.certifications ?? (parsed.certifications.join(", ") || null),
+        preferredOverlap: profile.preferredOverlap ?? parsed.preferences.timezoneOverlap,
+        noticePeriodDays: profile.noticePeriodDays ?? parsed.preferences.noticePeriodDays,
         resumeKey: key,
         lastEditedAt: new Date(),
         skills: { create: newSkills },

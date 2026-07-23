@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -17,13 +17,13 @@ import {
   CreditCard,
   User,
   LogOut,
-  Search,
   Menu,
   Video,
   X,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "./logo";
+import { WorkspaceSearch } from "./workspace-search";
 import { signOut } from "@/lib/auth-client";
 
 type NavItem = { label: string; icon: LucideIcon; href: string };
@@ -64,31 +64,21 @@ export type Persona = { name: string; sub: string; initials: string };
 export function WorkspaceShell({
   role,
   persona,
+  hasUnread = false,
   children,
 }: {
   role: "employer" | "talent";
   persona: Persona;
+  hasUnread?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
-  const searchRef = useRef<HTMLInputElement>(null);
 
   const nav = role === "employer" ? employerNav : talentNav;
   const base = role === "employer" ? "/employer" : "/talent";
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        searchRef.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
 
   // Close the mobile drawer on Escape and on navigation.
   useEffect(() => {
@@ -189,18 +179,7 @@ export function WorkspaceShell({
             <Menu className="h-5 w-5" strokeWidth={1.75} />
           </button>
 
-          <div className="relative min-w-0 max-w-md flex-1">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-            <input
-              ref={searchRef}
-              type="search"
-              placeholder={role === "employer" ? "Search candidates, job descriptions…" : "Search agreements, messages…"}
-              className="w-full rounded-xl border border-line bg-white py-2 pl-10 pr-3 text-base text-ink placeholder:text-ink-faint focus:outline-2 focus:outline-brand sm:pr-16 sm:text-sm"
-            />
-            <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-line bg-paper px-1.5 py-0.5 text-[10px] font-medium text-ink-faint sm:block">
-              Ctrl K
-            </kbd>
-          </div>
+          <WorkspaceSearch role={role} />
 
           <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
             <Link
@@ -209,7 +188,9 @@ export function WorkspaceShell({
               className="relative flex h-11 w-11 items-center justify-center rounded-xl text-ink-soft transition-colors hover:bg-brand-soft hover:text-ink"
             >
               <Bell className="h-[18px] w-[18px]" strokeWidth={1.75} />
-              <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-ember ring-2 ring-paper" />
+              {hasUnread && (
+                <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-ember ring-2 ring-paper" />
+              )}
             </Link>
 
             <div className="relative">

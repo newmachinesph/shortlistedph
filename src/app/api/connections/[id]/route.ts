@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
+import type { AgreementTerms } from "@/lib/agreements";
 import { notify } from "@/lib/notify";
 import { HttpError, requireRole } from "@/lib/session";
 
@@ -25,7 +26,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         slateEntry: {
           select: {
             snapshot: {
-              select: { jd: { select: { title: true, employer: { select: { userId: true, companyName: true } } } } },
+              select: {
+                jd: {
+                  select: {
+                    title: true,
+                    budgetMin: true,
+                    budgetMax: true,
+                    hoursPerWeek: true,
+                    overlap: true,
+                    employer: { select: { userId: true, companyName: true } },
+                  },
+                },
+              },
             },
           },
         },
@@ -36,13 +48,38 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       throw new HttpError(409, `Already ${connection.state}`);
     }
 
-    const updated = await db.connection.update({
-      where: { id: connection.id },
-      data:
-        decision === "consent"
-          ? { state: "consented", contactRevealedAt: new Date() }
-          : { state: "declined" },
-    });
+    const jd = connection.slateEntry.snapshot.jd;
+    let updated;
+    if (decision === "consent") {
+      // Consent births the draft agreement in the same transaction. Terms are
+      // seeded from the JD; both sides e-sign later. Upsert on the unique
+      // connectionId keeps a retry idempotent.
+      [updated] = await db.$transaction([
+        db.connection.update({
+          where: { id: connection.id },
+          data: { state: "consented", contactRevealedAt: new Date() },
+        }),
+        db.agreement.upsert({
+          where: { connectionId: connection.id },
+          update: {},
+          create: {
+            connectionId: connection.id,
+            terms: {
+              title: jd.title,
+              budgetMin: jd.budgetMin,
+              budgetMax: jd.budgetMax,
+              hoursPerWeek: jd.hoursPerWeek,
+              overlap: jd.overlap,
+            } satisfies AgreementTerms,
+          },
+        }),
+      ]);
+    } else {
+      updated = await db.connection.update({
+        where: { id: connection.id },
+        data: { state: "declined" },
+      });
+    }
 
     const employerUserId = connection.slateEntry.snapshot.jd.employer.userId;
     await notify({
