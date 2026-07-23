@@ -184,6 +184,9 @@ export default async function AdminAffiliates() {
 
       <h2 className="mt-8 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
         Pending payouts
+        <span className="ml-2 rounded-full bg-line px-2 py-0.5 text-[11px] font-medium normal-case tracking-normal text-ink-soft">
+          {pendingPayouts.length}
+        </span>
       </h2>
       <div className="overflow-hidden rounded-2xl border border-line bg-white">
         {pendingPayouts.length === 0 ? (
@@ -236,6 +239,9 @@ export default async function AdminAffiliates() {
         <>
           <h2 className="mt-8 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
             Flagged conversions
+            <span className="ml-2 rounded-full bg-line px-2 py-0.5 text-[11px] font-medium normal-case tracking-normal text-ink-soft">
+              {flaggedConversions.length}
+            </span>
           </h2>
           <div className="overflow-hidden rounded-2xl border border-line bg-white">
             {flaggedConversions.map((c, i) => (
@@ -271,6 +277,9 @@ export default async function AdminAffiliates() {
 
       <h2 className="mt-8 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
         Top affiliates
+        <span className="ml-2 rounded-full bg-line px-2 py-0.5 text-[11px] font-medium normal-case tracking-normal text-ink-soft">
+          {rows.length}
+        </span>
       </h2>
       <div className="overflow-hidden rounded-2xl border border-line bg-white">
         {rows.length === 0 ? (

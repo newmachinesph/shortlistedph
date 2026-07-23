@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { AlertTriangle, FileText, ShieldCheck } from "lucide-react";
 import { NOINDEX } from "@/lib/site";
 import { listReports, timeAgo } from "@/lib/admin";
@@ -12,8 +13,17 @@ const statusChip: Record<string, string> = {
   dismissed: "bg-line text-ink-soft",
 };
 
-export default async function AdminReports() {
-  const reports = await listReports();
+const REPORT_STATUSES = ["open", "resolved", "dismissed"] as const;
+
+export default async function AdminReports({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
+  const { status } = await searchParams;
+  // Open is the working queue; resolved and dismissed are the archive.
+  const filter = (REPORT_STATUSES as readonly string[]).includes(status ?? "") ? status! : "open";
+  const reports = await listReports(filter);
 
   return (
     <>
@@ -22,12 +32,33 @@ export default async function AdminReports() {
         Evidence in, judgment out. Bans bind to identity — banned users don&rsquo;t come back with a new email.
       </p>
 
+      <div className="mt-6 flex flex-wrap gap-2">
+        {REPORT_STATUSES.map((s) => (
+          <Link
+            key={s}
+            href={s === "open" ? "/admin/reports" : `/admin/reports?status=${s}`}
+            aria-current={filter === s ? "page" : undefined}
+            className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors ${
+              filter === s
+                ? "bg-brand text-white"
+                : "bg-white text-ink-soft ring-1 ring-inset ring-line hover:bg-paper"
+            }`}
+          >
+            {s}
+          </Link>
+        ))}
+      </div>
+
       {reports.length === 0 ? (
         <div className="mt-7 rounded-2xl border border-line bg-white px-6 py-14 text-center">
           <ShieldCheck className="mx-auto h-8 w-8 text-ink-faint" strokeWidth={1.75} />
-          <h2 className="font-display mt-4 text-lg font-semibold text-ink">No reports filed</h2>
+          <h2 className="font-display mt-4 text-lg font-semibold text-ink">
+            {filter === "open" ? "No open reports" : `No ${filter} reports`}
+          </h2>
           <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-ink-soft">
-            Nobody has flagged anyone. When they do, it lands here with the evidence attached.
+            {filter === "open"
+              ? "Nobody has flagged anyone. When they do, it lands here with the evidence attached."
+              : `Nothing has been ${filter} yet.`}
           </p>
         </div>
       ) : (
@@ -55,14 +86,13 @@ export default async function AdminReports() {
               </div>
 
               <p className="mt-3 text-sm text-ink-soft">
-                <span className="font-medium text-ink">
-                  {r.filedBy.role} · {r.filedBy.name}
-                </span>{" "}
+                <span className="font-medium text-ink">{r.filedBy.name}</span>{" "}
+                <span className="text-xs text-ink-faint">({r.filedBy.role})</span>{" "}
                 against{" "}
-                <span className="font-medium text-ink">
-                  {r.against.role} · {r.against.name}
-                </span>{" "}
-                <span className="break-all text-xs text-ink-faint">({r.against.email} · {r.against.status})</span>
+                <span className="font-medium text-ink">{r.against.name}</span>{" "}
+                <span className="break-all text-xs text-ink-faint">
+                  ({r.against.role} · {r.against.email} · {r.against.status})
+                </span>
               </p>
               <p className="mt-2 text-sm leading-relaxed text-ink-soft">{r.detail}</p>
 

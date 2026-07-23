@@ -50,8 +50,9 @@ export function StuckJdActions({ jdId, status }: { jdId: string; status: string 
   }
 
   const disabled = busy || pending;
-  // A run already in flight owns the lock; a failed JD is terminal.
-  const canRematch = status === "matching";
+  // A run already in flight owns the lock; a failed JD is terminal. no_matches
+  // is re-runnable — the operator tunes must-haves, then tries again.
+  const canRematch = status === "matching" || status === "no_matches";
   const canFail = status === "matching" || status === "rematching";
 
   return (

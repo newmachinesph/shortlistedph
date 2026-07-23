@@ -11,10 +11,21 @@ const jdChip: Record<string, string> = {
   matching: "bg-ember-soft text-ember",
   rematching: "bg-brand-soft text-brand",
   failed: "bg-line text-ink-soft",
+  no_matches: "bg-ember-soft text-ember",
 };
 
-export default async function AdminSlates() {
-  const [slates, stuck] = await Promise.all([listSlates(), listStuckJds()]);
+const SLATE_STATUSES = ["preview", "unlocked"] as const;
+
+export default async function AdminSlates({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
+  const { status } = await searchParams;
+  const filter = (SLATE_STATUSES as readonly string[]).includes(status ?? "")
+    ? (status as (typeof SLATE_STATUSES)[number])
+    : undefined;
+  const [slates, stuck] = await Promise.all([listSlates(filter), listStuckJds()]);
 
   return (
     <>
@@ -26,7 +37,10 @@ export default async function AdminSlates() {
       {stuck.length > 0 && (
         <section className="mt-7">
           <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
-            Briefs still matching
+            Briefs needing attention
+            <span className="ml-2 rounded-full bg-line px-2 py-0.5 text-[11px] font-medium normal-case tracking-normal text-ink-soft">
+              {stuck.length}
+            </span>
           </h2>
           <div className="overflow-hidden rounded-2xl border border-line bg-white">
             {stuck.map((jd, i) => (
@@ -50,7 +64,7 @@ export default async function AdminSlates() {
                       jdChip[jd.status] ?? jdChip.matching
                     }`}
                   >
-                    {jd.status}
+                    {jd.status.replace(/_/g, " ")}
                   </span>
                   <StuckJdActions jdId={jd.id} status={jd.status} />
                 </div>
@@ -58,19 +72,47 @@ export default async function AdminSlates() {
             ))}
           </div>
           <p className="mt-2 text-xs text-ink-faint">
-            Matching runs inside the publish request. A brief sitting here means that request never
-            finished — re-run it, or mark it failed so the employer stops waiting.
+            Matching runs inside the publish request. A brief still matching means that request never
+            finished — re-run it, or mark it failed so the employer stops waiting. &ldquo;No
+            matches&rdquo; means the run finished with nobody above the bar: tune the must-haves,
+            then re-run.
           </p>
         </section>
       )}
 
-      <div className="mt-7 overflow-hidden rounded-2xl border border-line bg-white">
+      <div className="mt-7 flex flex-wrap gap-2">
+        <Link
+          href="/admin/slates"
+          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+            !filter ? "bg-brand text-white" : "bg-white text-ink-soft ring-1 ring-inset ring-line hover:bg-paper"
+          }`}
+        >
+          All
+        </Link>
+        {SLATE_STATUSES.map((s) => (
+          <Link
+            key={s}
+            href={`/admin/slates?status=${s}`}
+            className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors ${
+              filter === s ? "bg-brand text-white" : "bg-white text-ink-soft ring-1 ring-inset ring-line hover:bg-paper"
+            }`}
+          >
+            {s}
+          </Link>
+        ))}
+      </div>
+
+      <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-white">
         {slates.length === 0 ? (
           <div className="px-6 py-14 text-center">
             <ListChecks className="mx-auto h-8 w-8 text-ink-faint" strokeWidth={1.75} />
-            <h2 className="font-display mt-4 text-lg font-semibold text-ink">No slates yet</h2>
+            <h2 className="font-display mt-4 text-lg font-semibold text-ink">
+              {filter ? `No ${filter} slates` : "No slates yet"}
+            </h2>
             <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-ink-soft">
-              Slates appear once a job description finishes matching.
+              {filter
+                ? "Nothing with that status right now."
+                : "Slates appear once a job description finishes matching."}
             </p>
           </div>
         ) : (
