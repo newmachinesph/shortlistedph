@@ -9,6 +9,9 @@ import { db } from "./db";
 /** "off" suppresses all non-auth email; missing or anything else means on. */
 export const OUTREACH_EMAILS_KEY = "outreach_emails";
 
+/** "on" serves the public site as a maintenance page; missing or anything else means off. */
+export const MAINTENANCE_MODE_KEY = "maintenance_mode";
+
 export async function getSetting(key: string): Promise<string | null> {
   const row = await db.appSetting.findUnique({ where: { key } });
   return row?.value ?? null;
@@ -24,4 +27,8 @@ export async function setSetting(key: string, value: string): Promise<void> {
 
 export async function outreachEmailsEnabled(): Promise<boolean> {
   return (await getSetting(OUTREACH_EMAILS_KEY)) !== "off";
+}
+
+export async function maintenanceModeEnabled(): Promise<boolean> {
+  return (await getSetting(MAINTENANCE_MODE_KEY)) === "on";
 }

@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
-import { OUTREACH_EMAILS_KEY, getSetting, setSetting } from "@/lib/settings";
+import { MAINTENANCE_MODE_KEY, OUTREACH_EMAILS_KEY, getSetting, setSetting } from "@/lib/settings";
 import { requireAdmin } from "@/lib/session";
 
 const Body = z.object({
-  key: z.enum([OUTREACH_EMAILS_KEY]),
+  key: z.enum([OUTREACH_EMAILS_KEY, MAINTENANCE_MODE_KEY]),
   value: z.enum(["on", "off"]),
 });
 
