@@ -1,8 +1,20 @@
 import Link from "next/link";
+import { getSessionUser } from "@/lib/session";
 import { Logo } from "./logo";
 import { PublicNav } from "./public-nav";
 
-export { PublicNav as PublicHeader };
+/**
+ * Session-aware public header: signed-in visitors get their avatar and a
+ * dashboard/sign-out menu instead of a "Sign in" link.
+ */
+export async function PublicHeader() {
+  const user = await getSessionUser();
+  return (
+    <PublicNav
+      user={user ? { name: user.name, image: user.image, role: user.role } : null}
+    />
+  );
+}
 
 /**
  * Standard frame for a public page. Owns the `<main>` landmark so screen
@@ -11,7 +23,7 @@ export { PublicNav as PublicHeader };
 export function PublicPage({ children }: { children: React.ReactNode }) {
   return (
     <div className="bg-paper">
-      <PublicNav />
+      <PublicHeader />
       <main>{children}</main>
       <PublicFooter />
     </div>
