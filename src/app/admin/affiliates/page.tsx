@@ -23,7 +23,7 @@ function date(d: Date) {
 }
 
 async function load() {
-  const [referrals, pendingPayouts] = await Promise.all([
+  const [referrals, pendingPayoutsRaw] = await Promise.all([
     db.referral.findMany({
       include: {
         user: { select: { name: true, email: true } },
@@ -44,6 +44,8 @@ async function load() {
       include: { user: { select: { name: true, email: true } } },
     }),
   ]);
+
+  const pendingPayouts = pendingPayoutsRaw.map((p) => ({ ...p, amount: Number(p.amount) }));
 
   const signals = await getSelfReferralSignals();
 
@@ -92,7 +94,7 @@ async function load() {
       const byCurrency = new Map<string, number>();
       for (const c of qualified) {
         const key = c.currency ?? "PHP";
-        byCurrency.set(key, (byCurrency.get(key) ?? 0) + (c.rewardAmount ?? 0));
+        byCurrency.set(key, (byCurrency.get(key) ?? 0) + Number(c.rewardAmount ?? 0));
       }
       return {
         id: r.id,
@@ -259,7 +261,7 @@ export default async function AdminAffiliates() {
                 </div>
                 <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
                   <span className="text-sm text-ink">
-                    {c.rewardAmount ? money(c.rewardAmount, c.currency ?? REFERRAL_REWARD.currency) : "—"}
+                    {c.rewardAmount ? money(Number(c.rewardAmount), c.currency ?? REFERRAL_REWARD.currency) : "—"}
                   </span>
                   <ReferralVoid conversionId={c.id} />
                 </div>

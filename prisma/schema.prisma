@@ -57,6 +57,7 @@ model Session {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("session")
 }
 
@@ -77,6 +78,7 @@ model Account {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("account")
 }
 
@@ -231,6 +233,7 @@ model JobDescription {
   snapshots ProfileSnapshot[]
 
   @@index([employerId, status])
+  @@index([status]) // stuck-JD recovery + admin counts filter by status alone
 }
 
 // ─── Slates (the product) ────────────────────────────────────────────────
@@ -260,6 +263,7 @@ model Slate {
   entries SlateEntry[]
 
   @@index([jdId])
+  @@index([status]) // admin dashboard counts filter by status alone
 }
 
 model SlateEntry {
@@ -292,6 +296,8 @@ model Connection {
   slateEntry SlateEntry @relation(fields: [slateEntryId], references: [id], onDelete: Cascade)
   agreement  Agreement?
   messages   Message[]
+
+  @@index([state])
 }
 
 model Agreement {
@@ -368,13 +374,17 @@ model Payment {
   userId      String
   provider    String // paypal | paymongo
   providerRef String   @unique
-  amount      Float
+  // Decimal, never Float: this column is summed in SQL for revenue reporting,
+  // and IEEE doubles accumulate cent errors under aggregation.
+  amount      Decimal  @db.Decimal(10, 2)
   currency    String
   purpose     String // slate_unlock | three_pack | hiring_desk | id_verification
   status      String   @default("pending")
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // No identity documents are ever stored — only an opaque provider reference
@@ -404,6 +414,8 @@ model Report {
   against User @relation("ReportTarget", fields: [againstId], references: [id], onDelete: Cascade)
 
   @@index([status])
+  @@index([filedById])
+  @@index([againstId])
 }
 
 model Notification {
@@ -475,7 +487,7 @@ model ReferralConversion {
   userId       String    @unique
   source       String?
   status       String    @default("signed_up") // signed_up | qualified | void
-  rewardAmount Float?
+  rewardAmount Decimal?  @db.Decimal(10, 2)
   currency     String?
   paymentId    String?
   qualifiedAt  DateTime?
@@ -497,7 +509,7 @@ model ReferralConversion {
 model ReferralPayout {
   id        String    @id @default(cuid())
   userId    String
-  amount    Float
+  amount    Decimal   @db.Decimal(10, 2)
   currency  String    @default("PHP")
   method    String // gcash | bank
   reference String?
@@ -571,8 +583,8 @@ model Interview {
   //           ↘ declined (candidate said no; never charged)   ↘ cancelled
   // Both amounts locked at request time so a later rate change can't move a
   // price the employer already saw.
-  priceUsd             Float
-  interviewerPayoutUsd Float
+  priceUsd             Decimal @db.Decimal(10, 2)
+  interviewerPayoutUsd Decimal @db.Decimal(10, 2)
   // Set by the employer at request time — the interviewer sees these before
   // and during the call. Optional: a request is valid with neither.
   suggestedQuestions String[]
@@ -585,7 +597,9 @@ model Interview {
 
   slateEntry  SlateEntry           @relation(fields: [slateEntryId], references: [id], onDelete: Cascade)
   employer    EmployerAccount      @relation(fields: [employerId], references: [id], onDelete: Cascade)
-  interviewer Interviewer          @relation(fields: [interviewerId], references: [id])
+  // Restrict, not Cascade: historical interviews must survive an interviewer
+  // ever being deleted — delete paths must handle this explicitly.
+  interviewer Interviewer          @relation(fields: [interviewerId], references: [id], onDelete: Restrict)
   talent      User                 @relation("InterviewTalent", fields: [talentUserId], references: [id], onDelete: Cascade)
   assessment  InterviewAssessment?
   payout      InterviewerPayout?   @relation(fields: [payoutId], references: [id], onDelete: SetNull)
@@ -618,7 +632,7 @@ model InterviewAssessment {
 model InterviewerPayout {
   id            String    @id @default(cuid())
   interviewerId String
-  amount        Float
+  amount        Decimal   @db.Decimal(10, 2)
   currency      String    @default("USD")
   method        String // gcash | bank
   reference     String?

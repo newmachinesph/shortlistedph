@@ -18,7 +18,7 @@ function isStatus(value: string | undefined): value is InterviewStatus {
 }
 
 async function load(filter?: InterviewStatus) {
-  const [interviews, pendingPayouts, uncovered] = await Promise.all([
+  const [interviewsRaw, pendingPayoutsRaw, uncoveredRaw] = await Promise.all([
     db.interview.findMany({
       where: filter ? { status: filter } : {},
       orderBy: { createdAt: "desc" },
@@ -54,6 +54,14 @@ async function load(filter?: InterviewStatus) {
       },
     }),
   ]);
+
+  const interviews = interviewsRaw.map((iv) => ({
+    ...iv,
+    priceUsd: Number(iv.priceUsd),
+    interviewerPayoutUsd: Number(iv.interviewerPayoutUsd),
+  }));
+  const pendingPayouts = pendingPayoutsRaw.map((p) => ({ ...p, amount: Number(p.amount) }));
+  const uncovered = uncoveredRaw.map((i) => ({ ...i, interviewerPayoutUsd: Number(i.interviewerPayoutUsd) }));
 
   // Group the owed interviews per interviewer so each gets one "create payout" row.
   const owedMap = new Map<string, { name: string; count: number; total: number }>();

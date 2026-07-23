@@ -275,7 +275,7 @@ export async function getOwed(referralId: string): Promise<OwedBalance[]> {
   return rows
     .map((r) => ({
       currency: r.currency ?? REFERRAL_REWARD.currency,
-      amount: round2(r._sum.rewardAmount ?? 0),
+      amount: round2(Number(r._sum.rewardAmount ?? 0)),
     }))
     .filter((r) => r.amount > 0)
     .sort((a, b) => a.currency.localeCompare(b.currency));
@@ -343,7 +343,7 @@ export async function requestPayout(userId: string) {
       throw new HttpError(409, "Your balance spans several currencies — contact support to settle it");
     }
     const currency = [...currencies][0];
-    const amount = round2(owed.reduce((sum, c) => sum + (c.rewardAmount ?? 0), 0));
+    const amount = round2(owed.reduce((sum, c) => sum + Number(c.rewardAmount ?? 0), 0));
 
     const payout = await tx.referralPayout.create({
       data: { userId, amount, currency, method: referral.payoutMethod as string },
@@ -393,7 +393,9 @@ const EMPTY_STATS = {
     currency: string | null;
     createdAt: Date;
   }[],
-  payouts: [] as Awaited<ReturnType<typeof db.referralPayout.findMany>>,
+  payouts: [] as (Awaited<ReturnType<typeof db.referralPayout.findMany>>[number] & {
+    amount: number;
+  })[],
 };
 
 export async function getAffiliateStats(userId: string) {
@@ -401,7 +403,7 @@ export async function getAffiliateStats(userId: string) {
   if (!referral) return EMPTY_STATS;
 
   const live = { referralId: referral.id, NOT: { status: "void" } };
-  const [clicks, companies, otherSignups, byCurrency, activity, payouts, owed] = await Promise.all([
+  const [clicks, companies, otherSignups, byCurrency, activity, payoutsRaw, owed] = await Promise.all([
     db.referralClick.count({ where: { referralId: referral.id } }),
     // Only companies can ever earn, so the two are counted apart. A single
     // "signups" number next to zero earnings reads as broken tracking.
@@ -427,10 +429,12 @@ export async function getAffiliateStats(userId: string) {
     getOwed(referral.id),
   ]);
 
+  const payouts = payoutsRaw.map((p) => ({ ...p, amount: Number(p.amount) }));
+
   const earned: EarnedByCurrency = byCurrency
     .map((g) => ({
       currency: g.currency ?? REFERRAL_REWARD.payoutCurrency,
-      amount: g._sum.rewardAmount ?? 0,
+      amount: Number(g._sum.rewardAmount ?? 0),
     }))
     .filter((e) => e.amount > 0)
     .sort((a, b) => a.currency.localeCompare(b.currency));
@@ -439,7 +443,7 @@ export async function getAffiliateStats(userId: string) {
   // never summed across currencies — the grouping is the whole point.
   const paidBy = new Map<string, number>();
   for (const p of payouts.filter((p) => p.status === "paid")) {
-    paidBy.set(p.currency, (paidBy.get(p.currency) ?? 0) + p.amount);
+    paidBy.set(p.currency, (paidBy.get(p.currency) ?? 0) + Number(p.amount));
   }
   const paid: EarnedByCurrency = [...paidBy.entries()]
     .map(([currency, amount]) => ({ currency, amount: round2(amount) }))
@@ -470,7 +474,7 @@ export async function getAffiliateStats(userId: string) {
       isCompany: c.user.employer !== null,
       status: c.status,
       source: c.source,
-      reward: c.rewardAmount,
+      reward: c.rewardAmount !== null ? Number(c.rewardAmount) : null,
       currency: c.currency,
       createdAt: c.createdAt,
     })),
@@ -537,13 +541,25 @@ export async function getSelfReferralSignals(): Promise<Map<string, RiskFlag[]>>
   const userIds = [
     ...new Set(conversions.flatMap((c) => [c.user.id, c.referral.userId])),
   ];
+  // Clicks feed only the instant-signup flag, which fires when the last click
+  // landed within two minutes of the conversion — so anything outside the
+  // conversions' lead window is noise. The bound keeps bot/marketing click
+  // volume (which scales much faster than conversions) out of this query.
+  const convTimes = conversions.map((c) => c.createdAt.getTime());
+  const clickWindow = {
+    gte: new Date(Math.min(...convTimes) - 2 * MINUTE),
+    lte: new Date(Math.max(...convTimes)),
+  };
   const [sessions, clicks] = await Promise.all([
     db.session.findMany({
       where: { userId: { in: userIds }, NOT: { ipAddress: null } },
       select: { userId: true, ipAddress: true },
     }),
     db.referralClick.findMany({
-      where: { referralId: { in: [...new Set(conversions.map((c) => c.referralId))] } },
+      where: {
+        referralId: { in: [...new Set(conversions.map((c) => c.referralId))] },
+        createdAt: clickWindow,
+      },
       select: { referralId: true, ipHash: true, createdAt: true },
     }),
   ]);

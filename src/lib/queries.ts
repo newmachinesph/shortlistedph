@@ -132,6 +132,7 @@ export async function listEmployerConnections(employerId: string) {
   return db.connection.findMany({
     where: { slateEntry: { slate: { jd: { employerId } } } },
     orderBy: { createdAt: "desc" },
+    take: 200, // ponytail: hard cap, paginate if any account ever hits it
     include: {
       slateEntry: {
         select: {
@@ -155,6 +156,7 @@ export async function listTalentConnections(userId: string) {
   return db.connection.findMany({
     where: { slateEntry: { snapshot: { profile: { userId } } } },
     orderBy: { createdAt: "desc" },
+    take: 200, // ponytail: hard cap, paginate if any account ever hits it
     include: {
       slateEntry: {
         select: {

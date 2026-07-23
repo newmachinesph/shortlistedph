@@ -17,11 +17,15 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     if (jd.mustHaves.length === 0) throw new HttpError(422, "Add at least one must-have before publishing");
 
     const vector = await embed(jdEmbedText(jd));
-    await db.$executeRawUnsafe(
-      `UPDATE "JobDescription" SET embedding = $1::vector, status = 'matching', "publishedAt" = now() WHERE id = $2`,
+    // status = 'draft' in the WHERE is the lock: a concurrent double-publish
+    // loses this conditional UPDATE (0 rows) and 409s instead of building a
+    // second slate. Same status-as-lock pattern as rematchJd in lib/admin.ts.
+    const claimed = await db.$executeRawUnsafe(
+      `UPDATE "JobDescription" SET embedding = $1::vector, status = 'matching', "publishedAt" = now() WHERE id = $2 AND status = 'draft'`,
       toVectorLiteral(vector),
       jd.id,
     );
+    if (claimed === 0) throw new HttpError(409, "Already published");
 
     // Small pool for now — run inline. Move to a queue when this outgrows the request timeout.
     const result = await buildSlate(jd.id);

@@ -156,6 +156,10 @@ export async function renderOgImage({ eyebrow, title, subtitle }: OgInput) {
         <div style={{ display: "flex", height: 16, width: "100%", background: BRAND }} />
       </div>
     ),
-    { ...OG_SIZE, fonts },
+    // Omit fonts entirely when none loaded: passing an empty array makes
+    // Satori throw "No fonts are loaded" and kills the whole build, while
+    // omitting it falls back to the bundled default — the fallback the
+    // loadDisplayFont comment promises.
+    { ...OG_SIZE, ...(fonts && fonts.length > 0 ? { fonts } : {}) },
   );
 }
