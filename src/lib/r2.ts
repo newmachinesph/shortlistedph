@@ -1,5 +1,5 @@
 import "server-only";
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { requireEnv } from "./api";
 
@@ -31,6 +31,10 @@ export async function presignUpload(key: string, contentType: string, expiresIn 
 
 export async function presignDownload(key: string, expiresIn = 300) {
   return getSignedUrl(r2(), new GetObjectCommand({ Bucket: bucket(), Key: key }), { expiresIn });
+}
+
+export async function deleteObject(key: string): Promise<void> {
+  await r2().send(new DeleteObjectCommand({ Bucket: bucket(), Key: key }));
 }
 
 export async function getObjectBuffer(key: string): Promise<Buffer> {
