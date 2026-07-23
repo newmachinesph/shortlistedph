@@ -4,6 +4,9 @@ import type { NextConfig } from "next";
 // third-party script origins are needed. script-src keeps 'unsafe-inline'
 // because Next's runtime and the JSON-LD block are inline; a nonce-based CSP
 // is the upgrade path if we ever add third-party scripts.
+// React dev mode needs eval(); production never does.
+const isDev = process.env.NODE_ENV === "development";
+
 const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -14,11 +17,13 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
       "font-src 'self' data:",
-      "connect-src 'self'",
+      // R2: resume/recording uploads PUT directly to presigned bucket URLs
+      // from the browser — blocking this breaks onboarding.
+      "connect-src 'self' https://*.r2.cloudflarestorage.com",
       "frame-ancestors 'none'",
       "frame-src 'none'",
       "object-src 'none'",
