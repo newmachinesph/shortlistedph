@@ -168,7 +168,7 @@ export default async function AdminUsers({
                 i < users.length - 1 ? "border-b border-line" : ""
               }`}
             >
-              <Avatar name={u.employer?.companyName ?? u.name} size="md" />
+              <Avatar name={u.employer?.companyName ?? u.name} image={u.image} size="md" />
               <div className="min-w-0 flex-1 basis-48">
                 <p className="truncate text-sm font-medium text-ink">
                   {u.employer?.companyName ?? u.name}{" "}
