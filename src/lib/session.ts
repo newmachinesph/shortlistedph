@@ -9,6 +9,7 @@ export type SessionUser = {
   id: string;
   email: string;
   name: string;
+  image: string | null;
   role: Role;
   status: string;
 };
@@ -21,6 +22,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     id: u.id,
     email: u.email,
     name: u.name,
+    image: u.image ?? null,
     role: (u.role as Role) ?? "talent",
     status: u.status ?? "active",
   };
