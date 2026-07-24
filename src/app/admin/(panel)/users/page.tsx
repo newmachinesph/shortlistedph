@@ -45,6 +45,11 @@ function subtitle(u: Awaited<ReturnType<typeof listUsers>>["users"][number]): st
     if (u.talentProfile.rateUsd != null) bits.push(`$${u.talentProfile.rateUsd}/hr`);
     bits.push(u.talentProfile.publishedAt ? "published" : "unpublished");
     if (u.talentProfile.verifiedTier === "id_verified") bits.push("ID verified");
+    // Leads the rest of the line: a resume that tried to instruct the extractor
+    // is the one thing here an admin should act on. See lib/resume-guard.ts.
+    if (u.talentProfile.flags.length > 0) {
+      return [`⚠ ${u.talentProfile.flags.join(", ")}`, ...bits].join(" · ");
+    }
     return bits.join(" · ");
   }
   return "No profile yet";
