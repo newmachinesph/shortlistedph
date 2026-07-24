@@ -96,3 +96,35 @@ javascript, python, mysql, quickbooks, hubspot, wordpress, zoom, git.
 Note: `scripts/tool-frequency.ts` undercounts coverage — its "known" flag only catches
 aliases, not canonicals that map to themselves, so `salesforce`/`zendesk`/etc. show as
 unmapped when the table does know them. Fix the flag before trusting its coverage percentage.
+
+---
+
+# Follow-up: the coverage-denominator rework (the actual fix)
+
+Acting on the diagnosis above, changed the one lever that was the real ceiling:
+`scoreSkills` divided coverage by `required.length * CONFIRMED_SKILL_WEIGHT` (2), capping a
+fully-claimed match at coverage 0.5 → skills ~50. Introduced `SKILL_COVERAGE_DENOM = 1.5` as
+the denominator instead. A fully-claimed match now reaches ~63; a fully-confirmed one still
+caps at 100. Confirmation is the bonus, not the entry price.
+
+Measured against the same five jobs on the same 785-profile prod pool:
+
+| Job | Baseline qualify / strong · maxSkills | After · maxSkills |
+|---|---|---|
+| Medical VA (dental) | 1 / 1 · 43 | **6 / 5 · 53** |
+| Senior React | 5 / — · 52 | **23 / 18 · 65** |
+| Bookkeeper | 3 / 2 · 52 | **13 / 11 · 64** |
+| Amazon PPC | 0 · 31 | **0 · 37** |
+| Customer support | 1 / 1 · 50 | **8 / 4 · 62** |
+
+Four of five jobs now fill a slate of 5, where four of five previously could not. Amazon PPC
+still returns nothing — its maxSkills (37) stays under the `QUALIFY_SKILLS` 40 gate, so the
+niche-not-in-pool precision (spec §9) is preserved. This was not a blanket loosening of the
+bar; it was correcting a denominator that punished the whole migrated pool for predating the
+confirmation loop.
+
+**Not yet done, and deliberately:** `QUALIFY_SCORE`/`MIN_SLATE_SCORE` were tuned against the
+old coverage math and have not been re-tuned to the new distribution. The slates fill sensibly
+at the current thresholds, but a proper calibration pass (spec §8) against these outputs is the
+next step before this ships. The change is committed on the branch, not merged — the eval
+evidence is the review artifact.
