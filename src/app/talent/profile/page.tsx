@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { BadgeCheck, Camera, Check, Globe, Lock } from "lucide-react";
 import { getTalentProfile, requirePageUser, talentOrOnboard } from "@/lib/queries";
-import { Avatar } from "@/components/avatar";
+import { AvatarUpload } from "@/components/avatar-upload";
 import { availabilityLabel, freshnessNote, isStale } from "@/lib/availability";
 import { AvailabilitySection } from "./availability-section";
 import { VerifyIdentity } from "./verify-identity";
@@ -59,7 +59,7 @@ export default async function TalentProfilePage() {
 
       <div className="mt-6 rounded-2xl border border-line bg-white p-5 sm:p-7">
         <div className="flex flex-wrap items-start gap-5">
-          <Avatar name={profile.user.name} size="lg" />
+          <AvatarUpload name={profile.user.name} image={user.image} />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-display text-xl font-semibold text-ink">{profile.user.name}</h2>
