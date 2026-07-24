@@ -4,6 +4,10 @@ import { LogoMark } from "@/components/logo";
 import { AvatarCluster } from "@/components/avatar-cluster";
 import { PublicPage } from "@/components/public-chrome";
 import { JsonLd } from "@/components/json-ld";
+import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Section, SectionHeader } from "@/components/ui/section";
+import { StatStrip } from "@/components/ui/stat";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 import { getPublicStats } from "@/lib/stats";
 import { getShowcaseAvatars } from "@/lib/talent-showcase";
@@ -85,32 +89,25 @@ export default async function Home() {
       <JsonLd data={orgSchema} />
       <PublicPage>
 
-      <section className="mx-auto w-full max-w-6xl px-5 pt-16 pb-20 sm:px-8 sm:pt-24">
+      {/* Hero — Marquee. The one promise, at display scale. */}
+      <section className="mx-auto w-full max-w-6xl px-5 pt-16 pb-[var(--space-section)] sm:px-8 sm:pt-24">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-ember">
           Shortlists, not job ads · Philippine remote talent
         </p>
-        <h1 className="font-display mt-5 max-w-3xl text-[clamp(2.25rem,9vw,4.5rem)] font-semibold leading-[1.05] tracking-tight text-ink">
-          Don&rsquo;t post a job ad.
-          <br />
-          Get a <span className="text-brand">shortlist</span>.
+        <h1 className="font-display mt-5 max-w-4xl font-semibold leading-[1.02] tracking-tight text-ink [font-size:var(--text-display)] [overflow-wrap:anywhere]">
+          Don&rsquo;t post a job ad. Get a <span className="text-brand">shortlist</span>.
         </h1>
         <p className="mt-6 max-w-xl text-lg leading-relaxed text-ink-soft">
-          Tell us who you need. Our matching engine ranks Filipino remote
-          professionals against your job description and hands you the top candidates. No job ads, no application spam.
+          Tell us who you need. Our matching engine ranks Filipino remote professionals against
+          your job description and hands you the top candidates. No job ads, no application spam.
         </p>
         <div className="mt-9 flex flex-wrap items-center gap-4">
-          <Link
-            href="/start"
-            className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-all hover:bg-brand-dark hover:shadow-brand/30"
-          >
+          <ButtonLink href="/start" variant="solid">
             Write your job description <ArrowRight className="h-4 w-4" />
-          </Link>
-          <Link
-            href="/onboarding"
-            className="inline-flex items-center gap-2 rounded-2xl px-6 py-3.5 text-sm font-semibold text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft"
-          >
+          </ButtonLink>
+          <ButtonLink href="/onboarding" variant="outline">
             I&rsquo;m talent: upload my resume
-          </Link>
+          </ButtonLink>
         </div>
         <div className="mt-10">
           <AvatarCluster
@@ -123,28 +120,25 @@ export default async function Home() {
           />
         </div>
         {stats && (
-          <dl className="mt-16 flex flex-wrap gap-x-12 gap-y-6 border-t border-line pt-8">
-            {[
-              [stats.profiles.toLocaleString("en-PH"), "profiles in the talent pool"],
-              [`${stats.avgYears} yrs`, "average experience"],
-              [`$${stats.medianRateUsd}`, "median hourly rate"],
-              ["₱0", "for talent to join and get hired"],
-            ].map(([v, l]) => (
-              <div key={l}>
-                <dt className="sr-only">{l}</dt>
-                <dd className="font-display text-3xl font-semibold text-ink">{v}</dd>
-                <dd className="mt-1 text-sm text-ink-faint">{l}</dd>
-              </div>
-            ))}
-          </dl>
+          <div className="mt-14">
+            <StatStrip
+              items={[
+                { value: stats.profiles.toLocaleString("en-PH"), label: "profiles in the talent pool" },
+                { value: `${stats.avgYears} yrs`, label: "average experience" },
+                { value: `$${stats.medianRateUsd}`, label: "median hourly rate" },
+                { value: "₱0", label: "for talent to join and get hired" },
+              ]}
+            />
+          </div>
         )}
       </section>
 
-      <section id="employers" className="w-full scroll-mt-16 border-y border-line bg-white">
-        <div className="mx-auto grid max-w-6xl gap-14 px-5 py-20 sm:px-8 lg:grid-cols-2">
+      {/* Two audiences, one engine — the split that carries the whole product. */}
+      <Section id="employers" tone="white">
+        <div className="grid gap-14 lg:grid-cols-2">
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand">For employers</p>
-            <h2 className="font-display mt-3 text-3xl font-semibold tracking-tight text-ink">
+            <h2 className="font-display mt-3 font-semibold tracking-tight text-ink [font-size:var(--text-h2)]">
               Stop reading 400 applications.
             </h2>
             <ol className="mt-8 space-y-6">
@@ -171,9 +165,9 @@ export default async function Home() {
               More for employers <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
-          <div id="talent" className="scroll-mt-28">
+          <div id="talent" className="scroll-mt-28 lg:border-l lg:border-line lg:pl-14">
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-ember">For talent</p>
-            <h2 className="font-display mt-3 text-3xl font-semibold tracking-tight text-ink">
+            <h2 className="font-display mt-3 font-semibold tracking-tight text-ink [font-size:var(--text-h2)]">
               Never write another application.
             </h2>
             <ol className="mt-8 space-y-6">
@@ -201,23 +195,22 @@ export default async function Home() {
             </Link>
           </div>
         </div>
-      </section>
+      </Section>
 
-      <section id="trust" className="mx-auto w-full max-w-6xl scroll-mt-16 px-5 py-20 sm:px-8">
-        <h2 className="font-display max-w-2xl text-3xl font-semibold tracking-tight text-ink">
-          Built so resumes can&rsquo;t be gamed.
-        </h2>
-        <p className="mt-3 max-w-xl text-ink-soft">
-          Job boards reward whoever rewrites their resume best. We removed the
-          rewrite button.
-        </p>
+      {/* Anti-gaming — the defensible claim, as a card grid. */}
+      <Section id="trust" tone="paper">
+        <SectionHeader
+          eyebrow="Why the ranking is trustworthy"
+          title={<>Built so resumes can&rsquo;t be gamed.</>}
+          lede="Job boards reward whoever rewrites their resume best. We removed the rewrite button."
+        />
         <div className="mt-10 grid gap-5 sm:grid-cols-2">
           {antiGaming.map((f) => (
-            <div key={f.title} className="rounded-2xl border border-line bg-white p-6">
+            <Card key={f.title} className="p-6">
               <f.icon className="h-5 w-5 text-brand" strokeWidth={1.75} />
               <h3 className="mt-4 font-medium text-ink">{f.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-ink-soft">{f.body}</p>
-            </div>
+            </Card>
           ))}
         </div>
         <Link
@@ -226,30 +219,31 @@ export default async function Home() {
         >
           How the matching actually works <ArrowRight className="h-4 w-4" />
         </Link>
-      </section>
+      </Section>
 
-      <section className="mx-auto w-full max-w-6xl px-5 pb-24 sm:px-8">
-        <div className="rounded-3xl bg-brand px-6 py-12 text-center sm:px-14 sm:py-14">
-          <LogoMark className="mx-auto h-12 w-auto brightness-0 invert" />
-          <h2 className="font-display mx-auto mt-6 max-w-2xl text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-            Your next hire is already on the list.
-          </h2>
-          <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <Link
-              href="/start"
-              className="rounded-2xl bg-white px-6 py-3.5 text-sm font-semibold text-brand transition-colors hover:bg-brand-soft"
-            >
-              Get your shortlist
-            </Link>
-            <Link
-              href="/onboarding"
-              className="rounded-2xl px-6 py-3.5 text-sm font-semibold text-white ring-1 ring-inset ring-white/40 transition-colors hover:bg-white/10"
-            >
-              Join as talent, free
-            </Link>
-          </div>
+      {/* Close — the dark brand band. */}
+      <Section tone="band" className="text-center">
+        <LogoMark className="mx-auto h-12 w-auto brightness-0 invert" />
+        <h2 className="font-display mx-auto mt-6 max-w-2xl font-semibold tracking-tight text-white [font-size:var(--text-h1)]">
+          Your next hire is already on the list.
+        </h2>
+        <div className="mt-8 flex flex-wrap justify-center gap-4">
+          <ButtonLink
+            href="/start"
+            variant="solid"
+            className="!bg-white !text-brand !shadow-none hover:!bg-brand-soft"
+          >
+            Get your shortlist
+          </ButtonLink>
+          <ButtonLink
+            href="/onboarding"
+            variant="outline"
+            className="!text-white !ring-white/40 hover:!bg-white/10"
+          >
+            Join as talent, free
+          </ButtonLink>
         </div>
-      </section>
+      </Section>
 
       </PublicPage>
     </>
