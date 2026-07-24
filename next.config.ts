@@ -35,7 +35,27 @@ const securityHeaders = [
   },
 ];
 
+// Avatars live on the R2 public CDN (every User.image is on this one host —
+// verified against prod). Derive the host from R2_PUBLIC_URL so next/image can
+// optimize them; fall back to the known CDN host if the env isn't set at build.
+const r2Host = (() => {
+  try {
+    return new URL(process.env.R2_PUBLIC_URL ?? "").hostname || "cdn.shortlisted.ph";
+  } catch {
+    return "cdn.shortlisted.ph";
+  }
+})();
+
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      // Avatars: public R2 CDN.
+      { protocol: "https", hostname: r2Host },
+      // Employer logos: rendered through the same Avatar component but served
+      // via short-lived presigned URLs on the R2 storage host.
+      { protocol: "https", hostname: "**.r2.cloudflarestorage.com" },
+    ],
+  },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },

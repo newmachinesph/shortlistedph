@@ -41,11 +41,13 @@ export function AvatarUpload({ name, image }: { name: string; image: string | nu
         headers: { "Content-Type": file.type },
       });
       if (!put.ok) throw new Error("Upload failed. Check your connection and try again");
-      await api("/api/account/avatar", {
+      // Use the CDN URL the server returns (not a blob: URL) so next/image in
+      // Avatar can render the preview instead of falling back to initials.
+      const { image: newUrl } = await api<{ image: string }>("/api/account/avatar", {
         method: "PATCH",
         body: JSON.stringify({ imageKey: key }),
       });
-      setPreview(URL.createObjectURL(cropped));
+      setPreview(newUrl);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
