@@ -3,6 +3,7 @@ import { Building2 } from "lucide-react";
 import { NOINDEX } from "@/lib/site";
 import { employerOrOnboard, requirePageUser } from "@/lib/queries";
 import { presignDownload } from "@/lib/r2";
+import { AvatarUpload } from "@/components/avatar-upload";
 import { ProfileForm } from "./profile-form";
 
 export const metadata: Metadata = { title: "Company profile", ...NOINDEX };
@@ -26,6 +27,16 @@ export default async function EmployerProfilePage() {
       <p className="mt-1 text-sm text-ink-soft">
         No business verification required — your track record on shortlisted.ph is your reputation.
       </p>
+
+      <div className="mt-6 flex items-center gap-4 rounded-2xl border border-line bg-white p-5">
+        <AvatarUpload name={user.name} image={user.image} />
+        <div>
+          <p className="text-sm font-medium text-ink">Your photo</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-ink-faint">
+            Shows in your dashboard header. Separate from your company logo below.
+          </p>
+        </div>
+      </div>
 
       <ProfileForm
         employer={{
