@@ -5,6 +5,7 @@ import { db } from "./db";
 import { blendSimilarity, jdFacetTexts } from "./facets";
 import { MODELS, embedMany, openai, toVectorLiteral } from "./openai";
 import {
+  MIN_SLATE_SCORE,
   QUALIFY_SCORE,
   QUALIFY_SKILLS,
   composite,
@@ -264,7 +265,13 @@ export async function buildSlate(jdId: string) {
     return { slateId: null, scanned: 0, invited: 0 };
   }
 
-  const top = eligible.slice(0, SLATE_SIZE);
+  // Lead with strong matches (>= MIN_SLATE_SCORE), preserving rotation order
+  // within each tier; only backfill with merely-eligible (QUALIFY..MIN) when
+  // there aren't enough strong ones to fill the slate. Keeps slates full while
+  // never showing a borderline candidate ahead of an available strong one.
+  const strong = eligible.filter((e) => e.score >= MIN_SLATE_SCORE);
+  const rest = eligible.filter((e) => e.score < MIN_SLATE_SCORE);
+  const top = [...strong, ...rest].slice(0, SLATE_SIZE);
 
   // Nobody cleared the bar. Record that honestly instead of creating an empty
   // slate the employer could be charged to "unlock".
