@@ -2,6 +2,7 @@
  * Pure match scoring. No db, no network, no framework — so the evaluation
  * harness and tests can import the exact logic production ranks with.
  */
+import { canonicalizeTool } from "./tools/aliases.ts";
 
 export type Dims = { skills: number; rate: number; overlap: number; experience: number };
 
@@ -89,10 +90,13 @@ export function matchRequirements(
   context: { headline?: string | null; roles?: string[] } = {},
 ): RequirementMatch[] {
   // Confirmed always wins on a duplicate normalizedName, so scoring is
-  // deterministic regardless of DB row order if two rows share a name.
+  // deterministic regardless of DB row order if two rows share a name. Keyed by
+  // canonical tool, so "QBO" and "QuickBooks Online" land in the same bucket
+  // and an exact must-have match finally fires (see tools/aliases.ts).
   const owned = new Map<string, boolean>();
   for (const s of candidateSkills) {
-    owned.set(s.normalizedName, (owned.get(s.normalizedName) ?? false) || s.confirmed);
+    const key = canonicalizeTool(s.normalizedName);
+    owned.set(key, (owned.get(key) ?? false) || s.confirmed);
   }
   const corpus = new Set<string>();
   for (const s of candidateSkills) for (const t of contentTokens(s.normalizedName)) corpus.add(t);
@@ -100,7 +104,7 @@ export function matchRequirements(
   for (const role of context.roles ?? []) for (const t of contentTokens(role)) corpus.add(t);
 
   return required.map((requirement) => {
-    const exact = owned.get(normalizeSkill(requirement));
+    const exact = owned.get(canonicalizeTool(normalizeSkill(requirement)));
     if (exact !== undefined) {
       return exact
         ? { requirement, kind: "confirmed" as const, weight: CONFIRMED_SKILL_WEIGHT }
