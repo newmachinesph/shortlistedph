@@ -24,7 +24,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <AdminNav />
       <div className="pt-14 lg:pt-0 lg:pl-56">
         <div className="mx-auto flex max-w-5xl justify-end px-4 pt-3 sm:px-8 lg:pt-5">
-          <AccountMenu name={admin.name} email={admin.email} />
+          <AccountMenu name={admin.name} email={admin.email} image={admin.image} />
         </div>
         <main className="mx-auto max-w-5xl px-4 pb-8 sm:px-8">{children}</main>
       </div>

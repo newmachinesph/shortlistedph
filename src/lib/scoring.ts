@@ -5,6 +5,9 @@
 
 export type Dims = { skills: number; rate: number; overlap: number; experience: number };
 
+/** Keep every dimension in the 0–100 range the UI and thresholds assume. */
+const clamp100 = (n: number): number => Math.max(0, Math.min(100, n));
+
 /**
  * Every dimension shown in the UI actually counts. The previous platform
  * computed four dimensions and multiplied two of them by zero.
@@ -70,9 +73,14 @@ export function scoreSkills(
   similarity: number,
   context: { headline?: string | null; roles?: string[] } = {},
 ): number {
-  if (required.length === 0) return Math.round(similarity * 100);
+  if (required.length === 0) return clamp100(Math.round(similarity * 100));
 
-  const owned = new Map(candidateSkills.map((s) => [s.normalizedName, s.confirmed]));
+  // Confirmed always wins on a duplicate normalizedName, so scoring is
+  // deterministic regardless of DB row order if two rows share a name.
+  const owned = new Map<string, boolean>();
+  for (const s of candidateSkills) {
+    owned.set(s.normalizedName, (owned.get(s.normalizedName) ?? false) || s.confirmed);
+  }
   const corpus = new Set<string>();
   for (const s of candidateSkills) for (const t of contentTokens(s.normalizedName)) corpus.add(t);
   for (const t of contentTokens(context.headline ?? "")) corpus.add(t);
@@ -99,7 +107,7 @@ export function scoreSkills(
 
   // Embedding similarity still contributes — it catches synonyms that share no
   // tokens at all ("QBO" vs "QuickBooks Online").
-  return Math.round(Math.min(1, coverage * 0.75 + similarity * 0.25) * 100);
+  return clamp100(Math.round(Math.min(1, coverage * 0.75 + similarity * 0.25) * 100));
 }
 
 export function scoreRate(rate: number | null, min: number | null, max: number | null): number {
@@ -141,22 +149,29 @@ export function scoreExperience(years: number, confirmedEngagements: number): nu
 }
 
 /**
- * Below this, a candidate is padding rather than a match.
+ * The "strong match" bar — a candidate below this is padding rather than a
+ * genuine match.
  *
  * Returning five names regardless of quality is how job boards waste an
  * employer's time. Against the real pool an Amazon PPC brief surfaced a
  * recruiter and a postal-services generalist at ~59 — one look at that and an
  * employer stops trusting every future slate. A short honest slate, or none at
  * all, is worth more than a padded one.
+ *
+ * ponytail: currently NOT wired into ranking — rankQualifiedForJd gates on
+ * QUALIFY_SCORE/QUALIFY_SKILLS and tiebreaks on raw score. Kept as the intended
+ * strong-match threshold; wire it into slate composition only as a deliberate
+ * product/matching-tuning decision (see scripts/eval-matching.ts).
  */
 export const MIN_SLATE_SCORE = 62;
 
 /**
  * The eligibility bar for rotation, set below the strong-match cutoff.
  *
- * Two thresholds, two jobs. MIN_SLATE_SCORE (62) still marks a *strong* match
- * and is the score tiebreaker. QUALIFY (52) marks *eligible*: good enough to
- * put in front of an employer, even if not the single best on paper. Everyone
+ * Two thresholds, two jobs. MIN_SLATE_SCORE (62) marks a *strong* match (not
+ * currently wired — see its note). QUALIFY (52) is the active bar and marks
+ * *eligible*: good enough to put in front of an employer, even if not the
+ * single best on paper. Everyone
  * at or above QUALIFY enters the rotation so the same top profiles don't fill
  * every slate — but nobody below it does, so fairness never ships a bad fit.
  *
@@ -195,5 +210,5 @@ export function composite(d: Dims, isVerified = false): number {
     d.experience * WEIGHTS.experience +
     d.rate * WEIGHTS.rate +
     d.overlap * WEIGHTS.overlap;
-  return Math.min(100, Math.round(base + (isVerified ? VERIFIED_BONUS : 0)));
+  return clamp100(Math.round(base + (isVerified ? VERIFIED_BONUS : 0)));
 }

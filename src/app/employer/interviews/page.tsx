@@ -61,6 +61,9 @@ export default async function InterviewsPage({
   const interviews = await db.interview.findMany({
     where: { employerId: employer.id },
     orderBy: { createdAt: "desc" },
+    // ponytail: bound the list like every other list in the app — a long-lived
+    // high-volume employer shouldn't load their whole interview history.
+    take: 200,
     include: {
       interviewer: { select: { user: { select: { name: true } } } },
       talent: { select: { name: true } },
@@ -68,19 +71,23 @@ export default async function InterviewsPage({
     },
   });
 
-  // Sign the recording links for finished interviews up front. A short-lived
-  // presigned URL minted at render is fine for a click that follows the load;
-  // ponytail: 1h ceiling — route through an endpoint if reports get bookmarked.
-  const recordingUrls = new Map<string, string>();
-  for (const iv of interviews) {
-    if (iv.status === "reported" && iv.recordingKey) {
-      try {
-        recordingUrls.set(iv.id, await presignDownload(iv.recordingKey, 3600));
-      } catch (e) {
-        console.error("[interviews] could not sign recording", e);
-      }
-    }
-  }
+  // Sign the recording links for finished interviews up front, in parallel —
+  // independent R2 reads, so no reason to await them one at a time. A
+  // short-lived presigned URL minted at render is fine for a click that follows
+  // the load; ponytail: 1h ceiling — route through an endpoint if bookmarked.
+  const signed = await Promise.all(
+    interviews
+      .filter((iv) => iv.status === "reported" && iv.recordingKey)
+      .map(async (iv) => {
+        try {
+          return [iv.id, await presignDownload(iv.recordingKey!, 3600)] as const;
+        } catch (e) {
+          console.error("[interviews] could not sign recording", e);
+          return null;
+        }
+      }),
+  );
+  const recordingUrls = new Map(signed.filter((x): x is [string, string] => x !== null));
 
   return (
     <>

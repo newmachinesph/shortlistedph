@@ -422,6 +422,7 @@ export function OnboardingWizard({ hasResume, gaps, profile, skills, engagements
                 value={skillDraft}
                 onChange={setSkillDraft}
                 placeholder="Add a skill"
+                onEnter={addSkill}
               />
               <button
                 type="button"
@@ -475,6 +476,7 @@ export function OnboardingWizard({ hasResume, gaps, profile, skills, engagements
                   value={jobDraft.role}
                   onChange={(v) => setJobDraft({ ...jobDraft, role: v })}
                   placeholder="Medical billing specialist"
+                  onEnter={addJob}
                 />
               </Field>
               <Field label="Company" htmlFor="job-company">
@@ -483,6 +485,7 @@ export function OnboardingWizard({ hasResume, gaps, profile, skills, engagements
                   value={jobDraft.company}
                   onChange={(v) => setJobDraft({ ...jobDraft, company: v })}
                   placeholder="Bright Smiles Dental"
+                  onEnter={addJob}
                 />
               </Field>
               <Field label="Span" htmlFor="job-span">
@@ -491,6 +494,7 @@ export function OnboardingWizard({ hasResume, gaps, profile, skills, engagements
                   value={jobDraft.span}
                   onChange={(v) => setJobDraft({ ...jobDraft, span: v })}
                   placeholder="2022 - 2025"
+                  onEnter={addJob}
                 />
               </Field>
               <button

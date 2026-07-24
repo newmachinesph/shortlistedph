@@ -32,6 +32,7 @@ export default async function TalentLayout({ children }: { children: React.React
       persona={{
         name: user.name,
         sub: profile.headline ?? user.email,
+        image: user.image,
       }}
     >
       {children}

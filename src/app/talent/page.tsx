@@ -1,22 +1,25 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowRight, BadgeCheck, Camera, EyeOff } from "lucide-react";
 import { db } from "@/lib/db";
-import { getTalentProfile, requirePageUser, talentOrOnboard } from "@/lib/queries";
+import { getTalentProfile, requirePageUser } from "@/lib/queries";
 import { initials } from "@/lib/format";
 
 export default async function TalentDashboard() {
   const user = await requirePageUser("talent");
-  const base = await talentOrOnboard(user.id);
+  // getTalentProfile already loads the full profile (with id) — no need for a
+  // second talentOrOnboard() query just to redirect-or-get. Redirect here to
+  // preserve the onboarding gate.
   const profile = await getTalentProfile(user.id);
-  if (!profile) return null;
+  if (!profile) redirect("/onboarding");
 
   const [timesShortlisted, pendingRequests, connectedCount] = await Promise.all([
-    db.slateEntry.count({ where: { snapshot: { profileId: base.id } } }),
+    db.slateEntry.count({ where: { snapshot: { profileId: profile.id } } }),
     db.connection.count({
-      where: { state: "requested", slateEntry: { snapshot: { profileId: base.id } } },
+      where: { state: "requested", slateEntry: { snapshot: { profileId: profile.id } } },
     }),
     db.connection.count({
-      where: { state: "consented", slateEntry: { snapshot: { profileId: base.id } } },
+      where: { state: "consented", slateEntry: { snapshot: { profileId: profile.id } } },
     }),
   ]);
 

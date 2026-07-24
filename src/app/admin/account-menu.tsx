@@ -8,7 +8,15 @@ import { Avatar } from "@/components/avatar";
 import { signOut } from "@/lib/auth-client";
 
 /** Same account-menu pattern as the workspace shell, sized for the back office. */
-export function AccountMenu({ name, email }: { name: string; email: string }) {
+export function AccountMenu({
+  name,
+  email,
+  image = null,
+}: {
+  name: string;
+  email: string;
+  image?: string | null;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
@@ -21,7 +29,7 @@ export function AccountMenu({ name, email }: { name: string; email: string }) {
         aria-expanded={open}
         className="flex h-11 w-11 items-center justify-center rounded-xl transition-colors hover:bg-brand-soft"
       >
-        <Avatar name={name} size="sm" />
+        <Avatar name={name} image={image} size="sm" />
       </button>
       {open && (
         <>

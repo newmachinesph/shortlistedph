@@ -196,6 +196,12 @@ export async function respondToConsent(token: string, action: "accept" | "declin
   const [reasons = []] = await explain(jdShape, [{ c: profile, dims, score, skills: profile.skills }]);
 
   await db.$transaction(async (tx) => {
+    // Serialize concurrent accepts for THIS slate. Two candidates clicking
+    // accept within the same window would otherwise both read the same max
+    // rank and insert a colliding rank; the row lock makes rank assignment
+    // below atomic without a schema-level unique that could reject legacy data.
+    await tx.$executeRaw`SELECT id FROM "Slate" WHERE id = ${slate.id} FOR UPDATE`;
+
     const { count } = await tx.matchConsent.updateMany({
       where: { id: consent.id, status: "pending" },
       data: { status: "accepted", respondedAt: new Date() },

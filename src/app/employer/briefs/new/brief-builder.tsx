@@ -50,8 +50,18 @@ export function BriefBuilder({ initialDraft }: { initialDraft: InitialDraft | nu
     niceToHaves: [],
   });
   const [newMustHave, setNewMustHave] = useState("");
+  // The JD row created by a publish attempt. Kept so a failed publish can be
+  // retried against the SAME row instead of POSTing /api/jds again and leaving
+  // an orphan duplicate draft behind.
+  const [createdJdId, setCreatedJdId] = useState<string | null>(null);
 
   async function handleDraft() {
+    // Re-drafting replaces every structured field, so don't silently discard
+    // hand edits the employer made in the review step.
+    const hasEdits = draft.title.trim().length > 0 || draft.mustHaves.length > 0;
+    if (hasEdits && !window.confirm("Re-drafting with AI will replace your current edits. Continue?")) {
+      return;
+    }
     setError(null);
     setStage("drafting");
     try {
@@ -60,6 +70,7 @@ export function BriefBuilder({ initialDraft }: { initialDraft: InitialDraft | nu
         body: JSON.stringify({ text }),
       });
       setDraft(draft);
+      setCreatedJdId(null); // a fresh draft is a new JD — don't reuse an old row
       setStage("review");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not draft that");
@@ -71,14 +82,19 @@ export function BriefBuilder({ initialDraft }: { initialDraft: InitialDraft | nu
     setError(null);
     setStage("publishing");
     try {
-      const { jd } = await api<{ jd: { id: string } }>("/api/jds", {
+      let jdId = createdJdId;
+      if (!jdId) {
+        const { jd } = await api<{ jd: { id: string } }>("/api/jds", {
+          method: "POST",
+          body: JSON.stringify(draft),
+        });
+        jdId = jd.id;
+        setCreatedJdId(jdId);
+      }
+      const matched = await api<{ scanned: number; entries: number }>(`/api/jds/${jdId}/publish`, {
         method: "POST",
-        body: JSON.stringify(draft),
       });
-      const matched = await api<{ scanned: number; entries: number }>(`/api/jds/${jd.id}/publish`, {
-        method: "POST",
-      });
-      setResult({ jdId: jd.id, ...matched });
+      setResult({ jdId, ...matched });
       setStage("posted");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not publish");

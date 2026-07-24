@@ -125,23 +125,6 @@ export async function applyConfirmedOutcome(snap: OutcomeSnapshot, period: strin
   const role = snap.jd.title;
   const company = snap.jd.employer.companyName;
 
-  const engagement = await db.engagement.findFirst({
-    where: { profileId: snap.profileId, role, company },
-  });
-  if (!engagement) {
-    await db.engagement.create({
-      data: {
-        profileId: snap.profileId,
-        role,
-        company,
-        span: `${period.slice(0, 4)}–present`,
-        outcome: "confirmed",
-      },
-    });
-  } else if (engagement.outcome !== "confirmed") {
-    await db.engagement.update({ where: { id: engagement.id }, data: { outcome: "confirmed" } });
-  }
-
   // frozenJson shape is FrozenProfile (lib/slate.ts) — still read defensively.
   const names: string[] = [];
   const frozen = snap.frozenJson as { skills?: unknown } | null;
@@ -152,10 +135,35 @@ export async function applyConfirmedOutcome(snap: OutcomeSnapshot, period: strin
       }
     }
   }
-  if (names.length) {
-    await db.skill.updateMany({
-      where: { profileId: snap.profileId, name: { in: names }, confirmed: false },
-      data: { confirmed: true },
+
+  await db.$transaction(async (tx) => {
+    // Serialize concurrent confirms for THIS profile so a double-click / retry
+    // that completes the pair twice can't race findFirst→create into two
+    // duplicate Engagement rows (which would inflate the experience score).
+    await tx.$executeRaw`SELECT id FROM "TalentProfile" WHERE id = ${snap.profileId} FOR UPDATE`;
+
+    const engagement = await tx.engagement.findFirst({
+      where: { profileId: snap.profileId, role, company },
     });
-  }
+    if (!engagement) {
+      await tx.engagement.create({
+        data: {
+          profileId: snap.profileId,
+          role,
+          company,
+          span: `${period.slice(0, 4)}–present`,
+          outcome: "confirmed",
+        },
+      });
+    } else if (engagement.outcome !== "confirmed") {
+      await tx.engagement.update({ where: { id: engagement.id }, data: { outcome: "confirmed" } });
+    }
+
+    if (names.length) {
+      await tx.skill.updateMany({
+        where: { profileId: snap.profileId, name: { in: names }, confirmed: false },
+        data: { confirmed: true },
+      });
+    }
+  });
 }

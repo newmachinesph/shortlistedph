@@ -60,7 +60,7 @@ const talentNav: NavItem[] = [
   { label: "Profile", icon: User, href: "/talent/profile" },
 ];
 
-export type Persona = { name: string; sub: string };
+export type Persona = { name: string; sub: string; image: string | null };
 
 export function WorkspaceShell({
   role,
@@ -201,7 +201,7 @@ export function WorkspaceShell({
                 aria-expanded={menuOpen}
                 className="flex h-11 w-11 items-center justify-center rounded-xl transition-colors hover:bg-brand-soft"
               >
-                <Avatar name={persona.name} size="sm" />
+                <Avatar name={persona.name} image={persona.image} size="sm" />
               </button>
               {menuOpen && (
                 <>

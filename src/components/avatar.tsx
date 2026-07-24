@@ -1,9 +1,12 @@
+"use client";
+
+import { useState } from "react";
 import { initials } from "@/lib/format";
 
 /**
  * The one avatar shape: a square chip with rounded corners, matching the
- * workspace dashboard look. Pure render — usable from server and client
- * components alike.
+ * workspace dashboard look. Client so a broken/unreachable image URL falls
+ * back to the initials chip instead of a broken-image icon.
  */
 
 const sizes = {
@@ -21,11 +24,16 @@ export function Avatar({
   image?: string | null;
   size?: "sm" | "md" | "lg";
 }) {
-  return image ? (
+  const [failed, setFailed] = useState(false);
+
+  return image && !failed ? (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={image}
       alt=""
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
       className={`${sizes[size]} shrink-0 border border-line object-cover`}
     />
   ) : (

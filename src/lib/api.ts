@@ -37,3 +37,8 @@ export function requireEnv(name: string): string {
   if (!value) throw new HttpError(503, `${name} is not configured`);
   return value;
 }
+
+/** Prisma unique-constraint violation (P2002). Duck-typed to avoid importing the client here. */
+export function isUniqueViolation(e: unknown): boolean {
+  return typeof e === "object" && e !== null && (e as { code?: unknown }).code === "P2002";
+}

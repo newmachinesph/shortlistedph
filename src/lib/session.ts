@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { headers } from "next/headers";
 import { auth } from "./auth";
 import { db } from "./db";
@@ -14,7 +15,10 @@ export type SessionUser = {
   status: string;
 };
 
-export async function getSessionUser(): Promise<SessionUser | null> {
+// cache() dedupes the session lookup across one request: a layout and its
+// pages (and any query helper) all resolve the same user without re-hitting
+// better-auth/the DB each time.
+export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return null;
   const u = session.user as typeof session.user & { role?: string; status?: string };
@@ -26,7 +30,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     role: (u.role as Role) ?? "talent",
     status: u.status ?? "active",
   };
-}
+});
 
 /** Throws a Response — route handlers should let it bubble via requireRole's caller. */
 export class HttpError extends Error {

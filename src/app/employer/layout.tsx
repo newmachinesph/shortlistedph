@@ -21,6 +21,7 @@ export default async function EmployerLayout({ children }: { children: React.Rea
       persona={{
         name: employer.companyName,
         sub: employer.location ?? user.email,
+        image: user.image,
       }}
     >
       {children}

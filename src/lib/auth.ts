@@ -20,6 +20,12 @@ export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
   database: prismaAdapter(db, { provider: "postgresql" }),
+  // ponytail: session.cookieCache would drop the per-request DB hit entirely,
+  // but role/status are mutated directly in the DB (onboarding role-set, admin
+  // suspend) and the cached cookie would serve a stale role for up to maxAge —
+  // breaking the post-onboarding redirect. Enable only once those mutations
+  // refresh/invalidate the session cookie. React cache() (lib/session.ts)
+  // already dedupes the lookup within a request, which is the bulk of the win.
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,

@@ -13,6 +13,16 @@ CREATE INDEX IF NOT EXISTS talent_embedding_hnsw
 CREATE INDEX IF NOT EXISTS jd_embedding_hnsw
   ON "JobDescription" USING hnsw (embedding vector_cosine_ops);
 
+-- ─── Partial unique: one live interview per candidate entry ──────────────
+-- The app checks findFirst-then-create, which races under concurrent POSTs
+-- (src/app/api/interviews/route.ts). A declined/cancelled interview may be
+-- retried, so uniqueness only applies to in-flight rows — a partial index
+-- Prisma's schema DSL cannot express. The create path catches the resulting
+-- P2002 and returns the same 409 as the fast-path pre-check.
+CREATE UNIQUE INDEX IF NOT EXISTS interview_one_live_per_entry
+  ON "Interview" ("slateEntryId")
+  WHERE status NOT IN ('declined', 'cancelled');
+
 -- ─── CHECK constraints on status-like String columns ─────────────────────
 -- The schema documents these value sets in comments only; a CHECK makes the
 -- database reject a typo'd status from any future script or manual fix.

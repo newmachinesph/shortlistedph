@@ -45,7 +45,12 @@ const Body = z.object({
     .optional(),
   initialInstructions: z.string().max(4000).optional(),
   schedulingUrl: z.string().url().max(500).optional(),
-});
+}).refine(
+  (b) => b.budgetMin == null || b.budgetMax == null || b.budgetMin <= b.budgetMax,
+  // An inverted range makes scoreRate's in-band branch unreachable and silently
+  // miscores every candidate's rate dimension for the JD — reject it here.
+  { message: "Minimum budget can't exceed maximum", path: ["budgetMax"] },
+);
 
 export async function POST(req: Request) {
   try {

@@ -51,7 +51,14 @@ export async function POST(req: Request) {
       },
     });
 
-    return ok({ draft: Draft.parse(JSON.parse(res.output_text ?? "{}")) });
+    const draft = Draft.parse(JSON.parse(res.output_text ?? "{}"));
+    // The model occasionally infers a reversed range; swap so the pre-filled
+    // builder is sane and passes the create endpoint's budgetMin<=budgetMax gate.
+    const fixed =
+      draft.budgetMin != null && draft.budgetMax != null && draft.budgetMin > draft.budgetMax
+        ? { ...draft, budgetMin: draft.budgetMax, budgetMax: draft.budgetMin }
+        : draft;
+    return ok({ draft: fixed });
   } catch (e) {
     return fail(e);
   }
