@@ -158,18 +158,18 @@ export function scoreExperience(years: number, confirmedEngagements: number): nu
  * employer stops trusting every future slate. A short honest slate, or none at
  * all, is worth more than a padded one.
  *
- * ponytail: currently NOT wired into ranking — rankQualifiedForJd gates on
- * QUALIFY_SCORE/QUALIFY_SKILLS and tiebreaks on raw score. Kept as the intended
- * strong-match threshold; wire it into slate composition only as a deliberate
- * product/matching-tuning decision (see scripts/eval-matching.ts).
+ * Wired in buildSlate (lib/matching.ts) as a tiering preference: candidates at
+ * or above this fill slate slots first (in rotation order), and QUALIFY..MIN
+ * candidates only backfill when there aren't enough strong ones. Eligibility
+ * itself is still QUALIFY_SCORE — this only orders who gets shown first.
  */
 export const MIN_SLATE_SCORE = 62;
 
 /**
  * The eligibility bar for rotation, set below the strong-match cutoff.
  *
- * Two thresholds, two jobs. MIN_SLATE_SCORE (62) marks a *strong* match (not
- * currently wired — see its note). QUALIFY (52) is the active bar and marks
+ * Two thresholds, two jobs. MIN_SLATE_SCORE (62) marks a *strong* match and
+ * tiers who fills a slate first. QUALIFY (52) is the eligibility bar and marks
  * *eligible*: good enough to put in front of an employer, even if not the
  * single best on paper. Everyone
  * at or above QUALIFY enters the rotation so the same top profiles don't fill
