@@ -16,6 +16,35 @@
   --color-ember-soft: #f9ece3;
   /* Lighter ember, for the mark on a brand-green field only. Never for text. */
   --color-ember-light: #f4a27c;
+
+  /* ── Redesign system layer (additive — every colour above is unchanged) ──
+     Surface ladder, type scale, radii, shadows, and section rhythm, so the
+     ad-hoc rounded-2xl / clamp(...) / bg-white choices scattered per page
+     become named tokens the src/components/ui primitives consume. */
+
+  /* Surfaces: paper is the page, surface is a raised card, sunk recedes,
+     and the dark band is derived from brand-dark for CTA/stat sections. */
+  --color-surface: #ffffff;
+  --color-surface-sunk: #f2f6f3;
+  --color-band: #1b3a28;
+
+  /* Type scale — fluid, named, so headings stop hardcoding clamp() inline. */
+  --text-display: clamp(2.5rem, 1rem + 7vw, 5rem);
+  --text-h1: clamp(2rem, 1rem + 4vw, 3.25rem);
+  --text-h2: clamp(1.5rem, 1rem + 2vw, 2.25rem);
+  --text-h3: clamp(1.2rem, 1rem + 0.8vw, 1.5rem);
+  --text-lead: clamp(1.05rem, 1rem + 0.4vw, 1.25rem);
+  --text-meta: 0.8125rem;
+
+  /* Radii + shadows: one ladder instead of per-file guesses. */
+  --radius-pill: 999px;
+  --radius-card: 1rem;
+  --radius-lg: 1.5rem;
+  --shadow-card: 0 1px 2px rgba(23, 32, 27, 0.04), 0 4px 16px rgba(23, 32, 27, 0.05);
+  --shadow-lift: 0 4px 12px rgba(23, 32, 27, 0.08), 0 16px 40px rgba(23, 32, 27, 0.10);
+
+  /* Vertical rhythm between page bands. */
+  --space-section: clamp(4rem, 3rem + 5vw, 8rem);
 }
 
 @theme inline {
