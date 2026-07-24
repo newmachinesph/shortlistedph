@@ -248,6 +248,16 @@ model JobDescription {
   publishedAt         DateTime?
   createdAt           DateTime  @default(now())
 
+  // Public openings board (anonymized demand). All admin-set and nullable: a
+  // JD is listable only once an admin approves a sanitized publicTitle, so the
+  // board fails closed — null publicTitle means "not listed", never a leak of
+  // the raw employer `title`. See docs/redesign-plan.md section 3.
+  publicTitle  String? // admin-approved, sanitized. Null = not on the board.
+  roleFamily   String? // controlled taxonomy: ecommerce_ops, bookkeeping, ...
+  industry     String? // reuses the JD extraction industry taxonomy
+  clientRegion String? // "US" | "AU" | "UK" | "EU" | "CA" — region, never a company
+  listedAt     DateTime?
+
   embedding Unsupported("vector(1536)")?
 
   // Skills-facet query vector; `embedding` doubles as the role/experience query.
@@ -260,6 +270,7 @@ model JobDescription {
 
   @@index([employerId, status])
   @@index([status]) // stuck-JD recovery + admin counts filter by status alone
+  @@index([listedAt]) // openings board lists by recency
 }
 
 // Consent-first matching: a slate starts empty and candidates are ASKED before
