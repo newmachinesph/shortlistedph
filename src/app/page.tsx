@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { ArrowRight, EyeOff, Camera, Lock, FileCheck } from "lucide-react";
 import { LogoMark } from "@/components/logo";
+import { AvatarCluster } from "@/components/avatar-cluster";
 import { PublicPage } from "@/components/public-chrome";
 import { JsonLd } from "@/components/json-ld";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 import { getPublicStats } from "@/lib/stats";
+import { getShowcaseAvatars } from "@/lib/talent-showcase";
 
 const orgSchema = {
   "@context": "https://schema.org",
@@ -76,7 +78,7 @@ const antiGaming = [
 export const revalidate = 3600;
 
 export default async function Home() {
-  const stats = await getPublicStats();
+  const [stats, showcase] = await Promise.all([getPublicStats(), getShowcaseAvatars(9)]);
 
   return (
     <>
@@ -109,6 +111,16 @@ export default async function Home() {
           >
             I&rsquo;m talent: upload my resume
           </Link>
+        </div>
+        <div className="mt-10">
+          <AvatarCluster
+            images={showcase}
+            caption={
+              stats
+                ? `${stats.matchable.toLocaleString("en-PH")} profiles ready to be matched today`
+                : undefined
+            }
+          />
         </div>
         {stats && (
           <dl className="mt-16 flex flex-wrap gap-x-12 gap-y-6 border-t border-line pt-8">
