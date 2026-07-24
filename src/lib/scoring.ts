@@ -2,6 +2,7 @@
  * Pure match scoring. No db, no network, no framework — so the evaluation
  * harness and tests can import the exact logic production ranks with.
  */
+import { canonicalizeTool } from "./tools/aliases.ts";
 
 export type Dims = { skills: number; rate: number; overlap: number; experience: number };
 
@@ -16,6 +17,18 @@ export const WEIGHTS = { skills: 0.45, experience: 0.2, rate: 0.2, overlap: 0.15
 
 /** A skill backed by a mutual outcome confirmation outweighs a typed claim. */
 export const CONFIRMED_SKILL_WEIGHT = 2;
+
+/**
+ * Coverage denominator. A candidate's earned skill weight is divided by
+ * `required.length * SKILL_COVERAGE_DENOM`. Below CONFIRMED_SKILL_WEIGHT on
+ * purpose: at 2 (the old value), a candidate who matched every must-have but had
+ * none outcome-confirmed capped at coverage 0.5 → skills ~50, and the whole
+ * migrated pool — which predates the confirmation loop — sat pinned under it
+ * (see docs/engine/eval-canonical-result.md). At 1.5 a fully-claimed match
+ * reaches coverage 0.67 (skills ~62) while a fully-confirmed match still caps at
+ * 1.0 (skills ~88): confirmation is the bonus, not the entry price.
+ */
+export const SKILL_COVERAGE_DENOM = 1.5;
 
 export const normalizeSkill = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9+#. ]/g, "").replace(/\s+/g, " ").trim();
@@ -89,10 +102,13 @@ export function matchRequirements(
   context: { headline?: string | null; roles?: string[] } = {},
 ): RequirementMatch[] {
   // Confirmed always wins on a duplicate normalizedName, so scoring is
-  // deterministic regardless of DB row order if two rows share a name.
+  // deterministic regardless of DB row order if two rows share a name. Keyed by
+  // canonical tool, so "QBO" and "QuickBooks Online" land in the same bucket
+  // and an exact must-have match finally fires (see tools/aliases.ts).
   const owned = new Map<string, boolean>();
   for (const s of candidateSkills) {
-    owned.set(s.normalizedName, (owned.get(s.normalizedName) ?? false) || s.confirmed);
+    const key = canonicalizeTool(s.normalizedName);
+    owned.set(key, (owned.get(key) ?? false) || s.confirmed);
   }
   const corpus = new Set<string>();
   for (const s of candidateSkills) for (const t of contentTokens(s.normalizedName)) corpus.add(t);
@@ -100,7 +116,7 @@ export function matchRequirements(
   for (const role of context.roles ?? []) for (const t of contentTokens(role)) corpus.add(t);
 
   return required.map((requirement) => {
-    const exact = owned.get(normalizeSkill(requirement));
+    const exact = owned.get(canonicalizeTool(normalizeSkill(requirement)));
     if (exact !== undefined) {
       return exact
         ? { requirement, kind: "confirmed" as const, weight: CONFIRMED_SKILL_WEIGHT }
@@ -129,7 +145,7 @@ export function scoreSkills(
 
   const matches = matchRequirements(required, candidateSkills, context);
   const earned = matches.reduce((sum, m) => sum + m.weight, 0);
-  const coverage = earned / (required.length * CONFIRMED_SKILL_WEIGHT);
+  const coverage = earned / (required.length * SKILL_COVERAGE_DENOM);
 
   // Embedding similarity still contributes — it catches synonyms that share no
   // tokens at all ("QBO" vs "QuickBooks Online").
