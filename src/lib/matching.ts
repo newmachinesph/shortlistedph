@@ -1,14 +1,14 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
-import { z } from "zod";
 import { db } from "./db";
 import { blendSimilarity, jdFacetTexts } from "./facets";
-import { MODELS, embedMany, openai, toVectorLiteral } from "./openai";
+import { embedMany, toVectorLiteral } from "./openai";
 import {
   MIN_SLATE_SCORE,
   QUALIFY_SCORE,
   QUALIFY_SKILLS,
   composite,
+  explainMatch,
   scoreExperience,
   scoreOverlap,
   scoreRate,
@@ -24,12 +24,6 @@ const CANDIDATE_POOL = 50;
 // A candidate whose availability was confirmed within this window is treated as
 // "fresh" and gets a light nudge up the rotation — never a hard filter.
 const AVAILABILITY_FRESH_DAYS = 14;
-
-const ReasonsOutput = z.object({
-  candidates: z
-    .array(z.object({ index: z.number().int(), reasons: z.array(z.string()) }))
-    .optional(),
-});
 
 type Candidate = {
   id: string;
@@ -305,8 +299,8 @@ export function newConsentToken(): string {
   return randomBytes(16).toString("hex");
 }
 
-// Only the fields the narration prompt actually reads — so the consent-accept
-// path can pass a live TalentProfile row without shaping it into a Candidate.
+// Only the fields the explanation actually reads — so the consent-accept path
+// can pass a live TalentProfile row without shaping it into a Candidate.
 type Ranked = {
   c: {
     headline: string | null;
@@ -318,57 +312,15 @@ type Ranked = {
   };
   dims: Dims;
   score: number;
-  skills: { name: string; confirmed: boolean }[];
+  skills: { name: string; normalizedName?: string; confirmed: boolean }[];
 };
 
-/** Prose only. If this call fails the slate still ships, just without narration. */
-export async function explain(jd: Jd, ranked: Ranked[]): Promise<string[][]> {
-  if (ranked.length === 0) return [];
-  try {
-    const res = await openai().responses.create({
-      model: MODELS.extract,
-      input: [
-        {
-          role: "system",
-          content:
-            "You write the 'why shortlisted' bullets an employer reads on a candidate slate. " +
-            "Use ONLY the supplied structured facts — never invent experience. " +
-            "2-3 bullets each, one short sentence per bullet, concrete and specific. " +
-            "If a dimension scored poorly, say so plainly — honest flags build trust. " +
-            'Return JSON: {"candidates":[{"index":0,"reasons":["..."]}]}',
-        },
-        {
-          role: "user",
-          content: JSON.stringify({
-            job: { title: jd.title, mustHaves: jd.mustHaves, budget: [jd.budgetMin, jd.budgetMax], hours: jd.hoursPerWeek, overlap: jd.overlap },
-            candidates: ranked.map((r, index) => ({
-              index,
-              headline: r.c.headline,
-              city: r.c.city,
-              years: r.c.yearsExperience,
-              rateUsd: r.c.rateUsd,
-              availability: r.c.availability,
-              verified: r.c.verifiedTier === "id_verified",
-              skills: r.skills,
-              scores: r.dims,
-            })),
-          }),
-        },
-      ],
-      text: { format: { type: "json_object" } },
-    });
-
-    // Same trust-nothing rule as resume.ts: model output is validated, never
-    // cast. A malformed reply throws into the catch below and degrades to
-    // empty reason bullets instead of propagating a wrong shape.
-    const parsed = ReasonsOutput.parse(JSON.parse(res.output_text ?? "{}"));
-    const out: string[][] = ranked.map(() => []);
-    for (const c of parsed.candidates ?? []) {
-      if (out[c.index]) out[c.index] = c.reasons.slice(0, 3);
-    }
-    return out;
-  } catch (e) {
-    console.error("[matching] reason generation failed", e);
-    return ranked.map(() => []);
-  }
+/**
+ * Bullets derived from the stored scores, not written by a model — see
+ * explainMatch in scoring.ts for why. Synchronous and offline, so there is no
+ * failure mode left to degrade from: a slate can no longer ship unnarrated
+ * because an API call timed out.
+ */
+export function explain(jd: Jd, ranked: Ranked[]): string[][] {
+  return ranked.map((r) => explainMatch(jd, { ...r.c, skills: r.skills }, r.dims));
 }
