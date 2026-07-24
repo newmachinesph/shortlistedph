@@ -148,5 +148,14 @@ export function canonicalizeTool(normalized: string): string {
   return ALIASES.get(normalized) ?? normalized;
 }
 
+/**
+ * Whether the table knows this normalized name at all — as a canonical or an
+ * alias. Distinct from `canonicalizeTool(x) !== x`, which is only true for
+ * aliases and reports every canonical (salesforce, zendesk) as unknown.
+ */
+export function isKnownTool(normalized: string): boolean {
+  return ALIASES.has(normalized);
+}
+
 /** Test/analysis hook: how many distinct tools the table currently knows. */
 export const KNOWN_TOOL_COUNT = new Set(ALIASES.values()).size;
