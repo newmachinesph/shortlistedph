@@ -9,6 +9,7 @@ import { Avatar } from "./avatar";
 import { Logo } from "./logo";
 
 const NAV_LINKS: [string, string][] = [
+  ["Open roles", "/openings"],
   ["For employers", "/for-employers"],
   ["For talent", "/for-talent"],
   ["Why it works", "/why-it-works"],

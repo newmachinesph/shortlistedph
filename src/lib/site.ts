@@ -25,6 +25,7 @@ export const SITE_DESCRIPTION =
 export const PUBLIC_ROUTES = [
   "/",
   "/start",
+  "/openings",
   "/for-employers",
   "/for-talent",
   "/why-it-works",
