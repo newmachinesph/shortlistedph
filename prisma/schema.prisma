@@ -143,6 +143,11 @@ model TalentProfile {
   // talent workspace, which clears it.
   dormantAt DateTime?
 
+  // Extraction review signals — currently only "injection_attempt_stripped",
+  // set when an uploaded resume tried to instruct the extractor. Never blocks
+  // the candidate; it routes the profile to a human. See lib/resume-guard.ts.
+  flags String[] @default([])
+
   publishedAt     DateTime?
   lastEditedAt    DateTime  @default(now())
   createdAt       DateTime  @default(now())

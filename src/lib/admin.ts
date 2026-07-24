@@ -602,7 +602,14 @@ export async function listUsers(opts: { q?: string; role?: string; status?: stri
         status: true,
         createdAt: true,
         talentProfile: {
-          select: { headline: true, city: true, publishedAt: true, verifiedTier: true, rateUsd: true },
+          select: {
+            headline: true,
+            city: true,
+            publishedAt: true,
+            verifiedTier: true,
+            rateUsd: true,
+            flags: true,
+          },
         },
         employer: { select: { companyName: true, location: true, credits: true, interviewCredits: true } },
         interviewer: { select: { status: true, rateUsd: true } },

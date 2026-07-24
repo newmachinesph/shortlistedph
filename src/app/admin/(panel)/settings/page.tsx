@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
-import { Construction, MailX } from "lucide-react";
+import { Construction, MailX, UsersRound } from "lucide-react";
 import { NOINDEX } from "@/lib/site";
 import {
   MAINTENANCE_MODE_KEY,
   OUTREACH_EMAILS_KEY,
+  SHOWCASE_AVATARS_KEY,
   maintenanceModeEnabled,
   outreachEmailsEnabled,
+  showcaseAvatarsEnabled,
 } from "@/lib/settings";
 import { SettingToggle } from "./toggle";
 
@@ -14,6 +16,7 @@ export const metadata: Metadata = { title: "Admin · Settings", ...NOINDEX };
 export default async function AdminSettings() {
   const outreachOn = await outreachEmailsEnabled();
   const maintenanceOn = await maintenanceModeEnabled();
+  const showcaseOn = await showcaseAvatarsEnabled();
 
   return (
     <>
@@ -50,6 +53,24 @@ export default async function AdminSettings() {
           <SettingToggle settingKey={MAINTENANCE_MODE_KEY} enabled={maintenanceOn} />
         </div>
       </div>
+
+      <div className="mt-5 rounded-2xl border border-line bg-white">
+        <div className="flex flex-wrap items-start gap-4 px-4 py-5 sm:px-6">
+          <UsersRound className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint" strokeWidth={1.75} />
+          <div className="min-w-0 flex-1 basis-64">
+            <p className="text-sm font-medium text-ink">Talent photos on public pages</p>
+            <p className="mt-1 max-w-xl text-sm leading-relaxed text-ink-soft">
+              On = Published, visible profiles&rsquo; photos appear as decoration on the
+              marketing pages. Faces only — never a name, city, or headline beside them. Off
+              falls back to initials chips.
+            </p>
+          </div>
+          <SettingToggle settingKey={SHOWCASE_AVATARS_KEY} enabled={showcaseOn} />
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-ink-faint">
+        Turn this off if a talent asks not to be shown, until a per-profile opt-out exists.
+      </p>
     </>
   );
 }

@@ -21,7 +21,9 @@ const slateChip: Record<string, string> = {
 const dimLabels: [key: keyof Dims, label: string][] = [
   ["skills", "Skills"],
   ["rate", "Rate fit"],
-  ["overlap", "Timezone"],
+  // Matches the employer-facing label — this is capacity, not timezone overlap.
+  // See docs/engine/gap-analysis.md P2-2.
+  ["overlap", "Capacity"],
   ["experience", "Experience"],
 ];
 
