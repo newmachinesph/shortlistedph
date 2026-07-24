@@ -162,7 +162,25 @@ Shipped instead: three facets — skills / experience / prefs — blended 0.5 / 
 ([facets.ts:112](../../src/lib/facets.ts#L112)), producing one `sim` that is then folded into
 `scoreSkills` at 0.25 weight. Different architecture, not a subset.
 
-### P2-2 "Overlap" does not mean timezone overlap
+### P2-2 "Overlap" does not mean timezone overlap — and employers are told it does
+
+**Upgraded to P0 on 2026-07-25.** This is not an internal naming slip. The employer slate
+renders the four dims as labelled bars, and
+[briefs/[id]/page.tsx:13-18](../../src/app/employer/briefs/[id]/page.tsx#L13-L18) labels
+this one **"Timezone"**:
+
+```ts
+["overlap", "Timezone"],
+```
+
+A paying employer reads a bar captioned Timezone that is computed from
+`40 - committedHours` against `hoursPerWeek`. Timezone overlap is never computed anywhere in
+the codebase. The displayed number is real, the label on it is false — and it is false on the
+page the product charges for.
+
+Cheapest honest fix, ahead of the Phase 3 rewrite: relabel to "Capacity". One line, no
+ranking change, and it stops the misstatement immediately. The real overlap computation still
+needs `shiftWindows` (P1-5).
 
 `scoreOverlap` ([scoring.ts:133-143](../../src/lib/scoring.ts#L133-L143)) computes
 `free = 40 - committedHours` against `jd.hoursPerWeek`. That is **capacity**, not overlap.
@@ -285,12 +303,23 @@ rewrite must re-run that harness rather than assume the spec's untuned priors ar
 
 ---
 
-## Verify before building
+## Verify before building — resolved 2026-07-25
 
-Three things this analysis did not confirm and the plan must not assume:
+1. **Does the employer dossier render `dims`? Yes.** Four labelled bars per candidate on
+   [briefs/[id]/page.tsx:281-295](../../src/app/employer/briefs/[id]/page.tsx#L281-L295), plus
+   the same on the admin slate page. Spec §7's "show the facet subscores" is done. It also
+   turned up P2-2's promotion to P0 — one of those bars was captioned "Timezone" while
+   showing capacity. **Relabelled to "Capacity" on both pages**; the real computation still
+   waits on `shiftWindows`.
 
-1. Whether the employer dossier renders `dims` (P3-2).
-2. What `scripts/eval-matching.ts` currently measures, and whether it can serve as the
-   before/after harness for a scorer rewrite.
-3. Whether any migrated legacy profile has `Engagement.span` in a parseable shape, which
-   decides whether tenure can be backfilled or only captured going forward.
+2. **`scripts/eval-matching.ts` is usable as the before/after harness.** It imports the real
+   scorers from `src/lib/scoring.ts` and `facets.ts` — its own header says evaluation "can
+   never drift from production" — is read-only, and deliberately ignores `publishedAt` so it
+   can see the whole pool. **But it cannot produce a baseline from the local database:** that
+   holds 2 profiles and 6 engagements. A meaningful baseline needs the ~785-profile pool,
+   which lives in prod. Running it read-only against `PROD_DATABASE_URL` costs a handful of
+   OpenAI embedding calls and writes nothing — it needs a go-ahead, not a code change.
+
+3. **Tenure backfill looks feasible, on thin evidence.** All 6 local `Engagement.span` values
+   parse (`"2021 - 2025"`, `"2019 - 2021"`). Six rows is not a sample — re-run the check
+   against the prod pool before committing to a backfill rather than forward-only capture.

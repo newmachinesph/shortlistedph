@@ -13,7 +13,10 @@ import { UnlockButton } from "./unlock-button";
 const dimLabels: [key: "skills" | "rate" | "overlap" | "experience", label: string][] = [
   ["skills", "Skills"],
   ["rate", "Rate fit"],
-  ["overlap", "Timezone"],
+  // "Capacity", not "Timezone": this dimension is scoreOverlap, which compares
+  // free weekly hours against the hours the brief asks for. Timezone overlap is
+  // not computed yet — see docs/engine/gap-analysis.md P2-2.
+  ["overlap", "Capacity"],
   ["experience", "Experience"],
 ];
 
