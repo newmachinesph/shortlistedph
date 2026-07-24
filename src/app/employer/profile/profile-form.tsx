@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ImageUp, Loader2 } from "lucide-react";
 import { api } from "@/lib/auth-client";
+import { cropSquare } from "@/lib/crop";
 import { Avatar } from "@/components/avatar";
 import { Field, TextArea, TextInput } from "@/components/onboarding-fields";
 
@@ -32,35 +33,6 @@ export function ProfileForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-
-  /** Center-crop to a 512px square. PNG keeps transparency; others re-encode as-is. */
-  async function cropSquare(file: File): Promise<Blob> {
-    const bitmap = await createImageBitmap(file);
-    const side = Math.min(bitmap.width, bitmap.height);
-    const canvas = document.createElement("canvas");
-    canvas.width = 512;
-    canvas.height = 512;
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(
-      bitmap,
-      (bitmap.width - side) / 2,
-      (bitmap.height - side) / 2,
-      side,
-      side,
-      0,
-      0,
-      512,
-      512,
-    );
-    bitmap.close();
-    return new Promise((resolve, reject) => {
-      canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error("Could not process the image"))),
-        file.type,
-        0.9,
-      );
-    });
-  }
 
   async function handleFile(file: File) {
     setError(null);

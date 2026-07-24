@@ -21,6 +21,16 @@ function r2(): S3Client {
 
 const bucket = () => requireEnv("R2_BUCKET");
 
+/** Public CDN URL for an object key (e.g. avatars stored on User.image). */
+export function publicUrl(key: string): string {
+  return `${requireEnv("R2_PUBLIC_URL").replace(/\/$/, "")}/${key}`;
+}
+
+/** The bucket's public CDN origin, no trailing slash — used to recognise our own URLs. */
+export function publicOrigin(): string {
+  return requireEnv("R2_PUBLIC_URL").replace(/\/$/, "");
+}
+
 export async function presignUpload(key: string, contentType: string, expiresIn = 300) {
   return getSignedUrl(
     r2(),
