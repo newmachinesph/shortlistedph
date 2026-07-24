@@ -32,7 +32,7 @@ export async function POST(req: Request) {
 
     const buf = await getObjectBuffer(key);
     const text = await extractText(buf, key);
-    const parsed = await parseResume(text);
+    const { profile: parsed, flags } = await parseResume(text);
 
     const [existingSkills, existingEngagements] = await Promise.all([
       db.skill.findMany({ where: { profileId: profile.id }, select: { normalizedName: true } }),
@@ -78,6 +78,11 @@ export async function POST(req: Request) {
         noticePeriodDays: profile.noticePeriodDays ?? parsed.preferences.noticePeriodDays,
         resumeKey: key,
         lastEditedAt: new Date(),
+        // Flags persist across re-uploads: a stripped injection attempt stays on
+        // the record until an admin clears it, so a second clean upload can't be
+        // used to wash the first one. Set-union, so re-uploading doesn't stack
+        // duplicates of the same flag.
+        ...(flags.length ? { flags: { set: [...new Set([...profile.flags, ...flags])] } } : {}),
         skills: { create: newSkills },
         engagements: { create: newEngagements },
       },
