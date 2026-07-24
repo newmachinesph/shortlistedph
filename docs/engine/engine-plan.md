@@ -2,20 +2,27 @@
 
 Closes the gaps in `gap-analysis.md`. Read that first — every phase here cites its items.
 
-## Status (2026-07-25)
+## Status (2026-07-25, end of session)
 
 | Phase | State |
 |---|---|
-| 0 — Verify | **not started.** Still the prerequisite for 1c and Phase 3 |
+| 0 — Verify | **done.** Baseline captured (`eval-baseline.md`), dossier renders dims (found the capacity-label bug, fixed), eval harness usable, `Engagement.span` parseable |
 | 1a — Injection wrapper | **done.** `lib/resume-guard.ts` + 12 tests. Closes P0-3 |
 | 1b — Deterministic explanations | **done.** `explainMatch` in `lib/scoring.ts` + 12 tests. Closes P0-2 |
-| 1c — Hard filters | not started. Needs the Phase 0 baseline first |
-| 1d — Template anchors | **partly done.** `lib/resume-sections.ts` + 10 tests. Splitting, labelled blocks, and every field with a column today. Per-tool years/last-used and per-role country/industry still wait on Phase 2 schema |
+| 1c — Hard filters | not started. Baseline now exists, so ready to build + measure |
+| 1d — Template anchors | **partly done.** `lib/resume-sections.ts` + 10 tests. Per-tool years/last-used and per-role country/industry still wait on Phase 2 schema |
+| Canonical tools (P1-1) | **done, measured no-op** — kept as infra. See `eval-canonical-result.md` |
+| Coverage-cap rework | **done, un-calibrated.** `SKILL_COVERAGE_DENOM = 1.5`. Lifted the skills ceiling; slates 1–3 → 6–23 qualified. **Re-tune QUALIFY/MIN next — this is the open loop** |
 | 2, 3, 4 | not started |
+
+**Open engine task, highest priority:** recalibrate `QUALIFY_SCORE` / `MIN_SLATE_SCORE`
+against the coverage-rework distribution. It is live on master, un-calibrated. See
+`eval-canonical-result.md` and `docs/HANDOFF.md`.
 
 Schema note learned while shipping 1a: **`prisma db push` is unsafe on this database.**
 It does not know about the hnsw indexes `db-hardening.sql` creates and drops both. Additive
-changes go via raw SQL — see `scripts/add-talent-flags.sql` — then `prisma generate`.
+changes go via raw SQL — see `scripts/add-talent-flags.sql` / `scripts/add-openings-columns.sql`
+— then `prisma generate`.
 
 Sequencing rule: **P0 first, because those are live contradictions with published promises,
 and three of the four are small.** Then schema + extraction, because nothing in ranking is

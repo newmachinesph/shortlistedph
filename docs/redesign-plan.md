@@ -1,5 +1,14 @@
 # Frontend redesign plan — public + auth surface
 
+> **Status (2026-07-25).** The design system is now **locked in `design.md`** and the
+> visual direction shifted from "Workze grammar" to a hallmark-run **modern-minimal**
+> system on the brand palette (same intent, sharper execution). Built so far: the 7 UI
+> primitives + tokens (§1), the openings board data layer + leak guard + pages (§3), and
+> the **homepage redesigned** as the exemplar. Remaining: the other marketing pages
+> (`for-employers`, `for-talent`, `why-it-works`, `pricing`, `resume-template`, legal) and
+> the admin "List publicly" control. Each page is now mechanical — `/hallmark redesign`
+> reads `design.md` + the homepage exemplar. See `docs/HANDOFF.md` for the resume steps.
+
 Scope agreed: public and auth pages only (~18 routes). Workze layout grammar, existing
 brand palette. Talent/employer workspaces and admin are a later pass.
 
