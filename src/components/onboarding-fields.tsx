@@ -40,6 +40,7 @@ export function TextInput({
   placeholder,
   type = "text",
   inputMode,
+  onEnter,
 }: {
   id: string;
   value: string;
@@ -47,6 +48,8 @@ export function TextInput({
   placeholder?: string;
   type?: string;
   inputMode?: "text" | "url" | "numeric" | "decimal";
+  /** Enter submits an "add to list" action, matching the other chip inputs. */
+  onEnter?: () => void;
 }) {
   return (
     <input
@@ -56,6 +59,16 @@ export function TextInput({
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
+      onKeyDown={
+        onEnter
+          ? (e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                onEnter();
+              }
+            }
+          : undefined
+      }
       className={inputClass}
     />
   );

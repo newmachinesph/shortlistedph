@@ -42,6 +42,7 @@ model User {
   interviewer     Interviewer?
   interviewsAsTalent Interview[]     @relation("InterviewTalent")
 
+  @@index([status])
   @@map("user")
 }
 
@@ -428,6 +429,7 @@ model Payment {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([status])
 }
 
 // No identity documents are ever stored — only an opaque provider reference
@@ -573,6 +575,7 @@ model ReferralPayout {
   conversions ReferralConversion[]
 
   @@index([userId, status])
+  @@index([status])
 }
 
 // Anonymous top-of-funnel intake. An employer describes a role and sees a live
@@ -659,6 +662,7 @@ model Interview {
   @@index([interviewerId, status])
   @@index([talentUserId, status])
   @@index([payoutId])
+  @@index([status])
 }
 
 // Our fixed template, filled by the interviewer. Fixed fields so every report
@@ -696,4 +700,5 @@ model InterviewerPayout {
   interviews  Interview[]
 
   @@index([interviewerId, status])
+  @@index([status])
 }

@@ -6,7 +6,9 @@ export function initials(name: string | null | undefined): string {
   return name
     .trim()
     .split(/\s+/)
-    .map((part) => part[0]?.toUpperCase() ?? "")
+    // [...part][0] takes the first Unicode code point, so an astral first
+    // character (emoji, rare CJK) yields a whole glyph, not a broken surrogate.
+    .map((part) => [...part][0]?.toUpperCase() ?? "")
     .slice(0, 2)
     .join("");
 }

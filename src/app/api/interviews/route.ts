@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { fail, ok, parseBody } from "@/lib/api";
+import { fail, isUniqueViolation, ok, parseBody } from "@/lib/api";
 import { db } from "@/lib/db";
 import { employerPrice, interviewableEntry } from "@/lib/interviews";
 import { notify } from "@/lib/notify";
@@ -62,29 +62,40 @@ export async function POST(req: Request) {
     }
 
     // One live interview per candidate entry. A declined or cancelled one may
-    // be retried; anything still in flight blocks a duplicate.
+    // be retried; anything still in flight blocks a duplicate. The findFirst is
+    // a fast path for the common case — the real guard is the partial unique
+    // index (db-hardening.sql), so two concurrent POSTs can't both create a
+    // live row: the loser trips P2002 and gets the same 409.
     const existing = await db.interview.findFirst({
       where: { slateEntryId, status: { notIn: ["declined", "cancelled"] } },
       select: { id: true },
     });
     if (existing) throw new HttpError(409, "This candidate already has an interview in progress");
 
-    const interview = await db.interview.create({
-      data: {
-        slateEntryId,
-        employerId: employer.id,
-        interviewerId: interviewer.id,
-        talentUserId,
-        status: "requested",
-        // Both amounts frozen now so a later rate change can't move a price the
-        // employer has already been shown.
-        priceUsd: employerPrice(),
-        interviewerPayoutUsd: interviewer.rateUsd,
-        // Optional employer brief for the interviewer — bounded above.
-        suggestedQuestions,
-        employerNotes,
-      },
-    });
+    let interview;
+    try {
+      interview = await db.interview.create({
+        data: {
+          slateEntryId,
+          employerId: employer.id,
+          interviewerId: interviewer.id,
+          talentUserId,
+          status: "requested",
+          // Both amounts frozen now so a later rate change can't move a price the
+          // employer has already been shown.
+          priceUsd: employerPrice(),
+          interviewerPayoutUsd: interviewer.rateUsd,
+          // Optional employer brief for the interviewer — bounded above.
+          suggestedQuestions,
+          employerNotes,
+        },
+      });
+    } catch (e) {
+      if (isUniqueViolation(e)) {
+        throw new HttpError(409, "This candidate already has an interview in progress");
+      }
+      throw e;
+    }
 
     // The candidate is asked to consent to being interviewed and recorded.
     await notify({

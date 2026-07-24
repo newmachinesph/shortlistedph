@@ -37,10 +37,19 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       });
       if (spent.count === 0) return null;
 
-      await tx.entitlement.updateMany({
+      // Mark exactly ONE unspent entitlement as spent on this slate — the old
+      // updateMany marked every credit the employer had, corrupting the
+      // "which purchase paid which unlock" trail after the first unlock.
+      const ent = await tx.entitlement.findFirst({
         where: { employerId: employer.id, spentOnSlateId: null },
-        data: { spentOnSlateId: slate.id },
+        select: { id: true },
       });
+      if (ent) {
+        await tx.entitlement.update({
+          where: { id: ent.id },
+          data: { spentOnSlateId: slate.id },
+        });
+      }
       await tx.slate.update({
         where: { id: slate.id },
         data: { status: "unlocked", unlockedAt: new Date() },

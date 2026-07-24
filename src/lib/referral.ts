@@ -427,7 +427,11 @@ export async function getAffiliateStats(userId: string) {
 
   const earned: EarnedByCurrency = byCurrency
     .map((g) => ({
-      currency: g.currency ?? REFERRAL_REWARD.payoutCurrency,
+      // Rewards are WRITTEN at REFERRAL_REWARD.currency (USD), so a legacy
+      // null-currency row is a USD reward — matching getOwed's fallback. Using
+      // payoutCurrency (PHP) here labeled the same money differently in the
+      // "earned" vs "owed" panels of one dashboard.
+      currency: g.currency ?? REFERRAL_REWARD.currency,
       amount: Number(g._sum.rewardAmount ?? 0),
     }))
     .filter((e) => e.amount > 0)
