@@ -67,14 +67,27 @@ const tokenHit = (t: string, corpus: Set<string>): boolean => {
  * A confirmed skill still outranks a self-reported one: only a mutual outcome
  * confirmation earns the full weight.
  */
-export function scoreSkills(
+export type RequirementMatch = {
+  requirement: string;
+  /** exact tag hit, loose token overlap, or nothing at all. */
+  kind: "confirmed" | "claimed" | "partial" | "none";
+  /** Contribution to the coverage numerator. */
+  weight: number;
+};
+
+/**
+ * Per-requirement verdicts, the shared source for both the skills score and the
+ * "why this person ranked" bullets.
+ *
+ * One function so the explanation can never claim a match the score did not
+ * count, or omit a gap the score penalised. Splitting these was how the old
+ * narration drifted from the ranking it was describing.
+ */
+export function matchRequirements(
   required: string[],
   candidateSkills: { normalizedName: string; confirmed: boolean }[],
-  similarity: number,
   context: { headline?: string | null; roles?: string[] } = {},
-): number {
-  if (required.length === 0) return clamp100(Math.round(similarity * 100));
-
+): RequirementMatch[] {
   // Confirmed always wins on a duplicate normalizedName, so scoring is
   // deterministic regardless of DB row order if two rows share a name.
   const owned = new Map<string, boolean>();
@@ -86,23 +99,36 @@ export function scoreSkills(
   for (const t of contentTokens(context.headline ?? "")) corpus.add(t);
   for (const role of context.roles ?? []) for (const t of contentTokens(role)) corpus.add(t);
 
-  let earned = 0;
-  for (const req of required) {
-    const exact = owned.get(normalizeSkill(req));
+  return required.map((requirement) => {
+    const exact = owned.get(normalizeSkill(requirement));
     if (exact !== undefined) {
-      earned += exact ? CONFIRMED_SKILL_WEIGHT : 1;
-      continue;
+      return exact
+        ? { requirement, kind: "confirmed" as const, weight: CONFIRMED_SKILL_WEIGHT }
+        : { requirement, kind: "claimed" as const, weight: 1 };
     }
     // Partial credit: how much of this requirement shows up anywhere on the
     // profile, tolerant to plural/gerund wording (see tokenHit). Partial always
     // scores below an exact confirmed match — coverage divides by the confirmed
     // weight — so a loose match lifts a qualified person without outranking a
     // proven one.
-    const tokens = contentTokens(req);
-    if (tokens.length === 0) continue;
+    const tokens = contentTokens(requirement);
+    if (tokens.length === 0) return { requirement, kind: "none" as const, weight: 0 };
     const hits = tokens.filter((t) => tokenHit(t, corpus)).length;
-    earned += (hits / tokens.length) * 1;
-  }
+    const weight = (hits / tokens.length) * 1;
+    return { requirement, kind: weight > 0 ? ("partial" as const) : ("none" as const), weight };
+  });
+}
+
+export function scoreSkills(
+  required: string[],
+  candidateSkills: { normalizedName: string; confirmed: boolean }[],
+  similarity: number,
+  context: { headline?: string | null; roles?: string[] } = {},
+): number {
+  if (required.length === 0) return clamp100(Math.round(similarity * 100));
+
+  const matches = matchRequirements(required, candidateSkills, context);
+  const earned = matches.reduce((sum, m) => sum + m.weight, 0);
   const coverage = earned / (required.length * CONFIRMED_SKILL_WEIGHT);
 
   // Embedding similarity still contributes — it catches synonyms that share no
@@ -203,6 +229,92 @@ export const QUALIFY_SKILLS = 40;
  * a fee for placement. See docs/research/verification.md.
  */
 export const VERIFIED_BONUS = 4;
+
+/** "a, b and c" — or "a, b, c and 2 more" once the list runs long. */
+function nameList(items: string[], cap = 3): string {
+  const shown = items.slice(0, cap);
+  const extra = items.length - shown.length;
+  const joined =
+    shown.length > 1 ? `${shown.slice(0, -1).join(", ")} and ${shown.at(-1)}` : (shown[0] ?? "");
+  return extra > 0 ? `${joined} and ${extra} more` : joined;
+}
+
+/**
+ * The "why this person ranked" bullets an employer reads on a slate.
+ *
+ * Derived entirely from the stored numbers. A model asked to justify a ranking
+ * it did not compute will write a plausible reason, and one invented reason
+ * caught by an employer discredits every ranking after it — so this reads the
+ * same `matchRequirements` verdicts the score was built from, and can only name
+ * requirements that came from the employer's own job description.
+ *
+ * Gaps are stated plainly. An honest flag is what makes the rest believable.
+ */
+export function explainMatch(
+  jd: { mustHaves: string[]; budgetMax: number | null },
+  c: {
+    headline?: string | null;
+    yearsExperience: number;
+    rateUsd: number | null;
+    skills: { name: string; normalizedName?: string; confirmed: boolean }[];
+    roles?: string[];
+  },
+  dims: Dims,
+): string[] {
+  const skills = c.skills.map((s) => ({
+    normalizedName: s.normalizedName ?? normalizeSkill(s.name),
+    confirmed: s.confirmed,
+  }));
+  const matches = matchRequirements(jd.mustHaves, skills, {
+    headline: c.headline,
+    roles: c.roles,
+  });
+
+  const direct = matches.filter((m) => m.kind === "confirmed" || m.kind === "claimed");
+  const confirmed = matches.filter((m) => m.kind === "confirmed");
+  const partial = matches.filter((m) => m.kind === "partial");
+  const gaps = matches.filter((m) => m.kind === "none");
+
+  const years = `${c.yearsExperience} yr${c.yearsExperience === 1 ? "" : "s"} experience`;
+  const out: string[] = [];
+
+  if (jd.mustHaves.length === 0) {
+    out.push(`${years}. Ranked on overall profile fit (${dims.skills}/100 on skills).`);
+  } else {
+    const names = direct.length ? ` — ${nameList(direct.map((m) => m.requirement))}` : "";
+    const proof = confirmed.length
+      ? `, ${confirmed.length} confirmed by a past engagement`
+      : "";
+    out.push(
+      `${direct.length} of ${jd.mustHaves.length} must-haves matched${names}${proof}. ${years}.`,
+    );
+  }
+
+  const shortfalls: string[] = [];
+  if (gaps.length) shortfalls.push(`no evidence of ${nameList(gaps.map((m) => m.requirement))}`);
+  if (partial.length) {
+    shortfalls.push(`related but not direct experience for ${nameList(partial.map((m) => m.requirement))}`);
+  }
+  if (dims.overlap < 50) shortfalls.push("limited weekly capacity for your hours");
+  out.push(
+    shortfalls.length
+      ? `Gap: ${shortfalls.join("; ")}.`
+      : "No gaps against your stated must-haves.",
+  );
+
+  if (c.rateUsd == null) {
+    out.push("Rate: not set on this profile yet.");
+  } else if (jd.budgetMax == null) {
+    out.push(`Rate: $${c.rateUsd}/hr.`);
+  } else {
+    const within = c.rateUsd <= jd.budgetMax;
+    out.push(
+      `Rate: $${c.rateUsd}/hr, ${within ? "within" : "above"} your $${jd.budgetMax} ceiling.`,
+    );
+  }
+
+  return out;
+}
 
 export function composite(d: Dims, isVerified = false): number {
   const base =

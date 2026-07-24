@@ -190,10 +190,10 @@ export async function respondToConsent(token: string, action: "accept" | "declin
   const dims = candidateDims(jd, profile, profile.skills, profile.engagements, sim);
   const score = composite(dims, profile.verifiedTier === "id_verified");
 
-  // LLM narration BEFORE the transaction — it can take seconds and degrade to
-  // no bullets, neither of which belongs inside a db transaction.
+  // Derived from the scores above — pure and instant, so unlike the old model
+  // call it costs the transaction nothing and cannot come back empty.
   const jdShape: Jd = jd;
-  const [reasons = []] = await explain(jdShape, [{ c: profile, dims, score, skills: profile.skills }]);
+  const [reasons = []] = explain(jdShape, [{ c: profile, dims, score, skills: profile.skills }]);
 
   await db.$transaction(async (tx) => {
     // Serialize concurrent accepts for THIS slate. Two candidates clicking
