@@ -12,7 +12,7 @@
 import { config } from "dotenv";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { canonicalizeTool } from "../src/lib/tools/aliases.ts";
+import { canonicalizeTool, isKnownTool } from "../src/lib/tools/aliases.ts";
 
 config({ path: ".env.local" });
 
@@ -30,12 +30,18 @@ async function main() {
   );
 
   let known = 0;
-  console.log(`rank  count  known?  normalized`);
+  console.log(`rank  count  status                        normalized`);
   for (const [i, r] of rows.entries()) {
     const canonical = canonicalizeTool(r.normalizedName);
-    const isKnown = canonical !== r.normalizedName;
-    if (isKnown) known++;
-    const mark = isKnown ? `-> ${canonical}` : "  (unmapped)";
+    if (isKnownTool(r.normalizedName)) known++;
+    // Three states: an alias points at its canonical; a canonical is known as
+    // itself; everything else is a candidate for curation.
+    const mark =
+      canonical !== r.normalizedName
+        ? `-> ${canonical}`
+        : isKnownTool(r.normalizedName)
+          ? "  (canonical)"
+          : "  (unmapped)";
     console.log(`${String(i + 1).padStart(4)}  ${String(r.n).padStart(5)}  ${mark.padEnd(28)} ${r.normalizedName}`);
   }
   console.log(`\n${known}/${rows.length} of the top skills are in the alias table.`);
