@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
-    "test:unit": "node --experimental-strip-types --test src/lib/*.test.ts",
+    "test:unit": "node --experimental-strip-types --test \"src/lib/**/*.test.ts\"",
     "preflight": "node --experimental-strip-types scripts/preflight.ts",
     "db:harden": "prisma db execute --file scripts/db-hardening.sql",
     "backfill:facets": "node --experimental-strip-types scripts/backfill-facet-embeddings.ts",
