@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     // One live interview per candidate entry. A declined or cancelled one may
     // be retried; anything still in flight blocks a duplicate. The findFirst is
     // a fast path for the common case — the real guard is the partial unique
-    // index (db-hardening.sql), so two concurrent POSTs can't both create a
+    // index (interview_one_live_per_entry, in the init migration), so two concurrent POSTs can't both create a
     // live row: the loser trips P2002 and gets the same 409.
     const existing = await db.interview.findFirst({
       where: { slateEntryId, status: { notIn: ["declined", "cancelled"] } },
