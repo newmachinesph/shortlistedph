@@ -1,32 +1,16 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
+import { isUniqueViolation } from "./api";
 import { db } from "./db";
 import { mail } from "./email";
 import { PRODUCTS, type ProductId } from "./payments";
+import { REFERRAL_REWARD, commissionFor } from "./referral-reward";
 import { HttpError } from "./session";
 
-/**
- * The whole reward rule, in one place.
- *
- * A flat bounty per referred company, paid once on their first qualifying
- * purchase. It deliberately does NOT scale with what they spend — a $119
- * three-pack pays exactly the same as a $49 single — so the reward is a fixed
- * cost per acquisition rather than a share of revenue.
- *
- * The bounty is denominated in USD because that is what the credits products
- * sell in. Payouts go to the affiliate's PayPal in USD and are settled by
- * hand; there is no FX rate anywhere in this codebase and none is invented
- * here.
- */
-export const REFERRAL_REWARD = {
-  amount: 9.99,
-  currency: "USD" as const,
-  /** Fallback currency label for older rows — settlement itself is manual, via PayPal. */
-  payoutCurrency: "PHP" as const,
-  /** Applies to the peso-equivalent total the operator computes at payout time. */
-  minPayout: 500,
-} as const;
+// The commission rule itself is pure and lives in referral-reward.ts (with its
+// test); everything importing it from here keeps working.
+export { REFERRAL_REWARD };
 
 /** Cookie set by /r/[code], read back when the referred user finishes signup. */
 export const REF_COOKIE = "slph_ref";
@@ -194,34 +178,36 @@ export function refCookieValue(code: string, source?: string) {
 }
 
 /**
- * Flips a signed_up conversion to qualified once a referred COMPANY pays for
- * shortlist credits. Idempotent — a replayed webhook must not double a reward.
+ * Records the recurring commission for a referred COMPANY's qualifying
+ * purchase — EVERY shortlist-credit purchase earns the flat reward, for the
+ * lifetime of the referred company, not just the first. Idempotent: the
+ * unique index on ReferralCommission.paymentId means a replayed webhook can
+ * never pay twice.
  *
  * Two gates, because getting either wrong spends money that does not exist:
  *
- * 1. Only `kind: "credits"` products earn. The talent verification fee is
- *    billed at cost and we keep none of it, so paying commission on it would
- *    come straight out of nothing. A referred jobseeker earns the affiliate
- *    zero.
+ * 1. Only `kind: "credits"` products earn (commissionFor). Interview credits
+ *    never earn; the talent verification fee is billed at cost and we keep
+ *    none of it, so paying commission on it would come straight out of
+ *    nothing. A referred jobseeker earns the affiliate zero.
  * 2. The payer must actually hold an EmployerAccount. Belt and braces: if a
  *    future non-credits product is ever sold to talent, or a credits product
  *    to a non-employer, this stops commissions starting silently.
  *
- * A referral that does not qualify stays at `signed_up`, not `void` — it is a
- * real signup that simply does not earn.
- *
- * The payment's own amount and currency are deliberately not parameters: the
- * bounty is flat, so taking them would invite someone to start multiplying by
- * them again.
+ * The first commission also flips the conversion to `qualified` — that status
+ * is attribution history ("this referral produced a paying company"), not the
+ * money. A voided conversion accrues nothing. A referral that never buys
+ * stays at `signed_up`, not `void` — a real signup that simply does not earn.
  */
-export async function qualifyConversion(
+export async function recordCommission(
   userId: string,
   { paymentId, productId }: { paymentId: string; productId: ProductId },
 ) {
-  if (PRODUCTS[productId].kind !== "credits") return null;
+  const reward = commissionFor(PRODUCTS[productId].kind);
+  if (!reward) return null;
 
   const conversion = await db.referralConversion.findUnique({ where: { userId } });
-  if (!conversion || conversion.status !== "signed_up") return null;
+  if (!conversion || conversion.status === "void") return null;
 
   const employer = await db.employerAccount.findUnique({
     where: { userId },
@@ -229,16 +215,30 @@ export async function qualifyConversion(
   });
   if (!employer) return null;
 
-  return db.referralConversion.update({
-    where: { userId },
-    data: {
-      status: "qualified",
-      rewardAmount: REFERRAL_REWARD.amount,
-      currency: REFERRAL_REWARD.currency,
-      paymentId,
-      qualifiedAt: new Date(),
-    },
-  });
+  try {
+    return await db.$transaction(async (tx) => {
+      const commission = await tx.referralCommission.create({
+        data: {
+          referralId: conversion.referralId,
+          conversionId: conversion.id,
+          paymentId,
+          amount: reward.amount,
+          currency: reward.currency,
+        },
+      });
+      if (conversion.status === "signed_up") {
+        await tx.referralConversion.update({
+          where: { id: conversion.id },
+          data: { status: "qualified", qualifiedAt: new Date(), paymentId },
+        });
+      }
+      return commission;
+    });
+  } catch (e) {
+    // Unique violation on paymentId: this payment already earned. Replay-safe.
+    if (isUniqueViolation(e)) return null;
+    throw e;
+  }
 }
 
 // ─── Payouts ──────────────────────────────────────────────────────────────
@@ -263,20 +263,20 @@ function round2(n: number) {
 }
 
 /**
- * Qualified conversions not yet attached to a payout, grouped by currency.
- * This is the single definition of "owed" — the affiliate page and the
- * request-payout route both read it, so the button and the number agree.
+ * Commissions not yet attached to a payout, grouped by currency. This is the
+ * single definition of "owed" — the affiliate page and the request-payout
+ * route both read it, so the button and the number agree.
  */
 export async function getOwed(referralId: string): Promise<OwedBalance[]> {
-  const rows = await db.referralConversion.groupBy({
+  const rows = await db.referralCommission.groupBy({
     by: ["currency"],
-    where: { referralId, status: "qualified", payoutId: null },
-    _sum: { rewardAmount: true },
+    where: { referralId, payoutId: null },
+    _sum: { amount: true },
   });
   return rows
     .map((r) => ({
-      currency: r.currency ?? REFERRAL_REWARD.currency,
-      amount: round2(Number(r._sum.rewardAmount ?? 0)),
+      currency: r.currency,
+      amount: round2(Number(r._sum.amount ?? 0)),
     }))
     .filter((r) => r.amount > 0)
     .sort((a, b) => a.currency.localeCompare(b.currency));
@@ -324,21 +324,21 @@ export async function requestPayout(userId: string) {
     const pending = await tx.referralPayout.findFirst({ where: { userId, status: "pending" } });
     if (pending) throw new HttpError(409, "You already have a payout request waiting");
 
-    const owed = await tx.referralConversion.findMany({
-      where: { referralId: referral.id, status: "qualified", payoutId: null },
-      select: { id: true, rewardAmount: true, currency: true },
+    const owed = await tx.referralCommission.findMany({
+      where: { referralId: referral.id, payoutId: null },
+      select: { id: true, amount: true, currency: true },
     });
     if (owed.length === 0) throw new HttpError(409, "Nothing is owed right now");
 
-    // Every reward is written at REFERRAL_REWARD.currency, so a second
+    // Every commission is written at REFERRAL_REWARD.currency, so a second
     // currency here means a rule changed underneath us. Refuse rather than
     // invent a rate to add them together.
-    const currencies = new Set(owed.map((c) => c.currency ?? REFERRAL_REWARD.currency));
+    const currencies = new Set(owed.map((c) => c.currency));
     if (currencies.size > 1) {
       throw new HttpError(409, "Your balance spans several currencies — contact support to settle it");
     }
     const currency = [...currencies][0];
-    const amount = round2(owed.reduce((sum, c) => sum + Number(c.rewardAmount ?? 0), 0));
+    const amount = round2(owed.reduce((sum, c) => sum + Number(c.amount), 0));
 
     const payout = await tx.referralPayout.create({
       data: { userId, amount, currency, method: referral.payoutMethod as string },
@@ -347,7 +347,7 @@ export async function requestPayout(userId: string) {
     // The payoutId: null guard is what makes a double-click safe: the second
     // request links zero rows and takes its payout row back out.
     // ponytail: relies on the transaction plus this guard rather than a lock.
-    const linked = await tx.referralConversion.updateMany({
+    const linked = await tx.referralCommission.updateMany({
       where: { id: { in: owed.map((c) => c.id) }, payoutId: null },
       data: { payoutId: payout.id },
     });
@@ -385,6 +385,7 @@ const EMPTY_STATS = {
     source: string | null;
     reward: number | null;
     currency: string | null;
+    purchases: number;
     createdAt: Date;
   }[],
   payouts: [] as (Awaited<ReturnType<typeof db.referralPayout.findMany>>[number] & {
@@ -405,10 +406,10 @@ export async function getAffiliateStats(userId: string) {
     db.referralConversion.count({ where: { ...live, user: { employer: { is: null } } } }),
     // Aggregated in the database — the activity list below is capped at 25, so
     // summing money off that slice would under-report anyone popular.
-    db.referralConversion.groupBy({
+    db.referralCommission.groupBy({
       by: ["currency"],
-      where: { referralId: referral.id, status: "qualified" },
-      _sum: { rewardAmount: true },
+      where: { referralId: referral.id },
+      _sum: { amount: true },
       _count: { _all: true },
     }),
     db.referralConversion.findMany({
@@ -417,6 +418,9 @@ export async function getAffiliateStats(userId: string) {
       take: 25,
       include: {
         user: { select: { name: true, employer: { select: { companyName: true } } } },
+        // The recurring earnings from this referred company, newest first —
+        // summed below rather than trusted from any single row.
+        commissions: { select: { amount: true, currency: true } },
       },
     }),
     db.referralPayout.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
@@ -427,12 +431,8 @@ export async function getAffiliateStats(userId: string) {
 
   const earned: EarnedByCurrency = byCurrency
     .map((g) => ({
-      // Rewards are WRITTEN at REFERRAL_REWARD.currency (USD), so a legacy
-      // null-currency row is a USD reward — matching getOwed's fallback. Using
-      // payoutCurrency (PHP) here labeled the same money differently in the
-      // "earned" vs "owed" panels of one dashboard.
-      currency: g.currency ?? REFERRAL_REWARD.currency,
-      amount: Number(g._sum.rewardAmount ?? 0),
+      currency: g.currency,
+      amount: Number(g._sum.amount ?? 0),
     }))
     .filter((e) => e.amount > 0)
     .sort((a, b) => a.currency.localeCompare(b.currency));
@@ -463,17 +463,24 @@ export async function getAffiliateStats(userId: string) {
     // The PayPal email, shown back in full — it is the affiliate's own address.
     payoutEmail: referral.payoutAccountNumber,
     hasPendingRequest: payouts.some((p) => p.status === "pending"),
-    activity: activity.map((c) => ({
-      id: c.id,
-      // Show the company, not the person who signed up for it.
-      name: c.user.employer?.companyName ?? c.user.name,
-      isCompany: c.user.employer !== null,
-      status: c.status,
-      source: c.source,
-      reward: c.rewardAmount !== null ? Number(c.rewardAmount) : null,
-      currency: c.currency,
-      createdAt: c.createdAt,
-    })),
+    activity: activity.map((c) => {
+      // Lifetime earnings from this one referred company. Single-currency by
+      // construction; if a second currency ever appears the row shows the
+      // first and the totals above stay authoritative.
+      const total = c.commissions.reduce((sum, m) => sum + Number(m.amount), 0);
+      return {
+        id: c.id,
+        // Show the company, not the person who signed up for it.
+        name: c.user.employer?.companyName ?? c.user.name,
+        isCompany: c.user.employer !== null,
+        status: c.status,
+        source: c.source,
+        reward: total > 0 ? round2(total) : null,
+        currency: c.commissions[0]?.currency ?? null,
+        purchases: c.commissions.length,
+        createdAt: c.createdAt,
+      };
+    }),
     payouts,
   };
 }

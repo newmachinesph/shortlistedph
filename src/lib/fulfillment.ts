@@ -4,7 +4,7 @@ import { db } from "./db";
 import { mail } from "./email";
 import { notify } from "./notify";
 import { PRODUCTS, type ProductId } from "./payments";
-import { qualifyConversion } from "./referral";
+import { recordCommission } from "./referral";
 
 /**
  * Every path that grants something paid-for goes through here.
@@ -156,13 +156,13 @@ async function afterFulfillment(input: {
       }),
     });
 
-    // Only an employer's first credit purchase turns a signup into a payable
-    // referral. productId is passed so referral.ts can enforce that: the
-    // talent verification fee is billed at cost and we keep none of it, so
-    // commissioning it would pay out of money that was never ours.
-    // Flat bounty, so the payment's amount and currency are irrelevant here —
-    // only which product it was and who bought it.
-    await qualifyConversion(input.userId, {
+    // Every shortlist-credit purchase by a referred employer earns the flat
+    // recurring commission — providerRef's uniqueness makes replays safe.
+    // productId is passed so referral-reward.ts can enforce the gate: interview
+    // credits and the at-cost verification fee never earn. Flat commission, so
+    // the payment's amount and currency are irrelevant here — only which
+    // product it was and who bought it.
+    await recordCommission(input.userId, {
       paymentId: input.providerRef,
       productId: input.productId,
     });

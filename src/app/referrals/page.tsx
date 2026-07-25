@@ -36,7 +36,7 @@ const statusChip: Record<string, string> = {
 
 const statusLabel: Record<string, string> = {
   signed_up: "Signed up",
-  qualified: "Qualified",
+  qualified: "Earning",
   void: "Void",
 };
 
@@ -99,17 +99,19 @@ export default async function ReferralsPage() {
             </span>
             <div className="max-w-2xl text-sm leading-relaxed text-ink-soft">
               <p className="text-ink">
-                {bounty} for every company you refer that buys their first shortlist.
+                {bounty} every time a company you referred buys a shortlist — for as long as they
+                keep buying.
               </p>
               <ul className="mt-3 space-y-1.5 text-ink-faint">
                 <li>
-                  <span className="font-medium text-ink-soft">The same {bounty} either way.</span>{" "}
-                  It does not matter whether they buy one shortlist or a three-pack — the amount is
-                  flat.
+                  <span className="font-medium text-ink-soft">The same {bounty} per purchase.</span>{" "}
+                  It does not matter whether a purchase is one shortlist or a three-pack — each
+                  purchase pays the flat amount, not per credit.
                 </li>
                 <li>
-                  <span className="font-medium text-ink-soft">It pays once per company.</span> You
-                  earn on their first purchase only. Anything they buy after that earns you nothing.
+                  <span className="font-medium text-ink-soft">It keeps paying.</span> Every
+                  shortlist purchase that company ever makes earns you the same amount again.
+                  Interview credits do not earn.
                 </li>
                 <li>
                   <span className="font-medium text-ink-soft">Only companies earn.</span> Referring
@@ -145,7 +147,7 @@ export default async function ReferralsPage() {
             value={String(stats.companies)}
             sub={stats.otherSignups > 0 ? `${stats.otherSignups} jobseekers (no reward)` : undefined}
           />
-          <Stat label="Paid for a shortlist" value={String(stats.qualified)} />
+          <Stat label="Shortlist purchases" value={String(stats.qualified)} />
           {stats.earned.length === 0 ? (
             <Stat label="Earned" value={peso.format(0)} />
           ) : (
@@ -224,7 +226,16 @@ export default async function ReferralsPage() {
                       <td className="px-3 py-3.5 text-xs text-ink-faint">{a.source ?? "direct"}</td>
                       <td className="px-3 py-3.5 text-xs text-ink-faint">{date(a.createdAt)}</td>
                       <td className="px-3 py-3.5 text-right text-ink">
-                        {a.reward ? money(a.reward, a.currency) : "—"}
+                        {a.reward && a.currency ? (
+                          <>
+                            {money(a.reward, a.currency)}
+                            <span className="block text-[11px] text-ink-faint">
+                              {a.purchases} purchase{a.purchases === 1 ? "" : "s"}
+                            </span>
+                          </>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td className="px-6 py-3.5 text-right">
                         <span

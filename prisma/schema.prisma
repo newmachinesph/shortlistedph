@@ -532,6 +532,33 @@ model Referral {
   user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   clicks      ReferralClick[]
   conversions ReferralConversion[]
+  commissions ReferralCommission[]
+}
+
+// One row per qualifying purchase by a referred company — the recurring $9.
+// The conversion row above is the attribution (who referred whom, once);
+// commissions are the money, accruing on every shortlist-credit purchase for
+// the lifetime of the referred company. paymentId is the provider reference,
+// unique so a replayed webhook can never pay twice.
+model ReferralCommission {
+  id           String   @id @default(cuid())
+  referralId   String
+  conversionId String
+  paymentId    String   @unique
+  amount       Decimal  @db.Decimal(10, 2)
+  currency     String
+  createdAt    DateTime @default(now())
+
+  // Set when a payout covering this commission is requested, cleared if that
+  // payout is rejected. Null means "still owed".
+  payoutId String?
+
+  referral   Referral           @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  conversion ReferralConversion @relation(fields: [conversionId], references: [id], onDelete: Cascade)
+  payout     ReferralPayout?    @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+
+  @@index([referralId, payoutId])
+  @@index([conversionId])
 }
 
 // ipHash, never the raw address: enough to spot self-clicking, not enough to
@@ -567,9 +594,10 @@ model ReferralConversion {
   // the whole unpaid balance calculation, no arithmetic across payouts.
   payoutId String?
 
-  referral Referral        @relation(fields: [referralId], references: [id], onDelete: Cascade)
-  user     User            @relation("ReferredUser", fields: [userId], references: [id], onDelete: Cascade)
-  payout   ReferralPayout? @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+  referral    Referral             @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  user        User                 @relation("ReferredUser", fields: [userId], references: [id], onDelete: Cascade)
+  payout      ReferralPayout?      @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+  commissions ReferralCommission[]
 
   @@index([referralId, status])
   @@index([payoutId])
@@ -589,6 +617,7 @@ model ReferralPayout {
 
   user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   conversions ReferralConversion[]
+  commissions ReferralCommission[]
 
   @@index([userId, status])
   @@index([status])

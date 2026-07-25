@@ -29,11 +29,10 @@ async function load() {
         conversions: {
           select: {
             status: true,
-            rewardAmount: true,
-            currency: true,
             user: { select: { employer: { select: { id: true } } } },
           },
         },
+        commissions: { select: { amount: true, currency: true } },
         _count: { select: { clicks: true } },
       },
     }),
@@ -57,36 +56,40 @@ async function load() {
   // Only conversions belonging to a flagged affiliate: the chips said "worth a
   // look" and this is the list you actually look at, with the lever attached.
   const flaggedUserIds = [...signals.keys()];
-  const flaggedConversions = flaggedUserIds.length
+  const flaggedConversionsRaw = flaggedUserIds.length
     ? await db.referralConversion.findMany({
         where: {
           status: "qualified",
-          payoutId: null,
+          // Something is still owed on it — that is what voiding can reverse.
+          commissions: { some: { payoutId: null } },
           referral: { userId: { in: flaggedUserIds } },
         },
         orderBy: { qualifiedAt: "desc" },
         take: 50,
         select: {
           id: true,
-          rewardAmount: true,
-          currency: true,
           qualifiedAt: true,
           createdAt: true,
+          commissions: { where: { payoutId: null }, select: { amount: true, currency: true } },
           user: { select: { email: true, employer: { select: { companyName: true } } } },
           referral: { select: { code: true, userId: true, user: { select: { email: true } } } },
         },
       })
     : [];
+  const flaggedConversions = flaggedConversionsRaw.map((c) => ({
+    ...c,
+    unpaid: c.commissions.reduce((sum, m) => sum + Number(m.amount), 0),
+    unpaidCurrency: c.commissions[0]?.currency ?? null,
+    purchases: c.commissions.length,
+  }));
 
   const rows = referrals
     .map((r) => {
-      const qualified = r.conversions.filter((c) => c.status === "qualified");
       // Totalled per currency — PayPal clears USD, PayMongo clears PHP, and
       // there is no rate in this codebase to reconcile them with.
       const byCurrency = new Map<string, number>();
-      for (const c of qualified) {
-        const key = c.currency ?? "PHP";
-        byCurrency.set(key, (byCurrency.get(key) ?? 0) + Number(c.rewardAmount ?? 0));
+      for (const c of r.commissions) {
+        byCurrency.set(c.currency, (byCurrency.get(c.currency) ?? 0) + Number(c.amount));
       }
       return {
         id: r.id,
@@ -99,7 +102,8 @@ async function load() {
         // to zero earnings looks like broken tracking rather than the rule.
         companies: r.conversions.filter((c) => c.status !== "void" && c.user.employer).length,
         jobseekers: r.conversions.filter((c) => c.status !== "void" && !c.user.employer).length,
-        qualified: qualified.length,
+        // One commission per qualifying purchase, so the count IS purchases.
+        purchases: r.commissions.length,
         earned: [...byCurrency.entries()]
           .map(([currency, amount]) => ({ currency, amount }))
           .sort((a, b) => a.currency.localeCompare(b.currency)),
@@ -108,7 +112,7 @@ async function load() {
     // Conversions are what the programme is for — rank on those, not on traffic.
     .filter((r) => r.clicks > 0 || r.companies > 0 || r.jobseekers > 0)
     .sort(
-      (a, b) => b.qualified - a.qualified || b.companies - a.companies || b.clicks - a.clicks,
+      (a, b) => b.purchases - a.purchases || b.companies - a.companies || b.clicks - a.clicks,
     )
     .slice(0, 50);
 
@@ -169,8 +173,10 @@ export default async function AdminAffiliates() {
     <>
       <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Affiliates</h1>
       <p className="mt-1 text-sm text-ink-soft">
-        {money(REFERRAL_REWARD.amount, REFERRAL_REWARD.currency)} flat per referred company, once,
-        on their first shortlist purchase. Referred jobseekers never earn.
+        {money(REFERRAL_REWARD.amount, REFERRAL_REWARD.currency)} flat per shortlist purchase by a
+        referred company — every purchase, for as long as they keep buying. One purchase is one
+        commission whatever it contains (a three-pack pays the same as a single). Interview credits
+        and referred jobseekers never earn.
         {pendingPayouts.length > 0
           ? ` ${owedLabel} awaiting transfer across ${pendingPayouts.length} payout${pendingPayouts.length === 1 ? "" : "s"}.`
           : " No payouts awaiting transfer."}
@@ -254,13 +260,16 @@ export default async function AdminAffiliates() {
                     {c.user.employer?.companyName ?? c.user.email}
                   </p>
                   <p className="break-all text-xs text-ink-faint">
-                    referred by /r/{c.referral.code} ({c.referral.user.email}) · qualified{" "}
-                    {date(c.qualifiedAt ?? c.createdAt)}
+                    referred by /r/{c.referral.code} ({c.referral.user.email}) · first purchase{" "}
+                    {date(c.qualifiedAt ?? c.createdAt)} · {c.purchases} unpaid commission
+                    {c.purchases === 1 ? "" : "s"}
                   </p>
                 </div>
                 <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
                   <span className="text-sm text-ink">
-                    {c.rewardAmount ? money(Number(c.rewardAmount), c.currency ?? REFERRAL_REWARD.currency) : "—"}
+                    {c.unpaid > 0
+                      ? money(c.unpaid, c.unpaidCurrency ?? REFERRAL_REWARD.currency)
+                      : "—"}
                   </span>
                   <ReferralVoid conversionId={c.id} />
                 </div>
@@ -268,9 +277,10 @@ export default async function AdminAffiliates() {
             ))}
           </div>
           <p className="mt-2 max-w-2xl text-xs leading-relaxed text-ink-faint">
-            Unpaid qualified conversions belonging to an affiliate with a check chip. Voiding one
-            reverses the earning and takes it out of every balance. A conversion already attached to
-            a payout cannot be voided — settle or reject that payout first.
+            Referred companies with unpaid commissions belonging to an affiliate with a check chip.
+            Voiding one deletes its unpaid commissions, stops all future accrual from that company,
+            and takes it out of every balance. A conversion with a commission inside a payout cannot
+            be voided — settle or reject that payout first.
           </p>
         </>
       )}
@@ -297,7 +307,7 @@ export default async function AdminAffiliates() {
                   <th className="px-3 py-3 text-right font-medium">Clicks</th>
                   <th className="px-3 py-3 text-right font-medium">Companies</th>
                   <th className="px-3 py-3 text-right font-medium">Jobseekers</th>
-                  <th className="px-3 py-3 text-right font-medium">Qualified</th>
+                  <th className="px-3 py-3 text-right font-medium">Purchases</th>
                   <th className="px-6 py-3 text-right font-medium">Earned</th>
                 </tr>
               </thead>
@@ -314,7 +324,7 @@ export default async function AdminAffiliates() {
                     <td className="px-3 py-3.5 text-right text-ink-soft">{r.clicks}</td>
                     <td className="px-3 py-3.5 text-right text-ink-soft">{r.companies}</td>
                     <td className="px-3 py-3.5 text-right text-ink-faint">{r.jobseekers}</td>
-                    <td className="px-3 py-3.5 text-right text-ink">{r.qualified}</td>
+                    <td className="px-3 py-3.5 text-right text-ink">{r.purchases}</td>
                     <td className="px-6 py-3.5 text-right font-medium text-ink">
                       {r.earned.length === 0
                         ? "—"

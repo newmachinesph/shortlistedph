@@ -32,11 +32,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         where: { id },
         data: { status, reference, note, paidAt: status === "paid" ? new Date() : null },
       });
-      // Rejecting releases the conversions this request had claimed, so the
+      // Rejecting releases the commissions this request had claimed, so the
       // balance shows as owed again and can be re-requested. Marking it paid
       // leaves them attached — that link is what "already paid" means.
       if (status === "rejected") {
-        await tx.referralConversion.updateMany({
+        await tx.referralCommission.updateMany({
           where: { payoutId: id },
           data: { payoutId: null },
         });
