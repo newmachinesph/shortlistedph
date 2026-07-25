@@ -9,18 +9,14 @@ green. Working tree is clean.
 
 ---
 
-## The one thing to check before anything else
+## ~~The one thing to check before anything else~~ — RESOLVED (`686b7c2`)
 
-**The reworked skills scorer is on master, un-calibrated.** If master auto-deploys
-(Vercel on push), it is live in production now. It fills slates well in the eval but
-its `QUALIFY_SCORE` / `MIN_SLATE_SCORE` thresholds were tuned against the *old* score
-math and have not been re-tuned to the new distribution.
-
-- Not broken — slates fill sensibly, precision on absent niches holds (Amazon PPC still
-  returns nothing). It is untuned, not wrong.
-- Decide first thing: is master auto-deployed? If yes, either recalibrate (below) or
-  accept the current thresholds knowingly. If no, calibrate before the next deploy.
-- Evidence: `docs/engine/eval-canonical-result.md` (before/after tables).
+**The scorer is now calibrated.** Read-only prod eval (`EVAL_DB=prod` flag added to
+`scripts/eval-matching.ts`), thresholds shifted by the measured distribution move:
+`MIN_SLATE_SCORE` 62 → 68, `QUALIFY_SCORE` 52 → 55, `QUALIFY_SKILLS` unchanged at 40
+(bimodal around it: eligible ≥ 43, rejects ≤ 37). All fillable eval jobs keep full
+slates; Amazon PPC still returns nothing. Full method + before/after tables:
+`docs/engine/eval-canonical-result.md` (Follow-up 2).
 
 ---
 
@@ -76,12 +72,9 @@ sanitization step), `roleFamily`/`clientRegion` selects from `lib/openings-taxon
 free-text industry, publish/unlist stamping or clearing `listedAt` (first-publish date
 preserved on later edits). Board still fails closed without `publicTitle` + `listedAt`.
 
-### 1. Scorer calibration (engine — closes the coverage-rework loop)
-Re-tune `QUALIFY_SCORE` / `MIN_SLATE_SCORE` to the new distribution. ~30–45 min minimal,
-1–2 hrs proper (wider job set). Needs a read-only prod eval run. Method + the constants to
-touch: `docs/engine/engine-plan.md` and `eval-canonical-result.md`.
+### ~~1. Scorer calibration~~ — DONE (`686b7c2`, see the resolved note at the top)
 
-### 2. E2E harness (not started)
+### 1. E2E harness (not started)
 Fully planned in `docs/e2e-plan.md`. Playwright + real Postgres + Mailpit, no real emails.
 Build J7 (public-route smoke) first — it becomes the redesign regression net.
 

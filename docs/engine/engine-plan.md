@@ -12,12 +12,12 @@ Closes the gaps in `gap-analysis.md`. Read that first — every phase here cites
 | 1c — Hard filters | not started. Baseline now exists, so ready to build + measure |
 | 1d — Template anchors | **partly done.** `lib/resume-sections.ts` + 10 tests. Per-tool years/last-used and per-role country/industry still wait on Phase 2 schema |
 | Canonical tools (P1-1) | **done, measured no-op** — kept as infra. See `eval-canonical-result.md` |
-| Coverage-cap rework | **done, un-calibrated.** `SKILL_COVERAGE_DENOM = 1.5`. Lifted the skills ceiling; slates 1–3 → 6–23 qualified. **Re-tune QUALIFY/MIN next — this is the open loop** |
+| Coverage-cap rework | **done, calibrated.** `SKILL_COVERAGE_DENOM = 1.5`; thresholds re-tuned on the prod pool 2026-07-25 (`MIN` 62→68, `QUALIFY` 52→55, skills gate unchanged). See `eval-canonical-result.md` Follow-up 2 |
 | 2, 3, 4 | not started |
 
-**Open engine task, highest priority:** recalibrate `QUALIFY_SCORE` / `MIN_SLATE_SCORE`
-against the coverage-rework distribution. It is live on master, un-calibrated. See
-`eval-canonical-result.md` and `docs/HANDOFF.md`.
+**Calibration done (2026-07-25):** `QUALIFY_SCORE` 52 → 55, `MIN_SLATE_SCORE` 62 → 68,
+skills gate unchanged, measured read-only against the prod pool (`EVAL_DB=prod`). See
+`eval-canonical-result.md` Follow-up 2. Next engine work: hard filters (1c) / Phase 2.
 
 Schema note learned while shipping 1a: **`prisma db push` is unsafe on this database.**
 It does not know about the hnsw indexes `db-hardening.sql` creates and drops both. Additive
