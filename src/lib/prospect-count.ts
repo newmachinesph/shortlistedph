@@ -16,7 +16,7 @@ import { db } from "./db";
 export type ProspectQuery = {
   skills?: string[];
   budgetMax?: number | null; // employer's ceiling; a candidate over it won't fit
-  hoursPerWeek?: number | null;
+  hoursPerWeek?: number | null; // hours the role needs free, not hours worked
 };
 
 const STOPWORDS = new Set([
@@ -46,11 +46,15 @@ export async function prospectCount(q: ProspectQuery): Promise<number> {
   try {
     const words = q.skills?.length ? keywordsFrom(q.skills) : [];
 
-    // Base: published, visible, from an active account. Same gate the real
-    // matching pool uses.
+    // The pool gate, copied condition-for-condition from the candidate query in
+    // lib/matching.ts. Dropping dormantAt/embedding here counted people the
+    // engine would never surface, so the funnel promised a bigger pool than the
+    // slate could ever draw from.
     const conditions: string[] = [
       `p."publishedAt" is not null`,
       `p.visibility = true`,
+      `p."dormantAt" is null`,
+      `p.embedding is not null`,
       `u.status = 'active'`,
     ];
 
@@ -60,9 +64,18 @@ export async function prospectCount(q: ProspectQuery): Promise<number> {
       conditions.push(`(p."rateUsd" is null or p."rateUsd" <= ${Number(q.budgetMax)})`);
     }
 
+    if (q.hoursPerWeek && q.hoursPerWeek > 0) {
+      // Same capacity arithmetic as the hours_short hard filter (lib/filters.ts):
+      // 40 hours a week, less whatever is already committed. Applied even though
+      // that filter sits behind a flag — erring toward the smaller number is the
+      // only safe direction for a figure shown before signup.
+      conditions.push(`greatest(0, 40 - p."committedHours") >= ${Number(q.hoursPerWeek)}`);
+    }
+
     let joinFilter = "";
     if (words.length > 0) {
-      // Match on a confirmed/known skill OR a word appearing in headline/summary.
+      // Skill rows only. Headline and summary are embedded, not LIKE-matched —
+      // reaching them would need the vector path this function exists to avoid.
       const likeList = words
         .map((w) => `'%' || ${escapeLiteral(w)} || '%'`)
         .join(", ");

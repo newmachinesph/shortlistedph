@@ -1,6 +1,16 @@
 # MISTAKES.md — pitfalls to not repeat
 
 - **Never `prisma db push`** — silently drops the hnsw vector indexes. Migrations only.
+- **Every generated migration tries to drop the hnsw indexes.** Prisma cannot see
+  indexes on `Unsupported("vector")` columns, so each `migrate dev --create-only`
+  emits `DROP INDEX jd_embedding_hnsw` + `talent_embedding_hnsw` as "drift". Delete
+  those two lines by hand, every single time, before applying. Verify after with a
+  query on `pg_indexes`.
+- **Never hand-name a migration folder with a future timestamp.** Prisma names them in
+  UTC and replays the whole chain in *filename order* against a shadow database on the
+  next `migrate dev`. A hand-picked name that sorts after the clock makes later
+  migrations replay before the tables exist ("relation X does not exist"), and the
+  error points at the wrong migration entirely.
 - **Don't trust the eval harness as-is** — it ranks a different pipeline than
   production (pool gates, verified bonus, rotation all differ). Fix parity before
   trusting any threshold it produces (audit P2-15).

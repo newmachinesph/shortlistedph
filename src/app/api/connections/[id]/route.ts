@@ -2,6 +2,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
 import type { AgreementTerms } from "@/lib/agreements";
+import { mail } from "@/lib/email";
 import { notify } from "@/lib/notify";
 import { HttpError, requireRole } from "@/lib/session";
 
@@ -34,7 +35,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
                     budgetMax: true,
                     hoursPerWeek: true,
                     overlap: true,
-                    employer: { select: { userId: true, companyName: true } },
+                    employer: {
+                      select: {
+                        userId: true,
+                        companyName: true,
+                        // Employers live in their inbox, not on the dashboard —
+                        // the in-app notification alone reached nobody.
+                        user: { select: { email: true, name: true } },
+                      },
+                    },
                   },
                 },
               },
@@ -81,15 +90,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       });
     }
 
-    const employerUserId = connection.slateEntry.snapshot.jd.employer.userId;
+    const employer = jd.employer;
     await notify({
-      userId: employerUserId,
+      userId: employer.userId,
       type: decision === "consent" ? "connection_accepted" : "connection_declined",
-      payload: {
-        connectionId: connection.id,
-        jobTitle: connection.slateEntry.snapshot.jd.title,
-      },
+      payload: { connectionId: connection.id, jobTitle: jd.title },
     });
+    const args = { name: employer.user.name, jobTitle: jd.title };
+    await (decision === "consent"
+      ? mail.connectionAccepted(employer.user.email, args)
+      : mail.connectionDeclined(employer.user.email, args));
 
     return ok({ state: updated.state });
   } catch (e) {

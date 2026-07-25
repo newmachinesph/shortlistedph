@@ -1,14 +1,26 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, CalendarClock, Camera, EyeOff, Lock, Radar, ScanSearch, SearchX } from "lucide-react";
+import {
+  Archive,
+  ArrowRight,
+  CalendarClock,
+  Camera,
+  CircleAlert,
+  EyeOff,
+  Lock,
+  Radar,
+  ScanSearch,
+  SearchX,
+} from "lucide-react";
 import { db } from "@/lib/db";
-import { SLATE_SIZE } from "@/lib/matching";
-import { employerOrOnboard, getSlateForJd, requirePageUser } from "@/lib/queries";
+import { SLATE_SIZE, jdHardRequirements } from "@/lib/matching";
+import { eliminationCounts, employerOrOnboard, getSlateForJd, requirePageUser } from "@/lib/queries";
 import { availabilityHint, availabilityStatus, freshnessNote } from "@/lib/availability";
 import { activeInterviewers, employerPrice, INTERVIEW_DURATION_MINUTES } from "@/lib/interviews";
 import { RequestConnection } from "@/components/request-connection";
 import { InterviewPool } from "@/components/interview-pool";
 import { UnlockButton } from "./unlock-button";
+import { CloseRoleButton } from "./close-button";
 
 const dimLabels: [key: "skills" | "rate" | "overlap" | "experience", label: string][] = [
   ["skills", "Skills"],
@@ -19,6 +31,43 @@ const dimLabels: [key: "skills" | "rate" | "overlap" | "experience", label: stri
   ["overlap", "Capacity"],
   ["experience", "Experience"],
 ];
+
+/**
+ * Stage 0 eliminations in the employer's own terms. Counts only, by reason —
+ * who got eliminated is never the employer's to see, so no identity crosses
+ * this boundary.
+ */
+function eliminationLines(counts: Record<string, number>, rateCeiling: number | null): string[] {
+  const lines: string[] = [];
+  const above = counts.rate_above_ceiling ?? 0;
+  const short = counts.hours_short ?? 0;
+  const booked = counts.booked ?? 0;
+  if (above > 0) {
+    const ceiling = rateCeiling != null ? `$${rateCeiling}/hr ` : "";
+    lines.push(`${above} ${above === 1 ? "match was" : "matches were"} above your ${ceiling}ceiling`);
+  }
+  if (short > 0) {
+    lines.push(`${short} did not have enough free hours a week for this load`);
+  }
+  if (booked > 0) {
+    lines.push(`${booked} ${booked === 1 ? "was" : "were"} already at capacity`);
+  }
+  return lines;
+}
+
+function EliminationNotes({ lines, className }: { lines: string[]; className?: string }) {
+  if (lines.length === 0) return null;
+  return (
+    <ul className={`space-y-1.5 ${className ?? ""}`}>
+      {lines.map((line) => (
+        <li key={line} className="flex gap-2 text-sm leading-relaxed text-ink-soft">
+          <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-ember" />
+          {line}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export default async function SlatePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -86,6 +135,13 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
         priceUsd: employerPrice(),
       }))
     : [];
+  // Stage 0 eliminations are only worth reading when there is a thin or empty
+  // slate to explain — a full shortlist needs no excuse.
+  const elimLines =
+    jd.status === "no_matches" || (slate?.entries.length ?? 0) < SLATE_SIZE
+      ? eliminationLines(await eliminationCounts(jd.id), jdHardRequirements(jd).rateMaxUsd ?? null)
+      : [];
+
   const interviewedIds = new Set<string>();
   if (slate?.unlocked) {
     const live = await db.interview.findMany({
@@ -129,7 +185,24 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
             </span>
           ))}
         </div>
+        {jd.status !== "closed" && jd.status !== "draft" && (
+          <div className="mt-5 border-t border-line pt-4">
+            <CloseRoleButton jdId={jd.id} />
+          </div>
+        )}
       </div>
+
+      {/* A closed role keeps its shortlist — the employer may have paid for it —
+          so this is a banner over the normal view, not a replacement for it. */}
+      {jd.status === "closed" && (
+        <div className="mt-6 flex items-start gap-3 rounded-2xl border border-line bg-white px-6 py-4">
+          <Archive className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint" strokeWidth={1.75} />
+          <p className="text-sm leading-relaxed text-ink-soft">
+            You closed this role. Matching has stopped and no further candidates will be asked to
+            confirm. Anything already unlocked stays yours below.
+          </p>
+        </div>
+      )}
 
       {jd.status === "no_matches" ? (
         <div className="mt-6 rounded-2xl border border-line bg-white p-6 text-center sm:p-10">
@@ -141,6 +214,7 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
             We ranked the market against this job description and nobody was a strong enough match
             to put in front of you. You have not been charged, and no credit was used.
           </p>
+          <EliminationNotes lines={elimLines} className="mx-auto mt-4 max-w-md text-left" />
           <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-ink-faint">
             Padding a shortlist with near-misses would waste your time and ours. Try widening the
             must-haves or the budget band — we&rsquo;ll re-run the match.
@@ -151,6 +225,34 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
           >
             Adjust and try again
           </Link>
+        </div>
+      ) : jd.status === "failed" ? (
+        // Terminal, and NOT "in progress" — nothing will move without us.
+        <div className="mt-6 rounded-2xl border border-line bg-white p-6 text-center sm:p-10">
+          <CircleAlert className="mx-auto h-8 w-8 text-ember" strokeWidth={1.5} />
+          <h2 className="font-display mt-4 text-lg font-semibold text-ink">Matching failed</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-ink-soft">
+            Something broke on our side while ranking the market against this job description — this
+            is not a verdict on your brief, and nothing was charged. We can re-run it for you.
+          </p>
+          <Link
+            href="/employer/support"
+            className="mt-6 inline-block rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
+          >
+            Ask us to re-run it
+          </Link>
+        </div>
+      ) : jd.status === "matching" || jd.status === "rematching" ? (
+        <div className="mt-6 rounded-2xl border border-line bg-white p-6 text-center sm:p-10">
+          <ScanSearch className="mx-auto h-8 w-8 text-ember" strokeWidth={1.5} />
+          <h2 className="font-display mt-4 text-lg font-semibold text-ink">
+            {jd.status === "rematching" ? "Re-ranking the market" : "Ranking the market"}
+          </h2>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-ink-soft">
+            We&rsquo;re scoring every published profile against this job description. The candidates
+            who clear the bar are then asked to confirm they&rsquo;re available — nobody appears on
+            your shortlist without agreeing first.
+          </p>
         </div>
       ) : !slate ? (
         <div className="mt-6 rounded-2xl border border-line bg-white p-6 text-center sm:p-10">
@@ -175,6 +277,7 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
             available and interested. Confirmed candidates appear here as they
             respond — we&rsquo;re also sourcing from other channels in parallel.
           </p>
+          <EliminationNotes lines={elimLines} className="mx-auto mt-4 max-w-md text-left" />
         </div>
       ) : (
         <>
@@ -194,10 +297,13 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
           {slate.entries.length < SLATE_SIZE && (
             <div className="mt-6 flex items-start gap-3 rounded-2xl border border-line bg-white px-6 py-4">
               <Radar className="mt-0.5 h-4 w-4 shrink-0 text-brand" strokeWidth={1.75} />
-              <p className="text-sm leading-relaxed text-ink-soft">
-                Your shortlist is still growing — we&rsquo;re confirming availability
-                with more matched candidates and sourcing from other channels.
-              </p>
+              <div>
+                <p className="text-sm leading-relaxed text-ink-soft">
+                  Your shortlist is still growing — we&rsquo;re confirming availability
+                  with more matched candidates and sourcing from other channels.
+                </p>
+                <EliminationNotes lines={elimLines} className="mt-2.5" />
+              </div>
             </div>
           )}
 

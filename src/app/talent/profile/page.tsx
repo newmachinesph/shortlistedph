@@ -1,17 +1,34 @@
 import Link from "next/link";
 import { BadgeCheck, Camera, Check, Globe, Lock } from "lucide-react";
+import { db } from "@/lib/db";
 import { getTalentProfile, requirePageUser, talentOrOnboard } from "@/lib/queries";
 import { AvatarUpload } from "@/components/avatar-upload";
 import { availabilityLabel, freshnessNote, isStale } from "@/lib/availability";
 import { AvailabilitySection } from "./availability-section";
+import { EditDetails } from "./edit-details";
 import { VerifyIdentity } from "./verify-identity";
+import { VisibilityToggle } from "./visibility-toggle";
 
+type VerificationStatus = "none" | "pending" | "verified" | "rejected";
 
 export default async function TalentProfilePage() {
   const user = await requirePageUser("talent");
   await talentOrOnboard(user.id);
   const profile = await getTalentProfile(user.id);
   if (!profile) return null;
+
+  // The badge follows verifiedTier, but the *attempt* lives on IdentityBinding —
+  // pending and rejected have no representation on the profile row at all.
+  const binding = await db.identityBinding.findUnique({
+    where: { userId: user.id },
+    select: { status: true, note: true },
+  });
+  const verificationStatus: VerificationStatus =
+    profile.verifiedTier === "id_verified"
+      ? "verified"
+      : binding?.status === "pending" || binding?.status === "rejected"
+        ? binding.status
+        : "none";
 
   const { stableDays, isRateLocked } = profile;
   // Freshness copy is computed here, on the server, then handed down as strings —
@@ -35,11 +52,15 @@ export default async function TalentProfilePage() {
         </div>
         <span
           className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${
-            isPublished ? "bg-brand-soft text-brand" : "bg-ember-soft text-ember"
+            isPublished && profile.visibility ? "bg-brand-soft text-brand" : "bg-ember-soft text-ember"
           }`}
         >
           <Globe className="h-3.5 w-3.5" />
-          {isPublished ? "Visible to matching" : "Not published yet"}
+          {!isPublished
+            ? "Not published yet"
+            : profile.visibility
+              ? "Visible to matching"
+              : "Hidden from matching"}
         </span>
       </div>
 
@@ -85,6 +106,19 @@ export default async function TalentProfilePage() {
         </p>
       </div>
 
+      <EditDetails
+        profile={profile}
+        skills={profile.skills}
+        engagements={profile.engagements.map((e) => ({
+          role: e.role,
+          company: e.company,
+          span: e.span,
+          confirmed: e.outcome === "confirmed",
+        }))}
+      />
+
+      <VisibilityToggle visible={profile.visibility} />
+
       <AvailabilitySection
         initial={{
           openToOffers: profile.openToOffers,
@@ -120,7 +154,7 @@ export default async function TalentProfilePage() {
             Verification
           </h2>
           <ul className="mt-4 space-y-3 text-sm">
-            <VerifyIdentity verified={profile.verifiedTier === "id_verified"} />
+            <VerifyIdentity status={verificationStatus} note={binding?.note ?? null} />
             <li className="flex items-center gap-2.5 text-ink-faint">
               <span className="h-4 w-4 rounded-full border border-line" />
               <span>NBI clearance — on hand, shown at hire</span>

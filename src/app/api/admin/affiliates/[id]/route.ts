@@ -2,6 +2,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
 import { mail } from "@/lib/email";
+import { notify } from "@/lib/notify";
 import { HttpError, requireAdmin } from "@/lib/session";
 
 const Body = z.object({
@@ -51,6 +52,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         target: id,
         meta: { amount: payout.amount, currency: payout.currency, method: payout.method, reference, note },
       },
+    });
+
+    // Rejection used to be entirely silent: the balance simply reappeared, with
+    // nothing saying a request had been turned down or why.
+    await notify({
+      userId: payout.userId,
+      type: status === "paid" ? "payout_paid" : "payout_rejected",
+      payload:
+        status === "paid"
+          ? { amount: Number(payout.amount), currency: payout.currency }
+          : { note: note ?? "" },
     });
 
     if (status === "paid") {

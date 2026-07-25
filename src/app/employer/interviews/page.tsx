@@ -154,8 +154,8 @@ export default async function InterviewsPage({
           <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-ink-soft">
             Open a candidate on an unlocked shortlist and choose &ldquo;Interview this
             candidate&rdquo;. A vetted interviewer runs a recorded 30-minute interview and returns a
-            structured assessment you can compare across candidates. Nothing is charged until the
-            candidate agrees.
+            structured assessment you can compare across candidates. You buy interview credits up
+            front; a credit is only spent once the candidate agrees and you confirm.
           </p>
         </div>
       ) : (
@@ -207,8 +207,8 @@ export default async function InterviewsPage({
                       {iv.status === "requested" && (
                         <>
                           <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-                            We&rsquo;ve asked {firstName} to consent to a recorded interview. You can
-                            pay once they agree — nothing is charged until then.
+                            We&rsquo;ve asked {firstName} to consent to a recorded interview. No
+                            credit is spent unless they agree and you confirm.
                           </p>
                           <div className="mt-4">
                             <InterviewCancelButton interviewId={iv.id} />
@@ -261,14 +261,14 @@ export default async function InterviewsPage({
 
                       {iv.status === "declined" && (
                         <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-                          {firstName} declined the interview, so it did not go ahead. You were not
-                          charged.
+                          {firstName} declined the interview, so it did not go ahead. No credit was
+                          spent — it stays on your balance.
                         </p>
                       )}
 
                       {iv.status === "cancelled" && (
                         <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-                          This request was cancelled. Nothing was charged.
+                          This request was cancelled. No credit was spent — it stays on your balance.
                         </p>
                       )}
 

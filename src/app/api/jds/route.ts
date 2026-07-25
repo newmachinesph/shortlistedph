@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
 import { requireEmployer, requireRole } from "@/lib/session";
@@ -26,7 +27,8 @@ export async function GET() {
   }
 }
 
-const Body = z.object({
+/** Shared with PATCH on [id] — an edit replaces the whole draft, same shape. */
+export const JdBody = z.object({
   title: z.string().min(3).max(160),
   budgetMin: z.number().min(0).max(500).nullable().optional(),
   budgetMax: z.number().min(0).max(500).nullable().optional(),
@@ -46,6 +48,8 @@ const Body = z.object({
     .optional(),
   initialInstructions: z.string().max(4000).optional(),
   schedulingUrl: z.string().url().max(500).optional(),
+  // Stage 0 hard ceiling. Not a JD column — it composes hardRequirements below.
+  rateMaxUsd: z.number().min(0).max(500).nullable().optional(),
 }).refine(
   (b) => b.budgetMin == null || b.budgetMax == null || b.budgetMin <= b.budgetMax,
   // An inverted range makes scoreRate's in-band branch unreachable and silently
@@ -53,15 +57,29 @@ const Body = z.object({
   { message: "Minimum budget can't exceed maximum", path: ["budgetMax"] },
 );
 
+/**
+ * jdHardRequirements (lib/matching.ts) takes an explicit object WHOLESALE, so a
+ * JSON carrying only the ceiling would silently switch the hours filter off.
+ * Carry the JD's own hoursPerWeek in alongside it.
+ */
+export function hardRequirementsJson(
+  rateMaxUsd: number | null | undefined,
+  hoursPerWeek: number | null | undefined,
+) {
+  if (rateMaxUsd == null) return Prisma.DbNull;
+  return { rateMaxUsd, hoursPerWeekMin: hoursPerWeek ?? null };
+}
+
 export async function POST(req: Request) {
   try {
     const user = await requireRole("employer");
     const employer = await requireEmployer(user.id);
-    const body = await parseBody(req, Body);
+    const { rateMaxUsd, ...body } = await parseBody(req, JdBody);
 
     const jd = await db.jobDescription.create({
       data: {
         ...body,
+        hardRequirements: hardRequirementsJson(rateMaxUsd, body.hoursPerWeek),
         // Canonical tool IDs for Phase 3 — alias-table hits only, unmapped
         // requirements stay prose in mustHaves/niceToHaves (engine-plan 2a).
         requiredTools: extractCanonicalTools(body.mustHaves),

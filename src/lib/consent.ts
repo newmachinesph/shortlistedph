@@ -1,10 +1,9 @@
 import "server-only";
+import type { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { mail } from "./email";
+import { notify } from "./notify";
 import { HttpError } from "./session";
-import { composite } from "./scoring";
-import { blendSimilarity } from "./facets";
-import { candidateDims, explain, frozenProfileJson, type Jd } from "./matching";
 
 /**
  * Consent-first matching, candidate side. A MatchConsent row is created at
@@ -80,6 +79,13 @@ export async function getConsentByToken(token: string) {
       expiresAt: true,
       jdId: true,
       profileId: true,
+      // The ranking frozen at invite time (lib/matching.ts inviteCandidates).
+      // Accepting copies these onto the slate — it never re-scores.
+      slateId: true,
+      snapshotId: true,
+      score: true,
+      dims: true,
+      reasons: true,
       // GENERIC JD data only — the employer/company name never rides a consent
       // (hidden-JD principle), so it is not even selected here.
       jd: {
@@ -157,43 +163,27 @@ export async function respondToConsent(token: string, action: "accept" | "declin
   }
 
   // ── Accept ─────────────────────────────────────────────────────────────
-  const [jd, profile, slate] = await Promise.all([
-    db.jobDescription.findUniqueOrThrow({ where: { id: consent.jdId } }),
-    db.talentProfile.findUniqueOrThrow({
-      where: { id: consent.profileId },
-      include: { skills: true, engagements: true },
-    }),
-    db.slate.findFirst({
-      where: { jdId: consent.jdId, status: { not: "pending_review" } },
-      orderBy: { deliveredAt: "desc" },
-      select: { id: true },
-    }),
-  ]);
+  // Nothing is scored here. The snapshot, score, dims and bullets were all
+  // frozen at invite time, BEFORE this candidate was shown the job's
+  // must-haves (lib/matching.ts inviteCandidates). Accepting is a copy.
+  const { slateId, snapshotId, score, dims, reasons } = consent;
+  if (!slateId || !snapshotId || score == null || dims == null) {
+    // Only reachable if a consent row was written by something other than
+    // inviteCandidates — a bug, not a user state. Fail loud rather than
+    // silently re-scoring after disclosure, which is what this replaced.
+    console.error(`[consent] invite ${consent.id} has no frozen ranking — refusing to score post-disclosure`);
+    throw new HttpError(409, "This invitation is no longer valid — support can re-issue it");
+  }
+
+  const slate = await db.slate.findUnique({
+    where: { id: slateId },
+    select: { id: true, status: true },
+  });
   // Consents are only emailed after admin approval, so an approved slate must
   // exist by the time anyone can click accept.
-  if (!slate) throw new HttpError(409, "This shortlist is no longer active");
-
-  // Distances between the STORED profile and JD vectors — same facets, same
-  // COALESCE fallback as the ranking query. 0.5 (neutral similarity) if a row
-  // somehow has no vectors at all.
-  const [d] = await db.$queryRawUnsafe<{ dskills: number; dexp: number; dprefs: number }[]>(
-    `SELECT COALESCE(p."embeddingSkills" <=> j."embeddingSkills", p.embedding <=> j.embedding, 0.5) AS dskills,
-            COALESCE(p."embeddingExperience" <=> j.embedding, p.embedding <=> j.embedding, 0.5) AS dexp,
-            COALESCE(p."embeddingPrefs" <=> j.embedding, p.embedding <=> j.embedding, 0.5) AS dprefs
-       FROM "TalentProfile" p, "JobDescription" j
-      WHERE p.id = $1 AND j.id = $2`,
-    profile.id,
-    jd.id,
-  );
-  const sim = d ? blendSimilarity(d.dskills, d.dexp, d.dprefs) : 0.5;
-
-  const dims = candidateDims(jd, profile, profile.skills, profile.engagements, sim);
-  const score = composite(dims, profile.verifiedTier === "id_verified");
-
-  // Derived from the scores above — pure and instant, so unlike the old model
-  // call it costs the transaction nothing and cannot come back empty.
-  const jdShape: Jd = jd;
-  const [reasons = []] = explain(jdShape, [{ c: profile, dims, score, skills: profile.skills }]);
+  if (!slate || slate.status === "pending_review") {
+    throw new HttpError(409, "This shortlist is no longer active");
+  }
 
   await db.$transaction(async (tx) => {
     // Serialize concurrent accepts for THIS slate. Two candidates clicking
@@ -208,23 +198,6 @@ export async function respondToConsent(token: string, action: "accept" | "declin
     });
     if (count === 0) throw new HttpError(409, "You already responded to this request");
 
-    // Freeze the profile as of this JD. Later edits cannot change what the
-    // employer sees — this is what makes the anti-tailoring claim literal.
-    const snapshot = await tx.profileSnapshot.upsert({
-      where: { profileId_jdId: { profileId: profile.id, jdId: jd.id } },
-      create: {
-        profileId: profile.id,
-        jdId: jd.id,
-        frozenJson: frozenProfileJson(
-          profile,
-          profile.skills,
-          profile.engagements,
-          jd.publishedAt ?? new Date(),
-        ),
-      },
-      update: {},
-    });
-
     // Append at the next rank: the slate grows in acceptance order, which is
     // also invitation order for the common case.
     const last = await tx.slateEntry.findFirst({
@@ -236,10 +209,10 @@ export async function respondToConsent(token: string, action: "accept" | "declin
     await tx.slateEntry.create({
       data: {
         slateId: slate.id,
-        snapshotId: snapshot.id,
+        snapshotId,
         rank: (last?.rank ?? 0) + 1,
         score,
-        dims,
+        dims: dims as Prisma.InputJsonValue,
         reasons,
       },
     });
@@ -247,10 +220,40 @@ export async function respondToConsent(token: string, action: "accept" | "declin
     // Rotation counters stamp on ACCEPT, not at build: only candidates who are
     // actually shown to an employer move to the back of the rotation.
     await tx.talentProfile.update({
-      where: { id: profile.id },
+      where: { id: consent.profileId },
       data: { shortlistCount: { increment: 1 }, lastShownAt: new Date() },
     });
   });
 
+  await notifySlateGrew(slateId, consent.jdId);
+
   return { status: "accepted" as const };
+}
+
+/**
+ * Post-commit, best-effort: tell the employer their shortlist grew.
+ *
+ * A consent-first slate fills one accept at a time, and the employer was told
+ * exactly once — at admin approval — that candidates were "confirming
+ * availability now". Without this they had to keep reloading the brief to find
+ * out whether anyone had said yes.
+ */
+async function notifySlateGrew(slateId: string, jdId: string) {
+  try {
+    const [jd, total] = await Promise.all([
+      db.jobDescription.findUnique({
+        where: { id: jdId },
+        select: { title: true, employer: { select: { userId: true } } },
+      }),
+      db.slateEntry.count({ where: { slateId } }),
+    ]);
+    if (!jd) return;
+    await notify({
+      userId: jd.employer.userId,
+      type: "slate_candidate_confirmed",
+      payload: { jdId, jobTitle: jd.title, total },
+    });
+  } catch (e) {
+    console.error("[consent] slate-growth notification failed", e);
+  }
 }

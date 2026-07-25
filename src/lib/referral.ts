@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { isUniqueViolation } from "./api";
 import { db } from "./db";
 import { mail } from "./email";
+import { notify } from "./notify";
 import { PRODUCTS, type ProductId } from "./payments";
 import { REFERRAL_REWARD, commissionFor } from "./referral-reward";
 import { HttpError } from "./session";
@@ -124,45 +125,70 @@ export async function recordClick(
  * an account. Idempotent: the unique index on ReferralConversion.userId means
  * the first referrer keeps the credit no matter how many links are clicked
  * afterwards.
+ *
+ * `done` is false only when something transient stopped the write, so the
+ * caller knows to keep the cookie for the next request. Every other outcome —
+ * claimed, already attributed, self-referred, unknown code — is final and can
+ * never change on a retry.
  */
 export async function claimAttribution(userId: string, rawCode: string, source?: string) {
   const code = rawCode.trim().toLowerCase();
-  if (!CODE_RE.test(code)) return null;
+  if (!CODE_RE.test(code)) return { done: true, conversion: null };
 
   const referral = await db.referral.findUnique({
     where: { code },
     include: { user: { select: { email: true, name: true } } },
   });
-  if (!referral) return null;
-  if (referral.userId === userId) return null; // no self-referral
+  if (!referral) return { done: true, conversion: null };
+  if (referral.userId === userId) return { done: true, conversion: null }; // no self-referral
 
   try {
     const conversion = await db.referralConversion.create({
       data: { referralId: referral.id, userId, source: source?.slice(0, 64) },
     });
     const referred = await db.user.findUnique({ where: { id: userId }, select: { name: true } });
+    await notify({
+      userId: referral.userId,
+      type: "referral_signup",
+      payload: { name: referred?.name ?? "Someone" },
+    });
     await mail.referralConverted(referral.user.email, {
       name: referral.user.name,
       referredName: referred?.name ?? "Someone",
       code: referral.code,
     });
-    return conversion;
-  } catch {
-    // Unique violation on userId: already attributed. First referrer wins.
-    return null;
+    return { done: true, conversion };
+  } catch (e) {
+    // Unique violation on userId: already attributed. First referrer wins, and
+    // there is nothing left for the cookie to do. Anything else is transient —
+    // the retry hits the unique index and settles then.
+    return { done: isUniqueViolation(e), conversion: null };
   }
 }
 
 /**
  * Reads the attribution cookie and claims it. Safe to call on every signed-in
  * read — it is a no-op once the conversion exists.
+ *
+ * The cookie is dropped as soon as the claim is settled: attribution happens
+ * once per account, so keeping it meant 90 days of re-reading a decision that
+ * cannot change on any later request.
  */
 export async function claimAttributionFromCookie(userId: string) {
-  const raw = (await cookies()).get(REF_COOKIE)?.value;
+  const store = await cookies();
+  const raw = store.get(REF_COOKIE)?.value;
   if (!raw) return null;
   const [code, source] = raw.split("|");
-  if (!code) return null;
-  return claimAttribution(userId, code, source || undefined);
+  const { done, conversion } = await claimAttribution(userId, code ?? "", source || undefined);
+  if (done) {
+    try {
+      store.delete(REF_COOKIE);
+    } catch {
+      // Cookies are read-only during a Server Component render, and /referrals
+      // calls this from one. The next API request clears it instead.
+    }
+  }
+  return conversion;
 }
 
 export function refCookieValue(code: string, source?: string) {
@@ -206,7 +232,10 @@ export async function recordCommission(
   const reward = commissionFor(PRODUCTS[productId].kind);
   if (!reward) return null;
 
-  const conversion = await db.referralConversion.findUnique({ where: { userId } });
+  const conversion = await db.referralConversion.findUnique({
+    where: { userId },
+    include: { referral: { select: { userId: true } } },
+  });
   if (!conversion || conversion.status === "void") return null;
 
   const employer = await db.employerAccount.findUnique({
@@ -215,9 +244,10 @@ export async function recordCommission(
   });
   if (!employer) return null;
 
+  let commission;
   try {
-    return await db.$transaction(async (tx) => {
-      const commission = await tx.referralCommission.create({
+    commission = await db.$transaction(async (tx) => {
+      const row = await tx.referralCommission.create({
         data: {
           referralId: conversion.referralId,
           conversionId: conversion.id,
@@ -227,24 +257,65 @@ export async function recordCommission(
         },
       });
       if (conversion.status === "signed_up") {
+        // ReferralConversion.rewardAmount/currency/paymentId/payoutId are
+        // attribution-era history from when the conversion itself held the
+        // money. The commission rows are the money now and no aggregate reads
+        // those columns, so nothing writes them either — one place claims to
+        // hold the reward, not two.
         await tx.referralConversion.update({
           where: { id: conversion.id },
-          data: { status: "qualified", qualifiedAt: new Date(), paymentId },
+          data: { status: "qualified", qualifiedAt: new Date() },
         });
       }
-      return commission;
+      return row;
     });
   } catch (e) {
     // Unique violation on paymentId: this payment already earned. Replay-safe.
     if (isUniqueViolation(e)) return null;
     throw e;
   }
+
+  // The recurring pitch is that earnings keep arriving; accruing in silence
+  // meant an affiliate only ever found out by opening the page.
+  await notify({
+    userId: conversion.referral.userId,
+    type: "referral_commission",
+    payload: { amount: reward.amount, currency: reward.currency },
+  });
+
+  return commission;
 }
 
 // ─── Payouts ──────────────────────────────────────────────────────────────
 
+/**
+ * Every read of commission money filters on this. A voided commission — the
+ * purchase was refunded, or the conversion was voided — keeps its row so the
+ * history is never silently rewritten, and counts towards nothing: not owed,
+ * not earned, not payable. Missing it in one aggregate pays out money that was
+ * already clawed back, so the filter is named once and spread everywhere
+ * rather than retyped.
+ */
+export const EARNED = { voidedAt: null } as const;
+
+/** Written by fulfilment's refund path; a refund is never un-voidable. */
+export const REFUNDED_REASON = "payment refunded";
+/** Written by the admin void action, which IS reversible. */
+export const VOIDED_REASON = "conversion voided";
+
 export const PAYOUT_METHODS = ["paypal"] as const;
 export type PayoutMethod = (typeof PAYOUT_METHODS)[number];
+
+/**
+ * The stored method is a plain column that predates this list (it held
+ * gcash|bank), so a row can carry a value we no longer pay to. Anything not on
+ * the list is treated as no method at all — the affiliate is asked for details
+ * again rather than a payout being requested against a destination nobody
+ * settles.
+ */
+export function isPayoutMethod(m: string | null): m is PayoutMethod {
+  return PAYOUT_METHODS.includes(m as PayoutMethod);
+}
 
 /**
  * A requested payout is stored in the currency the rewards were EARNED in —
@@ -270,7 +341,7 @@ function round2(n: number) {
 export async function getOwed(referralId: string): Promise<OwedBalance[]> {
   const rows = await db.referralCommission.groupBy({
     by: ["currency"],
-    where: { referralId, payoutId: null },
+    where: { referralId, payoutId: null, ...EARNED },
     _sum: { amount: true },
   });
   return rows
@@ -286,7 +357,7 @@ export function hasPayoutDetails(r: {
   payoutMethod: string | null;
   payoutAccountNumber: string | null;
 }) {
-  return Boolean(r.payoutMethod && r.payoutAccountNumber);
+  return isPayoutMethod(r.payoutMethod) && Boolean(r.payoutAccountNumber);
 }
 
 export async function savePayoutDetails(
@@ -308,15 +379,20 @@ export async function savePayoutDetails(
 
 /**
  * Creates the pending ReferralPayout an affiliate is asking for and links the
- * conversions it covers, so the balance cannot be requested twice.
+ * commissions it covers, so the balance cannot be requested twice.
  *
- * The amount is recomputed here from the conversions themselves — the client
+ * The amount is recomputed here from the commissions themselves — the client
  * sends nothing but the intent to be paid.
+ *
+ * The stored payout method is re-checked here rather than trusted: it is a
+ * free-text column from the gcash|bank era, and copying a legacy value forward
+ * produces a pending payout pointing at a destination nobody settles.
  */
 export async function requestPayout(userId: string) {
   const referral = await db.referral.findUnique({ where: { userId } });
   if (!referral) throw new HttpError(404, "No referral link yet");
-  if (!hasPayoutDetails(referral)) {
+  const method = referral.payoutMethod;
+  if (!isPayoutMethod(method) || !referral.payoutAccountNumber) {
     throw new HttpError(422, "Add your payout details before requesting a payout");
   }
 
@@ -324,34 +400,47 @@ export async function requestPayout(userId: string) {
     const pending = await tx.referralPayout.findFirst({ where: { userId, status: "pending" } });
     if (pending) throw new HttpError(409, "You already have a payout request waiting");
 
-    const owed = await tx.referralCommission.findMany({
-      where: { referralId: referral.id, payoutId: null },
+    const unpaid = await tx.referralCommission.findMany({
+      where: { referralId: referral.id, payoutId: null, ...EARNED },
       select: { id: true, amount: true, currency: true },
     });
-    if (owed.length === 0) throw new HttpError(409, "Nothing is owed right now");
+    if (unpaid.length === 0) throw new HttpError(409, "Nothing is owed right now");
 
-    // Every commission is written at REFERRAL_REWARD.currency, so a second
-    // currency here means a rule changed underneath us. Refuse rather than
-    // invent a rate to add them together.
-    const currencies = new Set(owed.map((c) => c.currency));
-    if (currencies.size > 1) {
-      throw new HttpError(409, "Your balance spans several currencies — contact support to settle it");
+    // A ReferralPayout holds exactly one currency, so a balance spanning two is
+    // two payouts — not an error, and not a rate to invent. Refusing dead-ended
+    // the affiliate with nothing but "contact support"; paying one currency per
+    // request needs no admin lever and no FX. Reward currency first so the
+    // normal case is unchanged, and the rest is requestable once this settles.
+    // ponytail: chosen over an admin per-currency settlement screen because
+    // every commission is written at REFERRAL_REWARD.currency anyway — a second
+    // currency only exists in rows predating that rule.
+    const currency =
+      unpaid.find((c) => c.currency === REFERRAL_REWARD.currency)?.currency ?? unpaid[0].currency;
+    const covered = unpaid.filter((c) => c.currency === currency);
+    const amount = round2(covered.reduce((sum, c) => sum + Number(c.amount), 0));
+
+    // Denominated in the reward currency, so it can only be compared against a
+    // balance in that same currency. Legacy rows in anything else have no
+    // comparable threshold and are payable in full.
+    if (currency === REFERRAL_REWARD.currency && amount < REFERRAL_REWARD.minPayout) {
+      throw new HttpError(
+        409,
+        `The minimum payout is ${currency} ${REFERRAL_REWARD.minPayout.toFixed(2)} — you have ${currency} ${amount.toFixed(2)}`,
+      );
     }
-    const currency = [...currencies][0];
-    const amount = round2(owed.reduce((sum, c) => sum + Number(c.amount), 0));
 
     const payout = await tx.referralPayout.create({
-      data: { userId, amount, currency, method: referral.payoutMethod as string },
+      data: { userId, amount, currency, method },
     });
 
     // The payoutId: null guard is what makes a double-click safe: the second
     // request links zero rows and takes its payout row back out.
     // ponytail: relies on the transaction plus this guard rather than a lock.
     const linked = await tx.referralCommission.updateMany({
-      where: { id: { in: owed.map((c) => c.id) }, payoutId: null },
+      where: { id: { in: covered.map((c) => c.id) }, payoutId: null },
       data: { payoutId: payout.id },
     });
-    if (linked.count !== owed.length) {
+    if (linked.count !== covered.length) {
       throw new HttpError(409, "That balance was just claimed by another request");
     }
 
@@ -408,7 +497,7 @@ export async function getAffiliateStats(userId: string) {
     // summing money off that slice would under-report anyone popular.
     db.referralCommission.groupBy({
       by: ["currency"],
-      where: { referralId: referral.id },
+      where: { referralId: referral.id, ...EARNED },
       _sum: { amount: true },
       _count: { _all: true },
     }),
@@ -420,7 +509,7 @@ export async function getAffiliateStats(userId: string) {
         user: { select: { name: true, employer: { select: { companyName: true } } } },
         // The recurring earnings from this referred company, newest first —
         // summed below rather than trusted from any single row.
-        commissions: { select: { amount: true, currency: true } },
+        commissions: { where: EARNED, select: { amount: true, currency: true } },
       },
     }),
     db.referralPayout.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
@@ -459,7 +548,9 @@ export async function getAffiliateStats(userId: string) {
     // attached, rather than earned-minus-paid across incompatible currencies.
     owed,
     hasPayoutDetails: hasPayoutDetails(referral),
-    payoutMethod: referral.payoutMethod,
+    // A legacy gcash|bank value reads as no method at all, so the UI reopens
+    // the form instead of labelling a bank number "PayPal".
+    payoutMethod: isPayoutMethod(referral.payoutMethod) ? referral.payoutMethod : null,
     // The PayPal email, shown back in full — it is the affiliate's own address.
     payoutEmail: referral.payoutAccountNumber,
     hasPendingRequest: payouts.some((p) => p.status === "pending"),

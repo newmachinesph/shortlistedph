@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
+import { mail } from "@/lib/email";
 import { notify } from "@/lib/notify";
 import { HttpError, requireUser } from "@/lib/session";
-import { agreementForUser, applyConfirmedOutcome, currentPeriod } from "@/lib/agreements";
+import { agreementForUser, applyConfirmedOutcome, currentPeriod, periodLabel } from "@/lib/agreements";
 
 const Body = z.object({
   period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Period must be YYYY-MM"),
@@ -53,6 +54,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         type: "outcome_confirmed",
         payload: { jobTitle: snap.jd.title, period },
       });
+      // Post-commit and best-effort — the outcome and everything it wrote to
+      // the profile are already durable; mail must not be able to undo them.
+      try {
+        const other = await db.user.findUnique({
+          where: { id: otherUserId },
+          select: { email: true, name: true },
+        });
+        if (other) {
+          await mail.outcomeConfirmed(other.email, {
+            name: other.name,
+            jobTitle: snap.jd.title,
+            period: periodLabel(period),
+            side: side === "talent" ? "employer" : "talent",
+          });
+        }
+      } catch (e) {
+        console.error("[agreements] outcome notification email failed", e);
+      }
     }
 
     return ok({ period, bothConfirmed: both });

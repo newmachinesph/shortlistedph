@@ -13,13 +13,23 @@ export default async function TalentDashboard() {
   const profile = await getTalentProfile(user.id);
   if (!profile) redirect("/onboarding");
 
-  const [timesShortlisted, pendingRequests, connectedCount] = await Promise.all([
+  const [timesShortlisted, pendingRequests, connectedCount, openInvites] = await Promise.all([
     db.slateEntry.count({ where: { snapshot: { profileId: profile.id } } }),
     db.connection.count({
       where: { state: "requested", slateEntry: { snapshot: { profileId: profile.id } } },
     }),
     db.connection.count({
       where: { state: "consented", slateEntry: { snapshot: { profileId: profile.id } } },
+    }),
+    // Invitations whose 48h window is still running. Missing one costs a
+    // dormancy strike, so the dashboard has to say so before the clock runs out.
+    db.matchConsent.count({
+      where: {
+        profileId: profile.id,
+        status: "pending",
+        sentAt: { not: null },
+        expiresAt: { gt: new Date() },
+      },
     }),
   ]);
 
@@ -74,6 +84,22 @@ export default async function TalentDashboard() {
         ))}
       </dl>
 
+      {openInvites > 0 && (
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-ember px-6 py-5">
+          <p className="text-sm font-medium text-white">
+            {openInvites === 1
+              ? "A job matched you and is waiting on your answer. It expires 48 hours after we sent it."
+              : `${openInvites} jobs matched you and are waiting on your answer. Each expires 48 hours after we sent it.`}
+          </p>
+          <Link
+            href="/talent/matches"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-ember transition-opacity hover:opacity-90"
+          >
+            Answer {openInvites === 1 ? "it" : "them"} <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      )}
+
       {pendingRequests > 0 && (
         <div className="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-brand px-6 py-5">
           <p className="text-sm font-medium text-white">
@@ -119,12 +145,20 @@ export default async function TalentDashboard() {
               </span>
             </li>
           </ul>
-          <Link
-            href="/talent/profile"
-            className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
-          >
-            View your standing profile <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
+          <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2">
+            <Link
+              href="/talent/profile"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
+            >
+              View your standing profile <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+            <Link
+              href="/talent/matches"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"
+            >
+              Match invitations <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
         </section>
 
         <section className="rounded-2xl border border-line bg-white p-6">

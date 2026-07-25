@@ -82,13 +82,15 @@ export async function fulfillPurchase(input: {
       }
 
       if (product.kind === "verification") {
-        // Payment only unlocks the verification attempt. The badge itself is
-        // set by the Didit webhook once identity actually checks out — paying
-        // must never be enough to look verified.
+        // Payment only unlocks the verification ATTEMPT and queues it for
+        // review. Nothing here touches TalentProfile.verifiedTier — only
+        // approveVerification (lib/verification.ts) does, because paying must
+        // never be enough to look verified.
         await tx.identityBinding.upsert({
           where: { userId: input.userId },
-          create: { userId: input.userId },
-          update: {},
+          create: { userId: input.userId, status: "pending" },
+          // A re-paid attempt after a rejection re-opens the review.
+          update: { status: "pending", note: null, reviewedAt: null },
         });
       }
 
@@ -125,6 +127,26 @@ async function afterFulfillment(input: {
   amount: number;
   currency: string;
 }) {
+  // MONEY FIRST, COSMETICS SECOND — and never in the same try.
+  //
+  // These all used to share one catch, with the receipt email ahead of the
+  // commission. A bounced receipt therefore skipped the affiliate's earnings
+  // permanently: the payment is idempotent, so fulfilment never runs again and
+  // nothing retries. Someone else's money must not depend on our mail server.
+  //
+  // Every shortlist-credit purchase by a referred employer earns the flat
+  // recurring commission — providerRef's uniqueness makes replays safe.
+  // productId is passed so referral-reward.ts can enforce the gate: interview
+  // credits and the at-cost verification fee never earn.
+  try {
+    await recordCommission(input.userId, {
+      paymentId: input.providerRef,
+      productId: input.productId,
+    });
+  } catch (e) {
+    console.error("[fulfillment] COMMISSION FAILED — affiliate underpaid", input.providerRef, e);
+  }
+
   try {
     const user = await db.user.findUnique({
       where: { id: input.userId },
@@ -155,19 +177,8 @@ async function afterFulfillment(input: {
         day: "numeric",
       }),
     });
-
-    // Every shortlist-credit purchase by a referred employer earns the flat
-    // recurring commission — providerRef's uniqueness makes replays safe.
-    // productId is passed so referral-reward.ts can enforce the gate: interview
-    // credits and the at-cost verification fee never earn. Flat commission, so
-    // the payment's amount and currency are irrelevant here — only which
-    // product it was and who bought it.
-    await recordCommission(input.userId, {
-      paymentId: input.providerRef,
-      productId: input.productId,
-    });
   } catch (e) {
-    console.error("[fulfillment] post-commit side effects failed", e);
+    console.error("[fulfillment] receipt/notification failed", e);
   }
 }
 
@@ -181,6 +192,101 @@ export async function markPaymentFailed(providerRef: string) {
   await db.payment.updateMany({ where: { providerRef }, data: { status: "failed" } });
 }
 
-export async function markPaymentRefunded(providerRef: string) {
-  await db.payment.updateMany({ where: { providerRef }, data: { status: "refunded" } });
+/**
+ * A refund has to undo what the payment granted, not just relabel the row.
+ *
+ * Before this, refunding left the credits, the entitlement ledger and the
+ * affiliate's $9 commission fully intact — the money went back and the goods
+ * stayed. Now:
+ *   - unspent entitlements bought by this payment are revoked and the matching
+ *     balance decremented (never below zero);
+ *   - already-spent ones are left alone and reported, because a slate that was
+ *     unlocked cannot be un-seen — that is a human conversation, not a rollback;
+ *   - the referral commission for this payment is voided.
+ *
+ * Idempotent: a replayed refund webhook finds nothing left unrevoked and is a
+ * no-op. Returns what actually moved so the caller can log/alert.
+ */
+export async function markPaymentRefunded(providerRef: string): Promise<{
+  revoked: number;
+  alreadySpent: number;
+  commissionVoided: boolean;
+}> {
+  const payment = await db.payment.findUnique({ where: { providerRef } });
+  if (!payment) return { revoked: 0, alreadySpent: 0, commissionVoided: false };
+
+  const result = await db.$transaction(async (tx) => {
+    await tx.payment.update({
+      where: { providerRef },
+      data: { status: "refunded", refundedAt: new Date() },
+    });
+
+    const granted = await tx.entitlement.findMany({
+      where: { source: providerRef, revokedAt: null },
+      select: { id: true, kind: true, spentOnSlateId: true, spentOnInterviewId: true },
+    });
+    const spendable = granted.filter((e) => !e.spentOnSlateId && !e.spentOnInterviewId);
+    const alreadySpent = granted.length - spendable.length;
+
+    if (spendable.length > 0) {
+      await tx.entitlement.updateMany({
+        where: { id: { in: spendable.map((e) => e.id) } },
+        data: { revokedAt: new Date(), revokedReason: `refund:${providerRef}` },
+      });
+
+      const employer = await tx.employerAccount.findFirst({
+        where: { userId: payment.userId },
+        select: { id: true, credits: true, interviewCredits: true },
+      });
+      if (employer) {
+        const credits = spendable.filter((e) => e.kind === "credit").length;
+        const interview = spendable.filter((e) => e.kind === "interview_credit").length;
+        await tx.employerAccount.update({
+          where: { id: employer.id },
+          data: {
+            // Clamped: a balance already drained by admin adjustment must not
+            // be pushed negative by the clawback.
+            credits: Math.max(0, employer.credits - credits),
+            interviewCredits: Math.max(0, employer.interviewCredits - interview),
+          },
+        });
+      }
+    }
+
+    // The affiliate is paid for a purchase that no longer exists.
+    const voided = await tx.referralCommission.updateMany({
+      where: { paymentId: providerRef, voidedAt: null },
+      data: { voidedAt: new Date(), voidedReason: "payment refunded" },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorId: null,
+        action: "payment.refunded",
+        target: providerRef,
+        meta: { revoked: spendable.length, alreadySpent, commissionVoided: voided.count > 0 },
+      },
+    });
+
+    return { revoked: spendable.length, alreadySpent, commissionVoided: voided.count > 0 };
+  });
+
+  if (result.alreadySpent > 0) {
+    console.warn(
+      `[fulfillment] refund ${providerRef}: ${result.alreadySpent} credit(s) were already spent and could not be reclaimed`,
+    );
+  }
+
+  // Best-effort, post-commit: never let a notification failure undo a refund.
+  try {
+    await notify({
+      userId: payment.userId,
+      type: "payment_refunded",
+      payload: { amount: String(payment.amount), currency: payment.currency, reference: providerRef },
+    });
+  } catch (e) {
+    console.error("[fulfillment] refund notification failed", e);
+  }
+
+  return result;
 }

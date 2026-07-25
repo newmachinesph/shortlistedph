@@ -40,25 +40,11 @@ const tiers = [
     features: [
       "Names, dossiers, snapshot profiles",
       "Connection requests included",
-      "Free re-slate if fewer than 3 consent",
+      "Direct messaging once a candidate accepts",
       "Pay only after you've seen the slate",
       "Three-pack: $119, credits never expire",
     ],
     cta: "Unlock a shortlist",
-  },
-  {
-    name: "Hiring desk",
-    price: "$249",
-    unit: "per month",
-    highlight: false,
-    features: [
-      "10 shortlists per month",
-      "Team seats for your staff",
-      "Silver-medalist pool across jobs",
-      "Priority matching queue",
-      "Cancel anytime",
-    ],
-    cta: "Talk to us",
   },
 ];
 
@@ -73,7 +59,7 @@ const faqs = [
   ],
   [
     "What if nobody on my slate consents to connect?",
-    "If fewer than 3 of 5 candidates accept your connection request, we rebuild the slate free. Candidates see your response-rate score; employers who respond fast rarely need this.",
+    "Everyone on your slate already said yes to the role before you saw them — that is what consent-first means, and it is why declines at this stage are the exception. A candidate can still turn down the introduction; when that happens the slot closes and the rest of your slate is unaffected. The credit buys the unlock, not each connection, so you can approach everyone on it.",
   ],
   [
     "Does talent ever pay anything?",
@@ -119,7 +105,7 @@ export default function PricingPage() {
 
       {/* Tiers — the highlighted Unlock card carries the band colour. */}
       <section className="mx-auto w-full max-w-6xl px-5 pb-16 sm:px-8">
-        <div className="grid gap-5 lg:grid-cols-3">
+        <div className="grid gap-5 sm:grid-cols-2">
           {tiers.map((t) => (
             <div
               key={t.name}

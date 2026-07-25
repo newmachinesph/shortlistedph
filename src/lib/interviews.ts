@@ -158,6 +158,33 @@ export async function confirmInterview(args: {
       throw new HttpError(409, "This interview is no longer awaiting confirmation");
     }
 
+    // Mark WHICH credit was spent. The balance column alone cannot be
+    // reconciled: without this the entitlement ledger showed every interview
+    // credit as forever unspent, so sold-vs-spent never added up and a refund
+    // could not tell a used credit from an unused one.
+    const ent = await tx.entitlement.findFirst({
+      where: {
+        employerId: args.employerId,
+        kind: "interview_credit",
+        spentOnSlateId: null,
+        spentOnInterviewId: null,
+        revokedAt: null,
+      },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+    });
+    if (ent) {
+      await tx.entitlement.update({
+        where: { id: ent.id },
+        data: { spentOnInterviewId: interview.id },
+      });
+    } else {
+      // Balance said yes, ledger had nothing to spend — a drift worth seeing.
+      console.warn(
+        `[interview] employer ${args.employerId} spent an interview credit with no unspent entitlement row`,
+      );
+    }
+
     await tx.auditLog.create({
       data: {
         actorId: args.actorId,
@@ -175,6 +202,107 @@ export async function confirmInterview(args: {
 
   await notifyInterviewConfirmed(interview.id);
   return { status: "paid" };
+}
+
+/** Statuses whose work is already delivered — cancelling can't undo them, so
+ * the credit stays spent and the interviewer still gets paid. */
+const DELIVERED: InterviewStatus[] = ["recorded", "reported"];
+/** Already over. */
+const CLOSED: InterviewStatus[] = ["declined", "cancelled"];
+/** A credit was spent to reach these, so cancelling returns it. */
+const CREDIT_SPENT: InterviewStatus[] = ["paid", "scheduled"];
+
+/**
+ * Cancel an interview and return the credit if one was spent.
+ *
+ * The only cancel path used to be the employer's, and it refused once the
+ * interview reached "paid" — so a confirmed interview whose interviewer went
+ * silent was unfixable by anyone: credit gone, no refund, no admin lever, no
+ * timeout. Admin can now cancel at any live stage; the employer keeps their
+ * pre-delivery window.
+ *
+ * Returning the credit restores BOTH sides of the ledger — balance and the
+ * entitlement row — so the reconciliation invariant still holds afterwards.
+ */
+export async function cancelInterview(args: {
+  actorId: string;
+  interviewId: string;
+  /** Set for an employer-initiated cancel; omitted for admin. */
+  employerId?: string;
+  reason?: string;
+}): Promise<{ status: "cancelled"; creditReturned: boolean }> {
+  const interview = await db.interview.findUnique({
+    where: { id: args.interviewId },
+    select: { id: true, employerId: true, status: true, talentUserId: true, interviewer: { select: { userId: true } } },
+  });
+  if (!interview) throw new HttpError(404, "Interview not found");
+  if (args.employerId && interview.employerId !== args.employerId) {
+    throw new HttpError(404, "Interview not found");
+  }
+
+  const status = interview.status as InterviewStatus;
+  if (CLOSED.includes(status)) throw new HttpError(409, "This interview is already closed");
+  if (DELIVERED.includes(status) && args.employerId) {
+    throw new HttpError(409, "This interview has already been carried out");
+  }
+
+  const creditReturned = CREDIT_SPENT.includes(status);
+
+  await db.$transaction(async (tx) => {
+    const { count } = await tx.interview.updateMany({
+      where: { id: interview.id, status },
+      data: { status: "cancelled" },
+    });
+    if (count === 0) throw new HttpError(409, "This interview just changed state — reload and try again");
+
+    if (creditReturned) {
+      await tx.employerAccount.update({
+        where: { id: interview.employerId },
+        data: { interviewCredits: { increment: 1 } },
+      });
+      // Free the exact row that was spent, so it becomes spendable again
+      // rather than leaving the ledger one short of the balance.
+      const spent = await tx.entitlement.findFirst({
+        where: { spentOnInterviewId: interview.id, revokedAt: null },
+        select: { id: true },
+      });
+      if (spent) {
+        await tx.entitlement.update({ where: { id: spent.id }, data: { spentOnInterviewId: null } });
+      }
+    }
+
+    await tx.auditLog.create({
+      data: {
+        actorId: args.actorId,
+        action: args.employerId ? "interview.cancelled" : "admin.interview.cancelled",
+        target: interview.id,
+        meta: { from: status, reason: args.reason ?? null, creditReturned },
+      },
+    });
+  });
+
+  // Post-commit, best-effort. Everyone attached to a cancelled interview needs
+  // to hear about it — an interviewer left holding a cancelled assignment used
+  // to find out only by showing up.
+  try {
+    const employer = await db.employerAccount.findUnique({
+      where: { id: interview.employerId },
+      select: { userId: true },
+    });
+    const payload = { interviewId: interview.id, reason: args.reason ?? "" };
+    await Promise.all([
+      employer ? notify({ userId: employer.userId, type: "interview_cancelled", payload }) : null,
+      notify({ userId: interview.talentUserId, type: "interview_cancelled", payload }),
+      notify({ userId: interview.interviewer.userId, type: "interview_cancelled", payload }),
+      employer && creditReturned
+        ? notify({ userId: employer.userId, type: "interview_credit_returned", payload })
+        : null,
+    ]);
+  } catch (e) {
+    console.error("[interview] cancel notifications failed", e);
+  }
+
+  return { status: "cancelled", creditReturned };
 }
 
 /** Post-commit, best-effort: tell the interviewer they have a confirmed

@@ -110,6 +110,16 @@ export function renderNotification(
         href: jdId ? `/employer/briefs/${jdId}` : "/employer/briefs",
       };
     }
+    case "slate_candidate_confirmed": {
+      // The slate fills one accept at a time; without this the employer had to
+      // keep reloading to notice anyone had said yes.
+      const total = field(payload, "total");
+      const who = total ? `${total} confirmed so far` : "a candidate confirmed";
+      return {
+        text: `A candidate confirmed for ${jobTitle} — ${who}.`,
+        href: jdId ? `/employer/briefs/${jdId}` : "/employer/briefs",
+      };
+    }
     case "counterparty_unavailable":
       return {
         text: `The other party for ${jobTitle} is no longer available on shortlisted.ph.`,
@@ -136,14 +146,52 @@ export function renderNotification(
       const money = amount ? `${currency} ${amount}` : "Payment";
       return {
         text: `${money} received for ${what}.`,
-        href: side === "employer" ? "/employer/billing" : "/talent/payouts",
+        href: side === "employer" ? "/employer/billing" : "/referrals",
+      };
+    }
+    case "payment_refunded": {
+      const amount = field(payload, "amount");
+      const currency = field(payload, "currency") || "USD";
+      const money = amount ? `${currency} ${amount}` : "Your payment";
+      return {
+        text: `${money} was refunded — any unspent credits from it were returned.`,
+        href: side === "employer" ? "/employer/billing" : null,
       };
     }
     case "rating_received":
       return { text: `You have a new rating for ${jobTitle}.`, href: `/${side}/ratings` };
     case "referral_signup": {
       const who = field(payload, "name") || "Someone";
-      return { text: `${who} signed up through your referral link.`, href: "/talent/payouts" };
+      return { text: `${who} signed up through your referral link.`, href: "/referrals" };
+    }
+    case "referral_commission": {
+      // The recurring model's whole pitch is that earnings keep arriving. Being
+      // silent about the money made it invisible.
+      const amount = field(payload, "amount");
+      const currency = field(payload, "currency") || "USD";
+      const money = amount ? `${currency} ${amount}` : "A commission";
+      return { text: `${money} earned — a company you referred bought a shortlist.`, href: "/referrals" };
+    }
+    case "payout_paid": {
+      const amount = field(payload, "amount");
+      const currency = field(payload, "currency") || "USD";
+      return { text: `Payout sent: ${currency} ${amount || ""}`.trim() + ".", href: "/referrals" };
+    }
+    case "payout_rejected": {
+      const note = field(payload, "note");
+      return {
+        text: `Your payout request was rejected${note ? ` — ${note}` : ""}. The balance is back in your account.`,
+        href: "/referrals",
+      };
+    }
+    case "verification_verified":
+      return { text: `Your identity is verified — the badge is live on your profile.`, href: "/talent/profile" };
+    case "verification_rejected": {
+      const note = field(payload, "note");
+      return {
+        text: `Identity verification could not be completed${note ? ` — ${note}` : ""}.`,
+        href: "/talent/profile",
+      };
     }
     case "message_received": {
       const from = field(payload, "from") || "Someone";
@@ -153,9 +201,26 @@ export function renderNotification(
       // The candidate is asked to consent to being interviewed and recorded.
       return { text: `${company} requested an interview with you.`, href: "/talent/interviews" };
     case "interview_consented":
-      return { text: `Your candidate agreed to the interview — pay to confirm.`, href: "/employer/interviews" };
+      // Confirming spends an interview credit bought earlier — no charge happens
+      // at this step, so the copy must not promise one.
+      return {
+        text: `Your candidate agreed to the interview — confirm it to spend one interview credit.`,
+        href: "/employer/interviews",
+      };
     case "interview_declined":
       return { text: `Your candidate declined the interview.`, href: "/employer/interviews" };
+    case "interview_cancelled": {
+      const reason = field(payload, "reason");
+      return {
+        text: `An interview was cancelled${reason ? ` — ${reason}` : ""}.`,
+        href: side === "employer" ? "/employer/interviews" : "/talent/interviews",
+      };
+    }
+    case "interview_credit_returned":
+      return {
+        text: `One interview credit was returned to your balance.`,
+        href: "/employer/interviews",
+      };
     case "interview_assigned":
       return { text: `You have a confirmed interview to run for ${company}.`, href: "/interviewer" };
     case "interview_booked":

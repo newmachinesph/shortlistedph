@@ -1,17 +1,28 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { PlayCircle } from "lucide-react";
 import { db } from "@/lib/db";
 import { NOINDEX } from "@/lib/site";
-import { HttpError, requireAdmin } from "@/lib/session";
-import { INTERVIEW_STATUSES, type InterviewStatus } from "@/lib/interviews";
+import { requireAdminPage } from "@/lib/admin";
+import {
+  INTERVIEW_STATUSES,
+  RECOMMENDATION_LABEL,
+  type InterviewStatus,
+  type Recommendation,
+} from "@/lib/interviews";
 import { stamp } from "@/lib/notify";
 import { PayoutCreate, PayoutSettle } from "@/components/interview-admin-payout";
+import { CancelInterview } from "./actions";
 
 export const metadata: Metadata = { title: "Admin · Interviews", ...NOINDEX };
 
 const usd = (n: number) => `$${n.toFixed(2)}`;
+
+/**
+ * Statuses cancelInterview refuses — everything else is still live and can be
+ * unwound. The API is the authority; this only decides whether to offer it.
+ */
+const CLOSED_STATUSES = ["declined", "cancelled"];
 
 function isStatus(value: string | undefined): value is InterviewStatus {
   return !!value && (INTERVIEW_STATUSES as readonly string[]).includes(value);
@@ -34,6 +45,20 @@ async function load(filter?: InterviewStatus) {
         employer: { select: { companyName: true } },
         interviewer: { select: { user: { select: { name: true } } } },
         talent: { select: { name: true, email: true } },
+        // We pay interviewers for this and could not read a word of it.
+        assessment: {
+          select: {
+            recommendation: true,
+            overall: true,
+            technical: true,
+            communication: true,
+            englishFluency: true,
+            strengths: true,
+            concerns: true,
+            notes: true,
+            submittedAt: true,
+          },
+        },
       },
     }),
     db.interviewerPayout.findMany({
@@ -88,12 +113,7 @@ export default async function AdminInterviews({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
-  try {
-    await requireAdmin();
-  } catch (e) {
-    if (e instanceof HttpError) redirect("/");
-    throw e;
-  }
+  await requireAdminPage();
 
   const { status } = await searchParams;
   const filter = isStatus(status) ? status : undefined;
@@ -210,12 +230,14 @@ export default async function AdminInterviews({
                   <th className="px-3 py-3 text-left font-medium">Status</th>
                   <th className="px-3 py-3 text-right font-medium">Price</th>
                   <th className="px-3 py-3 text-right font-medium">Payout</th>
-                  <th className="px-6 py-3 text-right font-medium">Recording</th>
+                  <th className="px-3 py-3 text-right font-medium">Recording</th>
+                  <th className="px-6 py-3 text-right font-medium">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {interviews.map((iv, i) => (
-                  <tr key={iv.id} className={i > 0 ? "border-t border-line" : ""}>
+                  <Fragment key={iv.id}>
+                  <tr className={i > 0 ? "border-t border-line" : ""}>
                     <td className="px-6 py-3.5">
                       <p className="text-sm font-medium text-ink">{iv.talent.name}</p>
                       <p className="break-all text-xs text-ink-faint">{iv.talent.email}</p>

@@ -1,11 +1,12 @@
 import "server-only";
+import { redirect } from "next/navigation";
 import { db } from "./db";
 import { mail } from "./email";
 import { sendConsentRequests } from "./consent";
 import { buildSlate } from "./matching";
 import { notify } from "./notify";
 import { presignDownload } from "./r2";
-import { HttpError } from "./session";
+import { HttpError, requireAdmin, type SessionUser } from "./session";
 
 /**
  * Back-office read models. Server components call these directly.
@@ -17,6 +18,23 @@ import { HttpError } from "./session";
  */
 
 const PAID = "paid";
+
+/**
+ * The page-level gate for the back office.
+ *
+ * The (panel) layout guards every page under it, but only four pages re-guarded
+ * by hand and five relied on the layout alone — so "is this page protected?"
+ * had two different answers depending on which file you opened. One call, same
+ * behaviour everywhere, and a page moved out of the group keeps its gate.
+ */
+export async function requireAdminPage(): Promise<SessionUser> {
+  try {
+    return await requireAdmin();
+  } catch (e) {
+    if (e instanceof HttpError && e.status === 401) redirect("/admin/login");
+    redirect("/");
+  }
+}
 
 /** A slate only counts as delivered once its JD reached the employer. */
 const DELIVERED_JD_STATUSES = ["slate_ready", "closed"];
@@ -340,6 +358,68 @@ export async function unpublishProfile(args: { actorId: string; userId: string }
   return { id: args.userId, unpublished: true };
 }
 
+export const TALENT_LEVERS = ["dormancy", "flags", "rate_lock"] as const;
+export type TalentLever = (typeof TALENT_LEVERS)[number];
+
+const NOTHING_TO_CLEAR: Record<TalentLever, string> = {
+  dormancy: "This profile is not dormant",
+  flags: "This profile has no flags",
+  rate_lock: "This profile has no rate lock",
+};
+
+/**
+ * Clear one of the three talent states nothing else can reach.
+ *
+ * Dormancy is set when a consent request expires unanswered and clears only on
+ * a visit to the talent workspace — which the migrated, password-less pool
+ * cannot do, so one missed email excluded them from matching forever. `flags`
+ * marks a resume that tried to instruct the extractor: a human has to review it
+ * and then say so. `rateLockedUntil` holds a typo'd rate on a live profile for
+ * 30 days. All three are one-way today; this is the way back.
+ */
+export async function clearTalentLever(args: {
+  actorId: string;
+  userId: string;
+  lever: TalentLever;
+}) {
+  const profile = await db.talentProfile.findUnique({
+    where: { userId: args.userId },
+    select: { id: true, dormantAt: true, flags: true, rateLockedUntil: true },
+  });
+  if (!profile) throw new HttpError(404, "This account has no talent profile");
+
+  // What is being erased, recorded in the audit meta — an operator asking
+  // "what was cleared here?" later has no other copy of it.
+  const cleared =
+    args.lever === "dormancy"
+      ? (profile.dormantAt?.toISOString() ?? null)
+      : args.lever === "flags"
+        ? (profile.flags.join(", ") || null)
+        : (profile.rateLockedUntil?.toISOString() ?? null);
+  if (!cleared) throw new HttpError(409, NOTHING_TO_CLEAR[args.lever]);
+
+  const data =
+    args.lever === "dormancy"
+      ? { dormantAt: null }
+      : args.lever === "flags"
+        ? { flags: [] }
+        : { rateLockedUntil: null };
+
+  await db.$transaction([
+    db.talentProfile.update({ where: { id: profile.id }, data }),
+    db.auditLog.create({
+      data: {
+        actorId: args.actorId,
+        action: `admin.talent.${args.lever}.clear`,
+        target: args.userId,
+        meta: { profileId: profile.id, cleared },
+      },
+    }),
+  ]);
+
+  return { id: args.userId, lever: args.lever, cleared };
+}
+
 /**
  * Grant, deduct, or set an employer's credits by hand — comps, refunds,
  * corrections, or a support gesture. `kind` picks which balance: "shortlist"
@@ -410,6 +490,118 @@ export async function adjustEmployerCredits(args: {
   });
 
   return { id: args.userId, company: employer.companyName, kind: args.kind, before, after };
+}
+
+// ─── Credit reconciliation ───────────────────────────────────────────────
+
+export const CREDIT_KINDS = ["credit", "interview_credit"] as const;
+export type CreditKind = (typeof CREDIT_KINDS)[number];
+
+export type CreditLine = {
+  key: string;
+  employerId: string;
+  userId: string;
+  company: string;
+  kind: CreditKind;
+  /** The counter the app spends against. */
+  balance: number;
+  sold: number;
+  granted: number;
+  spent: number;
+  revoked: number;
+  /** Unspent and unrevoked entitlements — what the balance is supposed to be. */
+  available: number;
+  drift: number;
+};
+
+/**
+ * Sold vs granted vs spent vs revoked, per employer and in total.
+ *
+ * The invariant: count(unspent, unrevoked) entitlements of a kind equals that
+ * employer's balance column. Nothing enforced it and nothing surfaced it, so a
+ * spend that decremented the counter without marking a row (or an admin
+ * deduction that orphaned one) drifted silently and forever. `drift` is the
+ * whole point of this view — non-zero means the two ledgers disagree.
+ */
+export async function getCreditReconciliation() {
+  // ponytail: reduced in JS over every entitlement — one credit is one row, so
+  // this stays small for a long while. Move to SQL aggregates if it doesn't.
+  const [employers, entitlements] = await Promise.all([
+    db.employerAccount.findMany({
+      select: { id: true, userId: true, companyName: true, credits: true, interviewCredits: true },
+    }),
+    db.entitlement.findMany({
+      select: {
+        employerId: true,
+        kind: true,
+        source: true,
+        spentOnSlateId: true,
+        spentOnInterviewId: true,
+        revokedAt: true,
+      },
+    }),
+  ]);
+
+  const lines = new Map<string, CreditLine>();
+  for (const e of employers) {
+    for (const kind of CREDIT_KINDS) {
+      const key = `${e.id}:${kind}`;
+      lines.set(key, {
+        key,
+        employerId: e.id,
+        userId: e.userId,
+        company: e.companyName,
+        kind,
+        balance: kind === "interview_credit" ? e.interviewCredits : e.credits,
+        sold: 0,
+        granted: 0,
+        spent: 0,
+        revoked: 0,
+        available: 0,
+        drift: 0,
+      });
+    }
+  }
+
+  for (const row of entitlements) {
+    const line = lines.get(`${row.employerId}:${row.kind}`);
+    // An entitlement whose employer is gone has no balance to reconcile against.
+    if (!line) continue;
+    if (row.source === "admin_grant") line.granted += 1;
+    else line.sold += 1;
+    if (row.revokedAt) line.revoked += 1;
+    else if (row.spentOnSlateId || row.spentOnInterviewId) line.spent += 1;
+    else line.available += 1;
+  }
+
+  const rows = [...lines.values()]
+    .map((l) => ({ ...l, drift: l.available - l.balance }))
+    // An employer who never had a credit of this kind is noise on the page.
+    .filter((l) => l.balance !== 0 || l.sold + l.granted > 0)
+    .sort((a, b) => Math.abs(b.drift) - Math.abs(a.drift) || a.company.localeCompare(b.company));
+
+  const blank = { balance: 0, sold: 0, granted: 0, spent: 0, revoked: 0, available: 0 };
+  const totals = Object.fromEntries(
+    CREDIT_KINDS.map((kind) => {
+      const of = rows.filter((r) => r.kind === kind);
+      return [
+        kind,
+        of.reduce(
+          (sum, r) => ({
+            balance: sum.balance + r.balance,
+            sold: sum.sold + r.sold,
+            granted: sum.granted + r.granted,
+            spent: sum.spent + r.spent,
+            revoked: sum.revoked + r.revoked,
+            available: sum.available + r.available,
+          }),
+          blank,
+        ),
+      ];
+    }),
+  ) as Record<CreditKind, typeof blank>;
+
+  return { rows, totals, drifting: rows.filter((r) => r.drift !== 0).length };
 }
 
 // ─── Stuck-JD recovery ───────────────────────────────────────────────────
@@ -561,7 +753,16 @@ export const USERS_PAGE_SIZE = 25;
 export const USER_ROLES = ["talent", "employer", "interviewer", "admin"] as const;
 export const USER_STATUSES = ["active", "suspended", "banned"] as const;
 
-export async function listUsers(opts: { q?: string; role?: string; status?: string; page?: number }) {
+/** Profiles a resume-injection flag routed to a human. */
+const FLAGGED = { talentProfile: { flags: { isEmpty: false } } } as const;
+
+export async function listUsers(opts: {
+  q?: string;
+  role?: string;
+  status?: string;
+  flagged?: boolean;
+  page?: number;
+}) {
   const page = Math.max(1, opts.page ?? 1);
   const q = opts.q?.trim();
   // Unknown values from the URL fall back to "no filter" rather than a 500.
@@ -584,9 +785,13 @@ export async function listUsers(opts: { q?: string; role?: string; status?: stri
       : {}),
     ...(status ? { status } : {}),
   };
-  const where = role ? { ...base, role } : base;
+  const where = {
+    ...base,
+    ...(role ? { role } : {}),
+    ...(opts.flagged ? FLAGGED : {}),
+  };
 
-  const [total, users, roleGroups] = await Promise.all([
+  const [total, users, roleGroups, flaggedCount] = await Promise.all([
     db.user.count({ where }),
     db.user.findMany({
       where,
@@ -609,6 +814,8 @@ export async function listUsers(opts: { q?: string; role?: string; status?: stri
             verifiedTier: true,
             rateUsd: true,
             flags: true,
+            dormantAt: true,
+            rateLockedUntil: true,
           },
         },
         employer: { select: { companyName: true, location: true, credits: true, interviewCredits: true } },
@@ -616,6 +823,7 @@ export async function listUsers(opts: { q?: string; role?: string; status?: stri
       },
     }),
     db.user.groupBy({ by: ["role"], where: base, _count: true }),
+    db.user.count({ where: { ...base, ...FLAGGED } }),
   ]);
 
   const roleCounts: Record<string, number> = {};
@@ -627,8 +835,10 @@ export async function listUsers(opts: { q?: string; role?: string; status?: stri
     page,
     pageCount: Math.max(1, Math.ceil(total / USERS_PAGE_SIZE)),
     roleCounts,
+    flaggedCount,
     role,
     status,
+    flagged: opts.flagged === true,
   };
 }
 
@@ -742,7 +952,7 @@ export async function getSlateForReview(slateId: string) {
   });
   if (!slate) return null;
 
-  const [profiles, consents] = await Promise.all([
+  const [profiles, consents, eliminations] = await Promise.all([
     db.talentProfile.findMany({
       where: { id: { in: slate.entries.map((e) => e.snapshot.profileId) } },
       select: { id: true, user: { select: { name: true, image: true } } },
@@ -761,11 +971,22 @@ export async function getSlateForReview(slateId: string) {
         profile: { select: { user: { select: { name: true, image: true } } } },
       },
     }),
+    // Stage 0 is where a thin slate usually comes from: the pool was cut before
+    // ranking ever ran. Written per JD by the engine and, until now, read by
+    // nobody — an operator staring at an empty slate had no way to see why.
+    db.matchElimination.groupBy({
+      by: ["reason"],
+      where: { jdId: slate.jd.id },
+      _count: true,
+    }),
   ]);
   const byProfile = new Map(profiles.map((p) => [p.id, p.user]));
 
   return {
     ...slate,
+    eliminations: eliminations
+      .map((e) => ({ reason: e.reason, count: e._count }))
+      .sort((a, b) => b.count - a.count),
     entries: slate.entries.map((e) => ({
       ...e,
       name: byProfile.get(e.snapshot.profileId)?.name ?? "Unknown",
@@ -781,6 +1002,40 @@ export async function getSlateForReview(slateId: string) {
       name: c.profile.user.name,
       image: c.profile.user.image,
     })),
+  };
+}
+
+/**
+ * The openings board, both sides of it.
+ *
+ * The "list publicly" form only ever rendered inside slate review, so a JD with
+ * no slate could never be listed and a live listing could never be audited or
+ * pulled. Listed rows come first because auditing what is public is the reason
+ * to open this page; `listable` is every other published brief.
+ */
+export async function listOpenings() {
+  const jds = await db.jobDescription.findMany({
+    where: { publishedAt: { not: null } },
+    orderBy: [{ listedAt: "desc" }, { publishedAt: "desc" }],
+    take: 100,
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      publicTitle: true,
+      roleFamily: true,
+      industry: true,
+      clientRegion: true,
+      listedAt: true,
+      publishedAt: true,
+      employer: { select: { companyName: true } },
+      slates: { orderBy: { deliveredAt: "desc" }, take: 1, select: { id: true } },
+    },
+  });
+
+  return {
+    listed: jds.filter((jd) => jd.listedAt != null),
+    listable: jds.filter((jd) => jd.listedAt == null),
   };
 }
 

@@ -122,7 +122,8 @@ export function candidateDims(
 
 /**
  * The frozen profile JSON a ProfileSnapshot stores. One shape, one owner —
- * created at consent-accept time, read by maskEntry and the dossier pages.
+ * created at INVITE time (before the candidate has seen the job's must-haves),
+ * read by maskEntry and the dossier pages.
  */
 export function frozenProfileJson(
   c: {
@@ -283,19 +284,7 @@ export async function buildSlate(jdId: string) {
   const jd = await db.jobDescription.findUniqueOrThrow({ where: { id: jdId } });
   const { scanned, eligible, eliminated } = await rankQualifiedForJd(jd);
 
-  // The latest run's Stage 0 eliminations, so the employer dashboard can say
-  // "N matches were above your budget ceiling" (P1-12). Replaced wholesale on
-  // every re-run — a snapshot of this run, not history.
-  await db.$transaction([
-    db.matchElimination.deleteMany({ where: { jdId: jd.id } }),
-    ...(eliminated.length
-      ? [
-          db.matchElimination.createMany({
-            data: eliminated.map((e) => ({ jdId: jd.id, profileId: e.profileId, reason: e.reason })),
-          }),
-        ]
-      : []),
-  ]);
+  await recordEliminations(jd.id, eliminated);
 
   if (scanned === 0) {
     // Terminal state, not "still matching" — otherwise the dashboard spins forever.
@@ -318,29 +307,113 @@ export async function buildSlate(jdId: string) {
     return { slateId: null, scanned, invited: 0 };
   }
 
-  const slate = await db.$transaction(async (tx) => {
-    // Every slate starts behind the curtain: an admin approves it (lib/admin.ts
-    // approveSlate) before the employer hears anything and before any candidate
-    // is emailed. expiresAt stays null until the email is actually sent.
-    const created = await tx.slate.create({ data: { jdId: jd.id, status: "pending_review" } });
+  // Reuse the JD's live slate when it has one. A second slate may only be born
+  // once the previous one was UNLOCKED — the employer paid for that set, so a
+  // re-run owes them a new one. Without this a rematch created a parallel slate
+  // and outstanding invites had no unambiguous home.
+  const live = await db.slate.findFirst({
+    where: { jdId: jd.id, status: { in: ["pending_review", "preview"] } },
+    orderBy: { deliveredAt: "desc" },
+    select: { id: true },
+  });
+  // Every new slate starts behind the curtain: an admin approves it
+  // (lib/admin.ts approveSlate) before the employer hears anything and before
+  // any candidate is emailed.
+  const slate =
+    live ?? (await db.slate.create({ data: { jdId: jd.id, status: "pending_review" } }));
 
-    await tx.matchConsent.createMany({
-      data: top.map((r) => ({ jdId: jd.id, profileId: r.c.id, token: newConsentToken() })),
-      // A candidate already asked for this JD keeps their original consent row
-      // (jdId+profileId is unique) — never two invites for the same job.
-      skipDuplicates: true,
-    });
+  const invited = await inviteCandidates(jd, slate.id, top);
+  await db.jobDescription.update({ where: { id: jd.id }, data: { status: "slate_ready" } });
 
-    await tx.jobDescription.update({ where: { id: jd.id }, data: { status: "slate_ready" } });
-    return created;
-  }, { timeout: 30_000 });
+  return { slateId: slate.id, scanned, invited };
+}
 
-  return { slateId: slate.id, scanned, invited: top.length };
+/**
+ * Persist this run's Stage 0 eliminations so the employer can be told "N were
+ * above your budget ceiling" instead of the pool just looking thin. Replaced
+ * wholesale on every ranking run — a snapshot of the latest pass, not history.
+ * Called by every path that ranks: buildSlate and the consent-refresh cron.
+ */
+export async function recordEliminations(
+  jdId: string,
+  eliminated: { profileId: string; reason: string }[],
+): Promise<void> {
+  await db.$transaction([
+    db.matchElimination.deleteMany({ where: { jdId } }),
+    ...(eliminated.length
+      ? [
+          db.matchElimination.createMany({
+            data: eliminated.map((e) => ({ jdId, profileId: e.profileId, reason: e.reason })),
+          }),
+        ]
+      : []),
+  ]);
 }
 
 /** 32 hex chars (128 bits) — the consent link credential. */
 export function newConsentToken(): string {
   return randomBytes(16).toString("hex");
+}
+
+/**
+ * Invite ranked candidates onto a slate — the ONE place a consent row is born.
+ *
+ * Everything the employer will eventually see is computed and frozen right
+ * here, while the candidate still knows nothing about the job: the profile
+ * snapshot, the score, the dimensions and the explanation bullets. Accepting
+ * later only copies them onto the slate.
+ *
+ * That ordering is the whole anti-tailoring guarantee. The consent email and
+ * page disclose the JD's must-haves, so any scoring that happened AFTER that
+ * disclosure could be gamed by editing a profile inside the 48h window. There
+ * is no such scoring event any more.
+ *
+ * Idempotent per (jdId, profileId): a candidate already invited for this JD
+ * keeps their original row, so a re-run never double-invites or re-freezes.
+ */
+export async function inviteCandidates(
+  jd: Jd & { publishedAt?: Date | null },
+  slateId: string,
+  ranked: RankedCandidate[],
+): Promise<number> {
+  if (ranked.length === 0) return 0;
+
+  const bullets = explain(jd, ranked);
+  const frozenAt = jd.publishedAt ?? new Date();
+  let invited = 0;
+
+  for (const [i, r] of ranked.entries()) {
+    // Upsert, not create: a rematch after an unlock re-invites a candidate who
+    // already has a snapshot for this JD. update:{} keeps the ORIGINAL freeze —
+    // re-freezing on a later run would reintroduce the tailoring window.
+    const snapshot = await db.profileSnapshot.upsert({
+      where: { profileId_jdId: { profileId: r.c.id, jdId: jd.id } },
+      create: {
+        profileId: r.c.id,
+        jdId: jd.id,
+        frozenJson: frozenProfileJson(r.c, r.skills, r.engagements, frozenAt),
+      },
+      update: {},
+    });
+
+    const { count } = await db.matchConsent.createMany({
+      data: [
+        {
+          jdId: jd.id,
+          profileId: r.c.id,
+          slateId,
+          snapshotId: snapshot.id,
+          score: r.score,
+          dims: r.dims,
+          reasons: bullets[i] ?? [],
+          token: newConsentToken(),
+        },
+      ],
+      skipDuplicates: true,
+    });
+    invited += count;
+  }
+  return invited;
 }
 
 // Only the fields the explanation actually reads — so the consent-accept path

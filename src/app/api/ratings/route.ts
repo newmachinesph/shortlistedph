@@ -2,6 +2,8 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
+import { mail } from "@/lib/email";
+import { notify } from "@/lib/notify";
 import { HttpError, requireUser } from "@/lib/session";
 
 const Body = z.object({
@@ -33,8 +35,15 @@ export async function POST(req: Request) {
           select: {
             snapshot: {
               select: {
-                profile: { select: { userId: true } },
-                jd: { select: { employer: { select: { userId: true } } } },
+                profile: { select: { userId: true, user: { select: { email: true, name: true } } } },
+                jd: {
+                  select: {
+                    title: true,
+                    employer: {
+                      select: { userId: true, user: { select: { email: true, name: true } } },
+                    },
+                  },
+                },
               },
             },
             interviews: { where: { status: "reported" }, select: { id: true }, take: 1 },
@@ -87,6 +96,21 @@ export async function POST(req: Request) {
         }
         return created;
       });
+
+      // The person who was rated. Told that a rating exists, never what it
+      // says — the double-blind reveal is the transaction's job, not the
+      // notification's. Best-effort: the rating row is already committed.
+      const rated =
+        direction === "talent_to_employer"
+          ? { userId: employerUserId, side: "employer" as const, ...connection.slateEntry.snapshot.jd.employer.user }
+          : { userId: talentUserId, side: "talent" as const, ...connection.slateEntry.snapshot.profile.user };
+      const jobTitle = connection.slateEntry.snapshot.jd.title;
+      await notify({
+        userId: rated.userId,
+        type: "rating_received",
+        payload: { connectionId: connection.id, jobTitle },
+      });
+      await mail.ratingReceived(rated.email, { name: rated.name, jobTitle, side: rated.side });
 
       return ok({ id: rating.id }, { status: 201 });
     } catch (e) {

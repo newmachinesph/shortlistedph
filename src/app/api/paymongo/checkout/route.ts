@@ -1,27 +1,26 @@
-import { db } from "@/lib/db";
 import { fail, ok } from "@/lib/api";
 import { PRODUCTS, toMinorUnits } from "@/lib/payments";
 import { createQrPayment } from "@/lib/paymongo";
 import { HttpError, requireRole, requireTalentProfile } from "@/lib/session";
+import { hasOpenVerification } from "@/lib/verification";
 
 /**
  * Starts the ₱60 identity-verification payment and returns a QR Ph code to
- * render in-app. Paying only buys the verification attempt — the badge comes
- * from Didit confirming identity, never from the payment.
+ * render in-app. Paying only buys the verification ATTEMPT — an admin reviews
+ * it and approval is the only thing that writes the badge.
  */
 export async function POST() {
   try {
     const user = await requireRole("talent");
-    const profile = await requireTalentProfile(user.id);
+    await requireTalentProfile(user.id);
 
-    if (profile.verifiedTier === "id_verified") {
-      throw new HttpError(409, "Already verified");
+    // Pending or verified means there is nothing left to buy. A REJECTED
+    // attempt is deliberately not blocked: the review failed, not the payment,
+    // so paying again is exactly how a retry starts. The old gate keyed on
+    // "ever paid" and locked rejected applicants out forever.
+    if (await hasOpenVerification(user.id)) {
+      throw new HttpError(409, "You already have a verification attempt open");
     }
-
-    const paid = await db.payment.findFirst({
-      where: { userId: user.id, purpose: "verification", status: "paid" },
-    });
-    if (paid) throw new HttpError(409, "Verification already paid for");
 
     const product = PRODUCTS.verification;
     const qr = await createQrPayment({

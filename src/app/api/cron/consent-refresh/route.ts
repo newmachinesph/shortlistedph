@@ -4,7 +4,7 @@ import { fail, ok, requireEnv } from "@/lib/api";
 import { HttpError } from "@/lib/session";
 import { outreachEmailsEnabled } from "@/lib/settings";
 import { CONSENT_CAP_MULTIPLIER, sendConsentRequests } from "@/lib/consent";
-import { SLATE_SIZE, newConsentToken, rankQualifiedForJd } from "@/lib/matching";
+import { SLATE_SIZE, inviteCandidates, rankQualifiedForJd, recordEliminations } from "@/lib/matching";
 
 function providedSecret(req: Request): string {
   const url = new URL(req.url);
@@ -78,11 +78,14 @@ async function handle(req: Request) {
     if (outreachOn) {
       const activeSlates = await db.slate.findMany({
         where: { status: { in: ["preview", "unlocked"] }, jd: { status: "slate_ready" } },
-        select: { jdId: true },
+        orderBy: { deliveredAt: "desc" },
+        select: { id: true, jdId: true },
       });
-      const jdIds = [...new Set(activeSlates.map((s) => s.jdId))];
+      // One slate per JD — the newest live one is where new invites belong.
+      const slateByJd = new Map<string, string>();
+      for (const s of activeSlates) if (!slateByJd.has(s.jdId)) slateByJd.set(s.jdId, s.id);
 
-      for (const jdId of jdIds) {
+      for (const [jdId, slateId] of slateByJd) {
         const consents = await db.matchConsent.findMany({
           where: { jdId },
           select: { status: true, sentAt: true, profileId: true },
@@ -109,7 +112,11 @@ async function handle(req: Request) {
         }
         const jd = await db.jobDescription.findUnique({ where: { id: jdId } });
         if (!jd) continue;
-        const { eligible } = await rankQualifiedForJd(jd);
+        const { eligible, eliminated } = await rankQualifiedForJd(jd);
+        // This is a real ranking run, so its Stage 0 results replace the stored
+        // ones. Dropping them left the employer looking at eliminations from
+        // whenever the slate was first built, not from the latest pass.
+        await recordEliminations(jd.id, eliminated);
         const already = new Set(consents.map((c) => c.profileId));
         const next = eligible
           .filter((r) => !already.has(r.c.id))
@@ -119,12 +126,11 @@ async function handle(req: Request) {
           console.info(`[cron:consent-refresh] jd ${jdId} has no qualified candidates left — pool exhausted`);
           continue;
         }
-        await db.matchConsent.createMany({
-          data: next.map((r) => ({ jdId, profileId: r.c.id, token: newConsentToken() })),
-          skipDuplicates: true,
-        });
-        created += next.length;
-        const fresh = await sendConsentRequests(jdId, next.length);
+        // Freezes each invitee's snapshot + score before they are emailed
+        // anything about the job — same guarantee as the initial build.
+        const invitedNow = await inviteCandidates(jd, slateId, next);
+        created += invitedNow;
+        const fresh = await sendConsentRequests(jdId, invitedNow);
         sent += fresh.sent;
       }
     }

@@ -71,12 +71,22 @@ export function ReferralSettle({ payoutId }: { payoutId: string }) {
   );
 }
 
-/** Kills a flagged conversion. Two clicks, because it reverses an earning. */
-export function ReferralVoid({ conversionId }: { conversionId: string }) {
+/**
+ * Kills a flagged conversion, or brings a voided one back. Two clicks either
+ * way, because both directions move money.
+ */
+export function ReferralVoid({
+  conversionId,
+  restore = false,
+}: {
+  conversionId: string;
+  restore?: boolean;
+}) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const label = restore ? "Un-void" : "Void";
 
   async function voidIt() {
     setError(null);
@@ -84,11 +94,11 @@ export function ReferralVoid({ conversionId }: { conversionId: string }) {
     try {
       await api(`/api/admin/affiliates/conversions/${conversionId}`, {
         method: "PATCH",
-        body: JSON.stringify({ status: "void" }),
+        body: JSON.stringify({ status: restore ? "active" : "void" }),
       });
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not void that conversion");
+      setError(err instanceof Error ? err.message : `Could not ${label.toLowerCase()} that conversion`);
       setBusy(false);
       setConfirming(false);
     }
@@ -105,7 +115,7 @@ export function ReferralVoid({ conversionId }: { conversionId: string }) {
         className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-ember-soft px-3 py-1.5 text-xs font-medium text-ember transition-opacity disabled:opacity-50 sm:min-h-0"
       >
         {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />}
-        Confirm void
+        Confirm {label.toLowerCase()}
       </button>
       <button
         type="button"
@@ -121,7 +131,7 @@ export function ReferralVoid({ conversionId }: { conversionId: string }) {
       onClick={() => setConfirming(true)}
       className="inline-flex min-h-11 items-center rounded-xl px-3 py-1.5 text-xs font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper sm:min-h-0"
     >
-      Void
+      {label}
     </button>
   );
 }

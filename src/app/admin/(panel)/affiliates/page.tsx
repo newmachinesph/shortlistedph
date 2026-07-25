@@ -5,6 +5,7 @@ import { NOINDEX } from "@/lib/site";
 import { HttpError, requireAdmin } from "@/lib/session";
 import { ReferralSettle, ReferralVoid } from "@/components/referral-admin-actions";
 import {
+  EARNED,
   REFERRAL_REWARD,
   getSelfReferralSignals,
   type RiskFlag,

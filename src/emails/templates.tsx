@@ -90,6 +90,33 @@ export function WelcomeTalent({ name }: { name: string }) {
   );
 }
 
+export function WelcomeEmployer({ name, company }: { name: string; company: string }) {
+  return (
+    <Shell preview="Your first job description is next">
+      <Text style={s.heading}>Welcome, {name}</Text>
+      <Text style={s.text}>
+        {company} is set up. You don&apos;t browse candidates here — you describe
+        the role, and we build a ranked shortlist of people who fit it and have
+        agreed to be put forward for it.
+      </Text>
+      <Text style={s.text}>How it goes from here:</Text>
+      <Section style={s.card}>
+        <Text style={{ ...s.text, margin: "0 0 10px" }}>
+          <strong style={{ color: s.palette.ink }}>Write the job description.</strong>{" "}
+          Budget band, hours, and must-haves do most of the matching. It stays
+          hidden — candidates never browse it.
+        </Text>
+        <Text style={{ ...s.text, margin: 0 }}>
+          <strong style={{ color: s.palette.ink }}>See the slate before paying.</strong>{" "}
+          Scores and match reasons are free to read. $49 unlocks names, dossiers
+          and connection requests for one shortlist.
+        </Text>
+      </Section>
+      <Button href={`${SITE_URL}/employer/briefs/new`}>Write a job description</Button>
+    </Shell>
+  );
+}
+
 export function AvailabilityPrompt({ name }: { name: string }) {
   return (
     <Shell
@@ -129,6 +156,145 @@ export function ConnectionRequested({
       <Button href={`${SITE_URL}/talent/connections`}>
         Review the request
       </Button>
+    </Shell>
+  );
+}
+
+export function ConnectionAccepted({
+  name,
+  jobTitle,
+}: {
+  name: string;
+  jobTitle: string;
+}) {
+  return (
+    <Shell preview={`Your introduction for ${jobTitle} was accepted`}>
+      <Text style={s.heading}>They said yes</Text>
+      <Text style={s.text}>
+        Hi {name} — the candidate you asked to be introduced to for {jobTitle}{" "}
+        accepted. Their contact details are now on the connection, and the
+        message thread is open.
+      </Text>
+      <Button href={`${SITE_URL}/employer/connections`}>Open the connection</Button>
+    </Shell>
+  );
+}
+
+export function ConnectionDeclined({
+  name,
+  jobTitle,
+}: {
+  name: string;
+  jobTitle: string;
+}) {
+  return (
+    <Shell
+      preview={`Your introduction for ${jobTitle} was declined`}
+      footnote="We don't pass on a reason, and declining doesn't cost the candidate anything. The rest of your shortlist is unaffected."
+    >
+      <Text style={s.heading}>That introduction was declined</Text>
+      <Text style={s.text}>
+        Hi {name} — the candidate turned down the introduction for {jobTitle}.
+        Nothing about them was shared. Everyone else on the shortlist you
+        unlocked is still open to hear from you.
+      </Text>
+      <Button href={`${SITE_URL}/employer/connections`}>See your connections</Button>
+    </Shell>
+  );
+}
+
+export function AgreementSigned({
+  name,
+  jobTitle,
+  side,
+}: {
+  name: string;
+  jobTitle: string;
+  side: "talent" | "employer";
+}) {
+  return (
+    <Shell preview={`The other side signed the agreement for ${jobTitle}`}>
+      <Text style={s.heading}>Your signature is the last one</Text>
+      <Text style={s.text}>
+        Hi {name} — the other party signed the agreement for {jobTitle}. It
+        becomes active once you sign too, and the monthly outcome check starts
+        from there.
+      </Text>
+      <Button href={`${SITE_URL}/${side}/agreements`}>Read and sign</Button>
+    </Shell>
+  );
+}
+
+export function AgreementActive({
+  name,
+  jobTitle,
+  side,
+}: {
+  name: string;
+  jobTitle: string;
+  side: "talent" | "employer";
+}) {
+  return (
+    <Shell
+      preview={`The agreement for ${jobTitle} is active`}
+      footnote="We are sourcing only — payment and the working relationship are between the two of you. We never hold or handle wages."
+    >
+      <Text style={s.heading}>Both sides have signed</Text>
+      <Text style={s.text}>
+        Hi {name} — the agreement for {jobTitle} is active. Each month both of
+        you confirm the work happened; those confirmations are what build the
+        track record on this platform.
+      </Text>
+      <Button href={`${SITE_URL}/${side}/agreements`}>See the agreement</Button>
+    </Shell>
+  );
+}
+
+export function OutcomeConfirmed({
+  name,
+  jobTitle,
+  period,
+  side,
+}: {
+  name: string;
+  jobTitle: string;
+  /** Already human-readable, e.g. "July 2026" — the caller formats it. */
+  period: string;
+  side: "talent" | "employer";
+}) {
+  return (
+    <Shell preview={`${period} for ${jobTitle} is confirmed`}>
+      <Text style={s.heading}>{period} is confirmed</Text>
+      <Text style={s.text}>
+        Hi {name} — both sides have now confirmed {period} on {jobTitle}. The
+        engagement counts as confirmed work, and the skills it covered are
+        marked confirmed on the candidate&apos;s profile.
+      </Text>
+      <Button href={`${SITE_URL}/${side}/agreements`}>See the agreement</Button>
+    </Shell>
+  );
+}
+
+export function RatingReceived({
+  name,
+  jobTitle,
+  side,
+}: {
+  name: string;
+  jobTitle: string;
+  side: "talent" | "employer";
+}) {
+  return (
+    <Shell
+      preview={`You have a new rating for ${jobTitle}`}
+      footnote="Ratings are double-blind: neither side sees the other's until both have rated, or until 14 days have passed."
+    >
+      <Text style={s.heading}>Someone rated you</Text>
+      <Text style={s.text}>
+        Hi {name} — you were rated on {jobTitle}. We are not showing you what
+        they wrote yet. Rate them back and both ratings unlock at once.
+      </Text>
+      <Button href={`${SITE_URL}/${side}/ratings`}>Leave your rating</Button>
     </Shell>
   );
 }
@@ -312,6 +478,73 @@ export function ReferralConverted({
         here.
       </Text>
       <Button href={`${SITE_URL}/talent/payouts`}>See your referrals</Button>
+    </Shell>
+  );
+}
+
+export function CommissionEarned({
+  name,
+  amount,
+  currency,
+  balance,
+}: {
+  name: string;
+  amount: number;
+  currency: string;
+  /** Total unpaid balance after this commission, same currency. */
+  balance: number;
+}) {
+  const money = (n: number) =>
+    new Intl.NumberFormat("en-PH", { style: "currency", currency }).format(n);
+  // The referred company is never named. The affiliate knows who they referred;
+  // what that company spends is between them and us.
+  return (
+    <Shell
+      preview={`${money(amount)} commission earned`}
+      footnote="This is recurring: you earn again every time the same company buys another shortlist, for as long as they keep buying."
+    >
+      <Text style={s.heading}>You earned {money(amount)}</Text>
+      <Text style={s.text}>
+        Hi {name} — a company you referred bought a shortlist, so{" "}
+        {money(amount)} was added to your balance. You are now at{" "}
+        {money(balance)} unpaid.
+      </Text>
+      <Button href={`${SITE_URL}/referrals`}>See your earnings</Button>
+    </Shell>
+  );
+}
+
+export function PayoutRejected({
+  name,
+  amount,
+  currency,
+  note,
+}: {
+  name: string;
+  amount: number;
+  currency: string;
+  /** Operator's reason. Optional — a rejection with no note still has to read sensibly. */
+  note?: string | null;
+}) {
+  const requested = new Intl.NumberFormat("en-PH", { style: "currency", currency }).format(amount);
+  return (
+    <Shell
+      preview="Your payout request was rejected"
+      footnote="Reply to this email if you think this was a mistake."
+    >
+      <Text style={s.heading}>We could not send that payout</Text>
+      <Text style={s.text}>
+        Hi {name} — your {requested} payout request was rejected
+        {note ? "" : " and we did not record a reason"}. The full amount is back
+        in your balance, so nothing was lost and you can request it again.
+      </Text>
+      {note && (
+        <Section style={s.card}>
+          <Text style={s.label}>Reason</Text>
+          <Text style={{ ...s.value, fontWeight: 500 }}>{note}</Text>
+        </Section>
+      )}
+      <Button href={`${SITE_URL}/referrals`}>Request it again</Button>
     </Shell>
   );
 }

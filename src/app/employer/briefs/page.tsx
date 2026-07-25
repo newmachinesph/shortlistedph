@@ -89,7 +89,7 @@ export default async function JobDescriptionsPage() {
                     </Link>
                   ) : jd.status === "draft" ? (
                     <Link
-                      href="/employer/briefs/new"
+                      href={`/employer/briefs/${jd.id}/edit`}
                       className="rounded-xl px-4 py-2 text-sm font-medium text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft"
                     >
                       Continue editing

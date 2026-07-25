@@ -1,11 +1,21 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
+import { refreshProfileEmbeddings } from "@/lib/profile-embedding";
 import { getObjectBuffer } from "@/lib/r2";
 import { educationSummary, extractText, normalizeSkill, parseResume } from "@/lib/resume";
 import { HttpError, requireRole, requireTalentProfile } from "@/lib/session";
 
 const Body = z.object({ key: z.string().min(1) });
+
+/**
+ * A resume states hours AVAILABLE; the column stores hours already COMMITTED,
+ * and both the hours_short filter and scoreOverlap read 40 minus it. Dropping
+ * the parsed value left every imported profile at 0 committed — reading as
+ * fully free no matter what the resume said.
+ */
+const committedFromAvailable = (hoursAvailable: number | null): number | null =>
+  hoursAvailable == null ? null : Math.min(80, Math.max(0, 40 - hoursAvailable));
 
 /** Same shape the merge dedupes on, used for both stored and parsed rows. */
 const engagementKey = (e: { role: string; company: string }) =>
@@ -56,8 +66,9 @@ export async function POST(req: Request) {
       // Highlights enrich facet text at extraction time only — Engagement has no column.
       .map(({ role, company, span }) => ({ role, company, span }));
 
-    await db.talentProfile.update({
+    const updated = await db.talentProfile.update({
       where: { id: profile.id },
+      select: { publishedAt: true },
       data: {
         headline: parsed.headline,
         summary: parsed.summary,
@@ -76,6 +87,9 @@ export async function POST(req: Request) {
         certifications: profile.certifications ?? (parsed.certifications.join(", ") || null),
         preferredOverlap: profile.preferredOverlap ?? parsed.preferences.timezoneOverlap,
         noticePeriodDays: profile.noticePeriodDays ?? parsed.preferences.noticePeriodDays,
+        // Non-nullable with a 0 default, so 0 is the only "unanswered" value.
+        committedHours:
+          profile.committedHours || (committedFromAvailable(parsed.preferences.hoursPerWeek) ?? 0),
         resumeKey: key,
         lastEditedAt: new Date(),
         // Flags persist across re-uploads: a stripped injection attempt stays on
@@ -87,6 +101,19 @@ export async function POST(req: Request) {
         engagements: { create: newEngagements },
       },
     });
+
+    // Re-uploading onto an ALREADY published profile rewrites the exact text
+    // the vectors were built from (headline, summary, skills, engagements), so
+    // without this the pool ranks a person who no longer exists. Publish stays
+    // the embed boundary — a draft is deliberately left un-embedded. Best-effort
+    // like the PATCH route: a hiccup must not lose the parse itself.
+    if (updated.publishedAt) {
+      try {
+        await refreshProfileEmbeddings(profile.id);
+      } catch (e) {
+        console.error("[talent/resume/parse] re-embed after parse failed", e);
+      }
+    }
 
     return ok({ parsed });
   } catch (e) {

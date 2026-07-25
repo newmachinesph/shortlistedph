@@ -41,13 +41,21 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       // updateMany marked every credit the employer had, corrupting the
       // "which purchase paid which unlock" trail after the first unlock.
       const ent = await tx.entitlement.findFirst({
-        where: { employerId: employer.id, spentOnSlateId: null },
+        where: { employerId: employer.id, spentOnSlateId: null, revokedAt: null },
         select: { id: true },
       });
       if (ent) {
         await tx.entitlement.update({
           where: { id: ent.id },
           data: { spentOnSlateId: slate.id },
+        });
+      } else {
+        // The balance allowed a spend the ledger can't back: unspent+unrevoked
+        // entitlements are supposed to EQUAL credits. The unlock still stands —
+        // they paid — but silence here is how that drift stayed invisible.
+        console.warn("[slate.unlock] credit spent with no unspent entitlement", {
+          employerId: employer.id,
+          slateId: slate.id,
         });
       }
       await tx.slate.update({

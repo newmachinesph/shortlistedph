@@ -15,7 +15,12 @@ type Draft = {
   overlap: string | null;
   mustHaves: string[];
   niceToHaves: string[];
+  /** Stage 0 hard ceiling — optional, and stricter than budgetMax. */
+  rateMaxUsd: number | null;
 };
+
+/** An existing draft row being edited, so publishing updates it in place. */
+export type ExistingJd = Draft & { id: string };
 
 /** Carried over from an anonymous /start draft, so the employer never retypes it. */
 export type InitialDraft = {
@@ -32,28 +37,35 @@ export type InitialDraft = {
 const fieldCls =
   "mt-1 w-full rounded-xl border border-line bg-paper px-3.5 py-2.5 text-base text-ink focus:outline-2 focus:outline-brand sm:text-sm";
 
-export function BriefBuilder({ initialDraft }: { initialDraft: InitialDraft | null }) {
-  // A carried-over draft already has structured fields, so land straight in
-  // review — skip the compose + AI-draft step they effectively did on /start.
-  const [stage, setStage] = useState<Stage>(initialDraft ? "review" : "compose");
+export function BriefBuilder({
+  initialDraft,
+  existing,
+}: {
+  initialDraft: InitialDraft | null;
+  existing?: ExistingJd;
+}) {
+  // A carried-over draft (or a saved draft row) already has structured fields,
+  // so land straight in review — skip the compose + AI-draft step.
+  const [stage, setStage] = useState<Stage>(initialDraft || existing ? "review" : "compose");
   const [text, setText] = useState(initialDraft?.rawText ?? "");
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ jdId: string; scanned: number; entries: number } | null>(null);
+  const [result, setResult] = useState<{ jdId: string; scanned: number; invited: number } | null>(null);
 
   const [draft, setDraft] = useState<Draft>({
-    title: initialDraft?.title ?? "",
-    budgetMin: initialDraft?.budgetMin ?? null,
-    budgetMax: initialDraft?.budgetMax ?? null,
-    hoursPerWeek: initialDraft?.hoursPerWeek ?? null,
-    overlap: initialDraft?.overlap ?? null,
-    mustHaves: initialDraft?.mustHaves ?? [],
-    niceToHaves: [],
+    title: existing?.title ?? initialDraft?.title ?? "",
+    budgetMin: existing?.budgetMin ?? initialDraft?.budgetMin ?? null,
+    budgetMax: existing?.budgetMax ?? initialDraft?.budgetMax ?? null,
+    hoursPerWeek: existing?.hoursPerWeek ?? initialDraft?.hoursPerWeek ?? null,
+    overlap: existing?.overlap ?? initialDraft?.overlap ?? null,
+    mustHaves: existing?.mustHaves ?? initialDraft?.mustHaves ?? [],
+    niceToHaves: existing?.niceToHaves ?? [],
+    rateMaxUsd: existing?.rateMaxUsd ?? null,
   });
   const [newMustHave, setNewMustHave] = useState("");
-  // The JD row created by a publish attempt. Kept so a failed publish can be
-  // retried against the SAME row instead of POSTing /api/jds again and leaving
-  // an orphan duplicate draft behind.
-  const [createdJdId, setCreatedJdId] = useState<string | null>(null);
+  // The JD row this builder owns: an existing draft being edited, or the row a
+  // publish attempt created. Either way publishing updates THAT row instead of
+  // POSTing /api/jds again and leaving an orphan duplicate draft behind.
+  const [createdJdId, setCreatedJdId] = useState<string | null>(existing?.id ?? null);
 
   async function handleDraft() {
     // Re-drafting replaces every structured field, so don't silently discard
@@ -65,12 +77,16 @@ export function BriefBuilder({ initialDraft }: { initialDraft: InitialDraft | nu
     setError(null);
     setStage("drafting");
     try {
-      const { draft } = await api<{ draft: Draft }>("/api/jds/draft", {
+      const { draft: drafted } = await api<{ draft: Omit<Draft, "rateMaxUsd"> }>("/api/jds/draft", {
         method: "POST",
         body: JSON.stringify({ text }),
       });
-      setDraft(draft);
-      setCreatedJdId(null); // a fresh draft is a new JD — don't reuse an old row
+      // The ceiling is the employer's own knob, never AI-derived — a re-draft
+      // replaces what the model produces and leaves it alone.
+      setDraft({ ...drafted, rateMaxUsd: draft.rateMaxUsd });
+      // A fresh draft is a new JD — don't reuse a row a failed publish created.
+      // Editing a saved draft is the exception: that row is the one being edited.
+      if (!existing) setCreatedJdId(null);
       setStage("review");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not draft that");
@@ -83,7 +99,11 @@ export function BriefBuilder({ initialDraft }: { initialDraft: InitialDraft | nu
     setStage("publishing");
     try {
       let jdId = createdJdId;
-      if (!jdId) {
+      if (jdId) {
+        // Push the current fields onto the row we already own, so a retry or a
+        // resumed draft never publishes stale content.
+        await api(`/api/jds/${jdId}`, { method: "PATCH", body: JSON.stringify(draft) });
+      } else {
         const { jd } = await api<{ jd: { id: string } }>("/api/jds", {
           method: "POST",
           body: JSON.stringify(draft),
@@ -91,7 +111,7 @@ export function BriefBuilder({ initialDraft }: { initialDraft: InitialDraft | nu
         jdId = jd.id;
         setCreatedJdId(jdId);
       }
-      const matched = await api<{ scanned: number; entries: number }>(`/api/jds/${jdId}/publish`, {
+      const matched = await api<{ scanned: number; invited: number }>(`/api/jds/${jdId}/publish`, {
         method: "POST",
       });
       setResult({ jdId, ...matched });
@@ -121,16 +141,28 @@ export function BriefBuilder({ initialDraft }: { initialDraft: InitialDraft | nu
         <h1 className="font-display mt-5 text-2xl font-semibold tracking-tight text-ink">
           Posted — and hidden.
         </h1>
+        {/* Consent-first: at this moment the slate is EMPTY and behind admin
+            review. Say exactly that — the old copy claimed ranked candidates
+            were already waiting. */}
         <p className="mt-3 leading-relaxed text-ink-soft">
-          No candidate will ever see it. We scanned {result.scanned}{" "}
-          {result.scanned === 1 ? "profile" : "profiles"} and ranked{" "}
-          {result.entries} for your shortlist.
+          No candidate will ever see it. We ranked {result.scanned}{" "}
+          {result.scanned === 1 ? "profile" : "profiles"} against it
+          {result.invited > 0 ? (
+            <>
+              {" "}
+              and are asking the top {result.invited} whether they&rsquo;re available and
+              interested. Your shortlist stays empty until they say yes — and it goes through our
+              review before it reaches you.
+            </>
+          ) : (
+            <> and nobody cleared the bar. Widening the must-haves or the budget usually fixes it.</>
+          )}
         </p>
         <Link
           href={`/employer/briefs/${result.jdId}`}
           className="mt-7 inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-dark"
         >
-          See your shortlist <ArrowRight className="h-4 w-4" />
+          Track this job description <ArrowRight className="h-4 w-4" />
         </Link>
       </div>
     );
@@ -139,7 +171,7 @@ export function BriefBuilder({ initialDraft }: { initialDraft: InitialDraft | nu
   return (
     <div className="mx-auto max-w-2xl">
       <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">
-        New job description
+        {existing ? "Edit job description" : "New job description"}
       </h1>
       <p className="mt-1.5 flex items-center gap-1.5 text-sm text-ink-soft">
         <EyeOff className="h-4 w-4" />
@@ -235,6 +267,27 @@ export function BriefBuilder({ initialDraft }: { initialDraft: InitialDraft | nu
                     className={fieldCls}
                   />
                 </div>
+              </div>
+              <div>
+                <label htmlFor="ceiling" className="text-xs text-ink-faint">
+                  Hard rate ceiling $/hr — optional
+                </label>
+                <input
+                  id="ceiling"
+                  type="number"
+                  value={draft.rateMaxUsd ?? ""}
+                  onChange={(e) =>
+                    setDraft({ ...draft, rateMaxUsd: e.target.value ? Number(e.target.value) : null })
+                  }
+                  className={`${fieldCls} max-w-40`}
+                />
+                {/* Deliberately describes the number, not a guarantee: whether
+                    the ceiling eliminates or only penalises is the admin-side
+                    hard_filters_enabled flag, not something this form controls. */}
+                <p className="mt-1.5 text-xs leading-relaxed text-ink-faint">
+                  Your walk-away rate, when it differs from the band above. Blank means your budget
+                  max is the ceiling.
+                </p>
               </div>
               <div>
                 <span className="text-xs text-ink-faint">Must-haves — these are hard filters</span>

@@ -24,8 +24,15 @@ export const REFERRAL_REWARD = {
   currency: "USD" as const,
   /** Fallback currency label for older rows — settlement itself is manual, via PayPal. */
   payoutCurrency: "PHP" as const,
-  /** Applies to the peso-equivalent total the operator computes at payout time. */
-  minPayout: 500,
+  /**
+   * Denominated in `currency`, like every commission and every balance. The
+   * old ₱500 was copy only: nothing enforced it, and no comparison against a
+   * USD balance was possible without an FX rate this codebase does not have.
+   * One qualifying purchase clears it — which is what the peso figure always
+   * claimed ("one conversion normally covers it"), now said in the currency
+   * the money is actually held in.
+   */
+  minPayout: 9,
 } as const;
 
 /** Mirrors PRODUCTS[id].kind in payments.ts, without the server-only import. */

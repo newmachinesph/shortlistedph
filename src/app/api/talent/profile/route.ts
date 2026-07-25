@@ -116,7 +116,15 @@ export async function PATCH(req: Request) {
       }
       await tx.talentProfile.update({
         where: { id: profile.id },
-        data: { ...scalars, lastEditedAt: new Date() },
+        data: {
+          ...scalars,
+          // Answering the availability question IS confirming it. The dedicated
+          // route always stamped this; this one did not, so a profile published
+          // through the wizard was born stale and got nudged about something it
+          // had just been told.
+          ...(scalars.availability ? { availabilityConfirmedAt: new Date() } : {}),
+          lastEditedAt: new Date(),
+        },
       });
     });
 

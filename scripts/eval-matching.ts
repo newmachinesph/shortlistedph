@@ -3,30 +3,49 @@
  *
  *   node --experimental-strip-types scripts/eval-matching.ts
  *
- * Read-only, writes nothing, publishes nobody. It deliberately ignores
- * publishedAt so the pool can be evaluated before anyone consents — the
- * product query in matching.ts still enforces it.
+ * Read-only: it ranks, it prints, it writes nothing.
  *
- * Imports the real scorers so evaluation can never drift from production.
+ * Ranking runs through rankQualifiedForJd — the production function itself, not
+ * a copy of it. The harness used to reimplement the pool query, the scoring and
+ * the rotation, and the live thresholds were calibrated on that divergent
+ * pipeline (system-audit P2-15). Importing the real path costs the module hooks
+ * below; reimplementing it costs silent mis-calibration of the whole engine.
  */
 import { config } from "dotenv";
-import OpenAI from "openai";
-import { applyHardFilters } from "../src/lib/filters.ts";
+import { registerHooks } from "node:module";
+import { existsSync } from "node:fs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { blendSimilarity, jdFacetTexts } from "../src/lib/facets.ts";
-import {
-  MIN_SLATE_SCORE,
-  QUALIFY_SCORE,
-  QUALIFY_SKILLS,
-  composite,
-  scoreExperience,
-  scoreOverlap,
-  scoreRate,
-  scoreSkills,
-} from "../src/lib/scoring.ts";
+import { MIN_SLATE_SCORE, QUALIFY_SCORE, QUALIFY_SKILLS } from "../src/lib/scoring.ts";
+import type { Jd } from "../src/lib/matching.ts";
 
 config({ path: ".env.local", override: true });
+
+// src/lib is written for the Next runtime: extensionless specifiers, the
+// `server-only` marker, and lib/api reaching for next/server. None of that
+// changes how ranking behaves, so it is resolved away here rather than forked.
+// A future import in matching.ts's graph fails loudly instead of drifting.
+const STUB_SERVER_ONLY = pathToFileURL(`${process.cwd()}/node_modules/server-only/empty.js`).href;
+// requireEnv is the only thing the ranking path reaches lib/api for; the rest
+// of that module is NextResponse plumbing a CLI has no use for.
+const STUB_API =
+  "data:text/javascript,export function requireEnv(n){const v=process.env[n];" +
+  "if(!v)throw new Error(n+' is not configured');return v;}";
+
+registerHooks({
+  resolve(spec, ctx, next) {
+    if (spec === "server-only") return { url: STUB_SERVER_ONLY, shortCircuit: true };
+    if (spec === "./api") return { url: STUB_API, shortCircuit: true };
+    if (spec.startsWith("./") || spec.startsWith("../")) {
+      const url = new URL(spec, ctx.parentURL);
+      if (!/\.[a-z]+$/.test(url.pathname) && existsSync(fileURLToPath(`${url}.ts`))) {
+        return next(`${spec}.ts`, ctx);
+      }
+    }
+    return next(spec, ctx);
+  },
+});
 
 // EVAL_DB=prod runs against the production pool (still read-only). The default
 // DATABASE_URL in .env.local is the 2-profile dev DB, which tells you nothing.
@@ -35,181 +54,135 @@ const connectionString =
     ? process.env.PROD_DATABASE_URL!
     : process.env.DATABASE_URL!;
 
-const db = new PrismaClient({
-  adapter: new PrismaPg({ connectionString }),
-});
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+const db = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
-const JOBS = [
+// EVAL_HARD=1 previews Stage 0 before an operator flips hard_filters_enabled.
+// The flag is a DB row and the harness never writes, so the single read the
+// ranking path makes is answered here — blunt on purpose, it is the only
+// AppSetting that path reads.
+const forcedSettings = { findUnique: async () => ({ value: "on" }) };
+
+// lib/db memoises its client on globalThis. Seeding it there is what points the
+// production path at the pool under evaluation without lib/db knowing.
+(globalThis as unknown as { prisma?: PrismaClient }).prisma =
+  process.env.EVAL_HARD === "1"
+    ? new Proxy({} as PrismaClient, {
+        get: (_t, p) => (p === "appSetting" ? forcedSettings : Reflect.get(db, p, db)),
+      })
+    : db;
+
+const { SLATE_SIZE, rankQualifiedForJd } = await import("../src/lib/matching.ts");
+
+// Ids are inert here — rankQualifiedForJd never reads them; buildSlate does.
+const JOBS: Jd[] = [
   {
+    id: "eval-medical-va",
     title: "Medical VA for a US dental group",
     mustHaves: ["US dental practice experience", "Insurance verification", "Patient scheduling"],
+    niceToHaves: [],
     budgetMin: 8,
     budgetMax: 11,
     hoursPerWeek: 40,
+    overlap: null,
   },
   {
+    id: "eval-react",
     title: "Senior React engineer, product team",
     mustHaves: ["React", "TypeScript", "PostgreSQL"],
+    niceToHaves: [],
     budgetMin: 18,
     budgetMax: 28,
     hoursPerWeek: 40,
+    overlap: null,
   },
   {
+    id: "eval-bookkeeper",
     title: "Bookkeeper for US small businesses",
     mustHaves: ["QuickBooks", "Bank reconciliation", "Month-end close"],
+    niceToHaves: [],
     budgetMin: 8,
     budgetMax: 13,
     hoursPerWeek: 20,
+    overlap: null,
   },
   {
+    id: "eval-ppc",
     title: "Amazon PPC specialist",
     mustHaves: ["Amazon PPC", "Helium 10", "Keyword research"],
+    niceToHaves: [],
     budgetMin: 10,
     budgetMax: 16,
     hoursPerWeek: 30,
+    overlap: null,
   },
   {
+    id: "eval-support",
     title: "Customer support agent for a US SaaS",
     mustHaves: ["Zendesk", "Live chat", "Refunds"],
+    niceToHaves: [],
     budgetMin: 8,
     budgetMax: 12,
     hoursPerWeek: 40,
+    overlap: null,
   },
 ];
 
 async function main() {
+  // The same gates the ranking query applies, so the headline number is the
+  // matchable pool rather than every row that happens to carry a vector.
   const [{ count }] = await db.$queryRawUnsafe<{ count: bigint }[]>(
-    `SELECT count(*) FROM "TalentProfile" WHERE embedding IS NOT NULL`,
+    `SELECT count(*) FROM "TalentProfile" p
+       JOIN "user" u ON u.id = p."userId"
+      WHERE p."publishedAt" IS NOT NULL
+        AND p.visibility = true
+        AND p."dormantAt" IS NULL
+        AND p.embedding IS NOT NULL
+        AND u.status = 'active'`,
   );
-  console.log(`Pool: ${count} embedded profiles\n`);
+  console.log(`Pool: ${count} matchable profiles\n`);
 
   for (const jd of JOBS) {
-    // Same two query vectors production uses: whole-role text + skills facet.
-    const q = jdFacetTexts(jd);
-    const { data } = await openai.embeddings.create({
-      model: "text-embedding-3-small",
-      input: [q.role, q.skills],
-    });
-    const roleVec = `[${data[0].embedding.join(",")}]`;
-    const skillsVec = `[${data[1].embedding.join(",")}]`;
+    const { scanned, eligible, eliminated } = await rankQualifiedForJd(jd);
 
-    const pool = await db.$queryRawUnsafe<
-      {
-        id: string;
-        headline: string | null;
-        city: string | null;
-        yearsExperience: number;
-        rateUsd: number | null;
-        availability: string;
-        committedHours: number;
-        dskills: number;
-        dexp: number;
-        dprefs: number;
-      }[]
-    >(
-      `SELECT id, headline, city, "yearsExperience", "rateUsd", availability,
-              "committedHours",
-              COALESCE("embeddingSkills" <=> $2::vector, embedding <=> $1::vector) AS dskills,
-              COALESCE("embeddingExperience" <=> $1::vector, embedding <=> $1::vector) AS dexp,
-              COALESCE("embeddingPrefs" <=> $1::vector, embedding <=> $1::vector) AS dprefs
-         FROM "TalentProfile"
-        WHERE embedding IS NOT NULL
-        ORDER BY embedding <=> $1::vector
-        LIMIT 50`,
-      roleVec,
-      skillsVec,
+    const byReason = new Map<string, number>();
+    for (const e of eliminated) byReason.set(e.reason, (byReason.get(e.reason) ?? 0) + 1);
+    const strong = eligible.filter((r) => r.score >= MIN_SLATE_SCORE);
+    // buildSlate's tiering: strong first in rotation order, merely-eligible
+    // only backfills. Showing anything else would show a slate that ships.
+    const slate = [...strong, ...eligible.filter((r) => r.score < MIN_SLATE_SCORE)].slice(
+      0,
+      SLATE_SIZE,
     );
-
-    const ids = pool.map((p) => p.id);
-    const [skills, engagements] = await Promise.all([
-      db.skill.findMany({ where: { profileId: { in: ids } } }),
-      db.engagement.findMany({ where: { profileId: { in: ids } } }),
-    ]);
-
-    const skillsBy = new Map<string, { normalizedName: string; confirmed: boolean }[]>();
-    for (const s of skills) {
-      const list = skillsBy.get(s.profileId) ?? [];
-      list.push(s);
-      skillsBy.set(s.profileId, list);
-    }
-    const engCount = new Map<string, number>();
-    const rolesBy = new Map<string, string[]>();
-    for (const e of engagements) {
-      if (e.outcome === "confirmed") engCount.set(e.profileId, (engCount.get(e.profileId) ?? 0) + 1);
-      const list = rolesBy.get(e.profileId) ?? [];
-      list.push(e.role);
-      rolesBy.set(e.profileId, list);
-    }
-
-    // EVAL_HARD=1 mirrors the hard_filters_enabled flag: Stage 0 on the raw
-    // pool, requirements derived from the JD exactly as jdHardRequirements does.
-    let stage0Note = "";
-    let filtered = pool;
-    if (process.env.EVAL_HARD === "1") {
-      const r = applyHardFilters(pool, {
-        rateMaxUsd: jd.budgetMax,
-        hoursPerWeekMin: jd.hoursPerWeek,
-      });
-      filtered = r.passed;
-      const byReason = new Map<string, number>();
-      for (const e of r.eliminated) byReason.set(e.reason, (byReason.get(e.reason) ?? 0) + 1);
-      stage0Note = `    stage0: ${r.eliminated.length} eliminated (${[...byReason]
-        .map(([k, n]) => `${k} ${n}`)
-        .join(", ") || "none"}), ${r.aboveBudget.size} tagged above-budget\n`;
-    }
-
-    const ranked = filtered
-      .map((c) => {
-        const sim = blendSimilarity(c.dskills, c.dexp, c.dprefs);
-        const dims = {
-          skills: scoreSkills(jd.mustHaves, skillsBy.get(c.id) ?? [], sim, {
-            headline: c.headline,
-            roles: rolesBy.get(c.id) ?? [],
-          }),
-          rate: scoreRate(c.rateUsd, jd.budgetMin, jd.budgetMax),
-          overlap: scoreOverlap(c.availability, c.committedHours, jd.hoursPerWeek),
-          experience: scoreExperience(c.yearsExperience, engCount.get(c.id) ?? 0),
-        };
-        return { c, dims, sim, score: composite(dims) };
-      })
-      .sort((a, b) => b.score - a.score);
-
-    const isQualified = (r: (typeof ranked)[number]) =>
-      r.score >= QUALIFY_SCORE && r.dims.skills >= QUALIFY_SKILLS;
-    const eligible = ranked.filter(isQualified);
-    const qualified = eligible.slice(0, 5);
-    const rejected = ranked.length - eligible.length;
-    // Strong counts within the eligible set, mirroring buildSlate — a candidate
-    // cannot be "strong" without first qualifying, so counting over all 50
-    // produced the impossible "1 qualify, of which 5 strong".
-    const strong = eligible.filter((r) => r.score >= MIN_SLATE_SCORE).length;
 
     console.log(`━━━ ${jd.title}`);
     console.log(`    budget $${jd.budgetMin}-${jd.budgetMax}/hr · must: ${jd.mustHaves.join(", ")}`);
-    if (stage0Note) process.stdout.write(stage0Note);
-    if (qualified.length === 0) {
-      console.log(`    NO QUALIFIED CANDIDATES — ${rejected} below QUALIFY ${QUALIFY_SCORE} (top was ${ranked[0]?.score ?? 0})`);
+    if (eliminated.length) {
+      console.log(
+        `    stage0: ${eliminated.length} eliminated (${[...byReason]
+          .map(([k, n]) => `${k} ${n}`)
+          .join(", ")})`,
+      );
+    }
+    if (eligible.length === 0) {
+      console.log(
+        `    NO QUALIFIED CANDIDATES — ${scanned} scanned, none cleared QUALIFY ${QUALIFY_SCORE} / skills ${QUALIFY_SKILLS}`,
+      );
       console.log();
       continue;
     }
-    console.log(`    ${qualified.length} qualify (≥${QUALIFY_SCORE}), of which ${strong} strong (≥${MIN_SLATE_SCORE}); ${rejected} below`);
-    // The full eligible spread plus the best rejects — the calibration view.
-    console.log(`    eligible scores: ${eligible.map((r) => `${r.score}(sk${r.dims.skills})`).join(" ")}`);
     console.log(
-      `    top rejects: ${ranked
-        .filter((r) => !isQualified(r))
-        .slice(0, 8)
-        .map((r) => `${r.score}(sk${r.dims.skills})`)
-        .join(" ")}`,
+      `    ${scanned} scanned · ${eligible.length} qualify (≥${QUALIFY_SCORE}), of which ${strong.length} strong (≥${MIN_SLATE_SCORE})`,
     );
-    for (const [i, r] of qualified.entries()) {
+    // The full eligible spread — the calibration view. Sub-threshold scores are
+    // no longer visible here: they never leave rankQualifiedForJd.
+    console.log(`    eligible scores: ${eligible.map((r) => `${r.score}(sk${r.dims.skills})`).join(" ")}`);
+    for (const [i, r] of slate.entries()) {
       const headline = (r.c.headline ?? "(no headline)").slice(0, 58);
       console.log(
         `  ${i + 1}. ${String(r.score).padStart(3)}  ${headline.padEnd(60)} ` +
           `$${r.c.rateUsd ?? "?"}/hr ${r.c.yearsExperience}y  ` +
           `[sk ${r.dims.skills} rt ${r.dims.rate} ov ${r.dims.overlap} ex ${r.dims.experience}] ` +
-          `sim ${r.sim.toFixed(3)}`,
+          `shown ${r.c.shortlistCount}${r.c.verifiedTier === "id_verified" ? " verified" : ""}`,
       );
     }
     console.log();

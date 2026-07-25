@@ -55,6 +55,20 @@ export async function listJds(employerId: string) {
   });
 }
 
+/**
+ * Stage 0 eliminations for a JD, aggregated by reason. Counts ONLY — the
+ * employer is told what happened to the pool, never who was in it, so no
+ * profileId ever leaves this function.
+ */
+export async function eliminationCounts(jdId: string): Promise<Record<string, number>> {
+  const rows = await db.matchElimination.groupBy({
+    by: ["reason"],
+    where: { jdId },
+    _count: { _all: true },
+  });
+  return Object.fromEntries(rows.map((r) => [r.reason, r._count._all]));
+}
+
 export type SlateView = {
   slateId: string;
   unlocked: boolean;

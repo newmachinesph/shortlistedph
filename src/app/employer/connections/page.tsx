@@ -85,17 +85,19 @@ export default async function EmployerConnectionsPage() {
                   </div>
                 )}
 
+                {/* No rating or response-rate score is readable by talent anywhere —
+                    the old copy promised a signal that has no read side. */}
                 {c.state === "requested" && (
                   <p className="mt-4 text-sm leading-relaxed text-ink-soft">
-                    They can see your job description and your track record, and will decide
-                    shortly. Employers who respond quickly get accepted more often.
+                    They can see the role, the pay band, the hours and your company blurb, and will
+                    decide from that.
                   </p>
                 )}
 
                 {declined && (
                   <p className="mt-4 text-sm leading-relaxed text-ink-soft">
-                    You&rsquo;ll never see a reason, and their identity stays sealed. If fewer than
-                    three of five consent, we rebuild the shortlist free.
+                    You&rsquo;ll never see a reason, and their identity stays sealed. We keep
+                    confirming availability with other matched candidates to refill the slot.
                   </p>
                 )}
               </div>

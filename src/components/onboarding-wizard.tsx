@@ -604,7 +604,7 @@ export function OnboardingWizard({ hasResume, gaps, profile, skills, engagements
           <div className="space-y-5 rounded-2xl border border-line bg-white p-5">
             <Field
               label="Standing rate (USD / hour)"
-              hint="Locks for 30 days once published. Its history is visible to employers who shortlist you."
+              hint="Locks for 30 days the moment you save it, published or not. Its history is visible to employers who shortlist you."
               htmlFor="rate"
             >
               <div className="flex items-center gap-2">

@@ -85,7 +85,8 @@ export default async function TalentServicesPage() {
           </p>
           <p className="mt-1 text-sm text-ink-soft">{profile.committedHours}h/week committed</p>
           <p className="mt-4 rounded-xl bg-paper p-3.5 text-xs leading-relaxed text-ink-faint">
-            Committed hours update automatically when agreements start.
+            You set your committed hours — nothing updates them for you. Whatever is left of a
+            40-hour week is what we offer employers, so keep it current when a client ends.
           </p>
         </section>
       </div>

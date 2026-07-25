@@ -4,7 +4,11 @@ import { db } from "./db";
 export type PublicStats = {
   /** Every talent profile on record. Not the same as the matchable pool. */
   profiles: number;
-  /** Profiles matching can actually see: published and visible. */
+  /**
+   * Profiles matching can actually see. Must stay condition-for-condition with
+   * the candidate query in lib/matching.ts — this number is on the homepage,
+   * and a looser gate here is a public overstatement of the pool.
+   */
   matchable: number;
   avgYears: number;
   medianRateUsd: number;
@@ -29,8 +33,13 @@ export async function getPublicStats(): Promise<PublicStats | null> {
     const rows = await db.$queryRaw<Row[]>`
       select
         (select count(*)::int from "TalentProfile") as profiles,
-        (select count(*)::int from "TalentProfile"
-           where "publishedAt" is not null and visibility = true) as matchable,
+        (select count(*)::int from "TalentProfile" p
+            join "user" u on u.id = p."userId"
+          where p."publishedAt" is not null
+            and p.visibility = true
+            and p."dormantAt" is null
+            and p.embedding is not null
+            and u.status = 'active') as matchable,
         (select avg("yearsExperience")::float8 from "TalentProfile") as avg_years,
         (select (percentile_cont(0.5) within group (order by "rateUsd"))::float8
            from "TalentProfile" where "rateUsd" is not null) as median_rate

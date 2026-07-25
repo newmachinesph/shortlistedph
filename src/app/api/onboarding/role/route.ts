@@ -56,6 +56,8 @@ export async function POST(req: Request) {
       await claimAttributionFromCookie(user.id);
       if (body.role === "talent") {
         await mail.welcomeTalent(user.email, user.name);
+      } else {
+        await mail.welcomeEmployer(user.email, user.name, body.companyName);
       }
     } catch (e) {
       console.error("[onboarding] post-signup side effects failed", e);
