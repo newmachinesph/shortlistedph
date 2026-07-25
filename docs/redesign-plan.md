@@ -4,10 +4,10 @@
 > visual direction shifted from "Workze grammar" to a hallmark-run **modern-minimal**
 > system on the brand palette (same intent, sharper execution). Built so far: the 7 UI
 > primitives + tokens (§1), the openings board data layer + leak guard + pages (§3), and
-> the **homepage redesigned** as the exemplar. Remaining: the other marketing pages
-> (`for-employers`, `for-talent`, `why-it-works`, `pricing`, `resume-template`, legal) and
-> the admin "List publicly" control. Each page is now mechanical — `/hallmark redesign`
-> reads `design.md` + the homepage exemplar. See `docs/HANDOFF.md` for the resume steps.
+> the **homepage redesigned** as the exemplar, **all remaining marketing + legal pages
+> redesigned on the system** (`430ec4d`), and the **admin "List publicly" control**
+> (`7d4038e`). The public/auth redesign scope in this plan is complete; what remains
+> is outside it (workspaces/admin polish). See `docs/HANDOFF.md`.
 
 Scope agreed: public and auth pages only (~18 routes). Workze layout grammar, existing
 brand palette. Talent/employer workspaces and admin are a later pass.

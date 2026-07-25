@@ -1,9 +1,10 @@
 # Handoff — resume here next day
 
-Written 2026-07-25 at the end of a long session. This is the single "what's done,
-what's next, what to watch" doc. Read it first; the deeper plans are linked below.
+Written 2026-07-25 at the end of a long session; updated later the same day after
+the marketing redesign + admin listing control shipped. This is the single "what's
+done, what's next, what to watch" doc. Read it first; deeper plans linked below.
 
-Everything is committed and pushed to **master** (`763aa0c` at handoff). Build is
+Everything is committed and pushed to **master** (`7d4038e` at handoff). Build is
 green. Working tree is clean.
 
 ---
@@ -63,33 +64,24 @@ math and have not been re-tuned to the new distribution.
 
 ## Next steps, in priority order
 
-### 1. Finish the marketing redesign (the biggest remaining chunk)
-The system is locked and the homepage exemplar is live, so each page is now mechanical.
-In a fresh session:
-```
-/hallmark redesign        # auto-reads design.md + the homepage exemplar
-```
-Point it at one page at a time. Order: `for-employers` → `for-talent` → `why-it-works`
-→ `pricing` → `resume-template` → legal (`terms`/`privacy`/`conduct`).
-- Each just composes the 7 primitives under `design.md`. Consistency is guaranteed by the
-  locked system — diversification is *inverted* for a design.md project (pages share, not
-  differ).
-- In-place edits of each `page.tsx`. Preserve copy, schema, data — change only the visual
-  layer, exactly like the homepage.
+### ~~1. Finish the marketing redesign~~ — DONE (`430ec4d`)
+`for-employers`, `for-talent`, `why-it-works`, `pricing`, `resume-template`, and the
+legal pages (`terms`/`privacy`/`conduct`) now compose the 7 primitives under `design.md`.
+Copy, schema and data unchanged; visual layer only, like the homepage.
 
-### 2. Admin "List publicly" control (unblocks the board)
-The openings board renders empty until an admin sets `publicTitle` + `listedAt` on a JD.
-Add a small block to the existing admin slate-review screen: suggested `publicTitle`
-(sanitized from the employer title), `roleFamily`/`industry`/`clientRegion` selects (from
-`lib/openings-taxonomy.ts`), and a publish toggle that stamps `listedAt`. One approval
-step, in a screen an admin already opens. Details: `docs/redesign-plan.md` §3.
+### ~~2. Admin "List publicly" control~~ — DONE (`7d4038e`)
+`ListPubliclyForm` on the admin slate-review screen + `POST /api/admin/openings`:
+suggested `publicTitle` (prefilled from the employer title — the admin edit IS the
+sanitization step), `roleFamily`/`clientRegion` selects from `lib/openings-taxonomy.ts`,
+free-text industry, publish/unlist stamping or clearing `listedAt` (first-publish date
+preserved on later edits). Board still fails closed without `publicTitle` + `listedAt`.
 
-### 3. Scorer calibration (engine — closes the coverage-rework loop)
+### 1. Scorer calibration (engine — closes the coverage-rework loop)
 Re-tune `QUALIFY_SCORE` / `MIN_SLATE_SCORE` to the new distribution. ~30–45 min minimal,
 1–2 hrs proper (wider job set). Needs a read-only prod eval run. Method + the constants to
 touch: `docs/engine/engine-plan.md` and `eval-canonical-result.md`.
 
-### 4. E2E harness (not started)
+### 2. E2E harness (not started)
 Fully planned in `docs/e2e-plan.md`. Playwright + real Postgres + Mailpit, no real emails.
 Build J7 (public-route smoke) first — it becomes the redesign regression net.
 
