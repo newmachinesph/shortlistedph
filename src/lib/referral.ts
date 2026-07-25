@@ -248,7 +248,7 @@ export type PayoutMethod = (typeof PAYOUT_METHODS)[number];
 
 /**
  * A requested payout is stored in the currency the rewards were EARNED in —
- * USD, because REFERRAL_REWARD.amount is a flat $9.99 and nothing here has an
+ * USD, because REFERRAL_REWARD.amount is a flat $9 and nothing here has an
  * FX rate to turn that into pesos honestly. ReferralPayout.currency defaults
  * to PHP for older rows; requests written by this code always set it
  * explicitly. The operator converts at the rate on the day they transfer, and

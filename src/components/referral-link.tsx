@@ -64,8 +64,8 @@ export function ReferralLink({
           Your link
         </p>
         <p className="mt-1 text-xs text-ink-faint">
-          Send this to a company that needs to hire. {bounty} when they buy their first shortlist,
-          once per company. Referring a jobseeker earns nothing.
+          Send this to a company that needs to hire. {bounty} every time they buy a shortlist,
+          for as long as they keep buying. Referring a jobseeker earns nothing.
         </p>
         {/* break-all on phones: an affiliate needs to read the whole code before
             sharing it, and a truncated link looks like the wrong link. */}
