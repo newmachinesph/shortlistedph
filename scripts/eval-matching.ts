@@ -27,8 +27,15 @@ import {
 
 config({ path: ".env.local", override: true });
 
+// EVAL_DB=prod runs against the production pool (still read-only). The default
+// DATABASE_URL in .env.local is the 2-profile dev DB, which tells you nothing.
+const connectionString =
+  process.env.EVAL_DB === "prod"
+    ? process.env.PROD_DATABASE_URL!
+    : process.env.DATABASE_URL!;
+
 const db = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
+  adapter: new PrismaPg({ connectionString }),
 });
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
@@ -168,6 +175,15 @@ async function main() {
       continue;
     }
     console.log(`    ${qualified.length} qualify (≥${QUALIFY_SCORE}), of which ${strong} strong (≥${MIN_SLATE_SCORE}); ${rejected} below`);
+    // The full eligible spread plus the best rejects — the calibration view.
+    console.log(`    eligible scores: ${eligible.map((r) => `${r.score}(sk${r.dims.skills})`).join(" ")}`);
+    console.log(
+      `    top rejects: ${ranked
+        .filter((r) => !isQualified(r))
+        .slice(0, 8)
+        .map((r) => `${r.score}(sk${r.dims.skills})`)
+        .join(" ")}`,
+    );
     for (const [i, r] of qualified.entries()) {
       const headline = (r.c.headline ?? "(no headline)").slice(0, 58);
       console.log(

@@ -128,3 +128,35 @@ old coverage math and have not been re-tuned to the new distribution. The slates
 at the current thresholds, but a proper calibration pass (spec §8) against these outputs is the
 next step before this ships. The change is committed on the branch, not merged — the eval
 evidence is the review artifact.
+
+---
+
+# Follow-up 2: threshold recalibration (2026-07-25, closes the loop)
+
+Ran the eval read-only against the 785-profile prod pool (`EVAL_DB=prod`, added to the
+script) and re-tuned the composite thresholds to the post-rework distribution.
+
+The measured shift at the 0.45 skills weight: a fully-claimed full match gained ~13 skills
+points (ceiling 52 → 65) = +6 composite; a mid-coverage partial gained ~7 = +3 composite.
+Applied exactly that shift:
+
+| Constant | Old | New | Why |
+|---|---|---|---|
+| `MIN_SLATE_SCORE` | 62 | **68** | old 62 + the +6 full-match shift |
+| `QUALIFY_SCORE` | 52 | **55** | old 52 + the +3 partial-match shift |
+| `QUALIFY_SKILLS` | 40 | **40 (unchanged)** | distribution is bimodal around it: eligible ≥ 43, gated rejects ≤ 37 (PPC max 37). Still separates cleanly |
+
+Measured effect on the five jobs (same pool, before → after recalibration):
+
+| Job | eligible | strong (≥62 → ≥68) | slate |
+|---|---|---|---|
+| Medical VA | 6 → 6 | 5 → 2 | full |
+| Senior React | 23 → 23 | 18 → 10 | full |
+| Bookkeeper | 12 → 12 | 11 → 5 | full |
+| Amazon PPC | 0 → 0 | — | empty (precision preserved) |
+| Customer support | 10 → 9 | 6 → 3 | full |
+
+One candidate lost eligibility (support, 54 composite / 46 skills) — a weaker partial than
+anything the pre-rework bar ever admitted. "Strong" regained its meaning: it was covering
+two-thirds of the eligible set on React; now it marks the genuine top tier and the
+QUALIFY..MIN band backfills, which is exactly the tiering `buildSlate` was written for.

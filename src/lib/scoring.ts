@@ -204,27 +204,35 @@ export function scoreExperience(years: number, confirmedEngagements: number): nu
  * or above this fill slate slots first (in rotation order), and QUALIFY..MIN
  * candidates only backfill when there aren't enough strong ones. Eligibility
  * itself is still QUALIFY_SCORE — this only orders who gets shown first.
+ *
+ * Recalibrated 2026-07-25 for the coverage-denominator rework: a fully-claimed
+ * match gained ~13 skills points (52 → 65 ceiling), which is +6 composite at
+ * the 0.45 skills weight, so the old 62 moved to 68. Measured on the
+ * 785-profile prod pool: strong counts fell from 5/18/11/6 to 2/10/5/3 across
+ * the four fillable eval jobs — "strong" means top-tier again instead of
+ * two-thirds of everyone eligible.
  */
-export const MIN_SLATE_SCORE = 62;
+export const MIN_SLATE_SCORE = 68;
 
 /**
  * The eligibility bar for rotation, set below the strong-match cutoff.
  *
- * Two thresholds, two jobs. MIN_SLATE_SCORE (62) marks a *strong* match and
- * tiers who fills a slate first. QUALIFY (52) is the eligibility bar and marks
+ * Two thresholds, two jobs. MIN_SLATE_SCORE (68) marks a *strong* match and
+ * tiers who fills a slate first. QUALIFY (55) is the eligibility bar and marks
  * *eligible*: good enough to put in front of an employer, even if not the
  * single best on paper. Everyone
  * at or above QUALIFY enters the rotation so the same top profiles don't fill
  * every slate — but nobody below it does, so fairness never ships a bad fit.
  *
- * Tuned against the real pool with scripts/eval-matching.ts: the support
- * candidate (Zendesk, live chat, refunds, $9/hr, in-band) lands ~59 on a
- * support brief and now qualifies, while the same profile scores 36–40 on
- * unrelated dental/React/PPC briefs and is still correctly excluded. The
- * ~12-point gap between wrong-domain padding (≤40) and a genuine imperfect
- * match (~59) is where 52 sits.
+ * Tuned against the real pool with scripts/eval-matching.ts (EVAL_DB=prod).
+ * Recalibrated 2026-07-25 for the coverage-denominator rework: a mid-coverage
+ * partial match gained ~7 skills points, i.e. +3 composite, so the old 52
+ * moved to 55. On the prod pool this restores the margin against the padding
+ * boundary (a near-domain reject sits at 51) while keeping every fillable
+ * eval job at a full slate; the one candidate it drops scored 54 with only
+ * partial coverage — below anything the old bar ever admitted.
  */
-export const QUALIFY_SCORE = 52;
+export const QUALIFY_SCORE = 55;
 
 /**
  * Domain gate: a qualifying candidate must also show real skill overlap, not
@@ -233,6 +241,11 @@ export const QUALIFY_SCORE = 52;
  * surfaced on an Amazon PPC brief). The support example scores skills 54 here;
  * pure padding scores ~10–15. 40 keeps genuine partial matches while cutting
  * off-domain padding — quality gating eligibility, exactly as intended.
+ *
+ * Deliberately NOT moved in the 2026-07-25 recalibration: on the prod pool the
+ * post-rework distribution is bimodal around it — every eligible candidate
+ * scores skills ≥ 43, every gated reject ≤ 37 (Amazon PPC's best is 37). The
+ * gate still separates cleanly; only the composite thresholds had drifted.
  */
 export const QUALIFY_SKILLS = 40;
 
