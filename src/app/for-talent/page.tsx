@@ -3,6 +3,9 @@ import Link from "next/link";
 import { ArrowRight, BadgeCheck, Clock, Lock, ShieldOff, Wallet } from "lucide-react";
 import { PublicPage } from "@/components/public-chrome";
 import { DiditMockup } from "@/components/didit-mockup";
+import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Section, SectionHeader } from "@/components/ui/section";
 import { pageMeta } from "@/lib/site";
 
 export const metadata: Metadata = pageMeta({
@@ -31,9 +34,10 @@ export default function ForTalentPage() {
   return (
     <PublicPage>
 
-      <section className="mx-auto w-full max-w-6xl px-5 pt-14 pb-16 sm:px-8">
+      {/* Hero — subpage scale, ember side of the two-audience story. */}
+      <section className="mx-auto w-full max-w-6xl px-5 pt-14 pb-[var(--space-section)] sm:px-8">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-ember">For talent</p>
-        <h1 className="font-display mt-4 max-w-3xl text-[clamp(2rem,8vw,3.75rem)] font-semibold leading-[1.08] tracking-tight text-ink">
+        <h1 className="font-display mt-4 max-w-3xl font-semibold leading-[1.08] tracking-tight text-ink [font-size:var(--text-h1)]">
           Never write another application.
         </h1>
         <p className="mt-6 max-w-xl text-lg leading-relaxed text-ink-soft">
@@ -42,12 +46,9 @@ export default function ForTalentPage() {
           nothing to apply to, so there is nothing to tailor.
         </p>
         <div className="mt-8 flex flex-wrap items-center gap-4">
-          <Link
-            href="/onboarding"
-            className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-colors hover:bg-brand-dark"
-          >
+          <ButtonLink href="/onboarding" variant="solid">
             Upload your resume <ArrowRight className="h-4 w-4" />
-          </Link>
+          </ButtonLink>
           <span className="text-sm text-ink-soft">Free, and it stays free.</span>
         </div>
         <p className="mt-4 text-sm text-ink-soft">
@@ -59,13 +60,14 @@ export default function ForTalentPage() {
         </p>
       </section>
 
-      <section className="w-full border-y border-line bg-white">
-        <div className="mx-auto grid max-w-6xl items-center gap-14 px-5 py-20 sm:px-8 lg:grid-cols-[1fr_320px]">
+      {/* Verification — optional, with the Didit mockup alongside. */}
+      <Section tone="white">
+        <div className="grid items-center gap-14 lg:grid-cols-[1fr_320px]">
           <div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3 py-1 text-xs font-medium text-brand">
+            <span className="inline-flex items-center gap-1.5 [border-radius:var(--radius-pill)] bg-brand-soft px-3 py-1 text-xs font-medium text-brand">
               <BadgeCheck className="h-3.5 w-3.5" /> Optional
             </span>
-            <h2 className="font-display mt-4 text-3xl font-semibold tracking-tight text-ink">
+            <h2 className="font-display mt-4 font-semibold tracking-tight text-ink [font-size:var(--text-h2)]">
               Prove you&rsquo;re you, if you want to
             </h2>
             <p className="mt-4 max-w-xl leading-relaxed text-ink-soft">
@@ -81,7 +83,7 @@ export default function ForTalentPage() {
             </p>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
-              <div className="rounded-2xl border border-line p-5">
+              <Card className="p-5">
                 <Clock className="h-5 w-5 text-brand" strokeWidth={1.75} />
                 <h3 className="mt-3 font-medium text-ink">About four minutes</h3>
                 <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
@@ -89,8 +91,8 @@ export default function ForTalentPage() {
                   Philippine ePassport, its chip can be read directly, which is the strongest proof
                   available.
                 </p>
-              </div>
-              <div className="rounded-2xl border border-line p-5">
+              </Card>
+              <Card className="p-5">
                 <Wallet className="h-5 w-5 text-brand" strokeWidth={1.75} />
                 <h3 className="mt-3 font-medium text-ink">₱60, none of it ours</h3>
                 <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
@@ -98,41 +100,43 @@ export default function ForTalentPage() {
                   costs and we keep none of it. It pays for the check itself; it does not buy a
                   position, a placement, or a job.
                 </p>
-              </div>
+              </Card>
             </div>
           </div>
 
           <DiditMockup />
         </div>
-      </section>
+      </Section>
 
-      <section className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8">
+      {/* What we never store — the privacy claim. */}
+      <Section tone="paper">
         <div className="flex items-start gap-3">
           <Lock className="mt-1 h-5 w-5 shrink-0 text-brand" strokeWidth={1.75} />
-          <div>
-            <h2 className="font-display text-3xl font-semibold tracking-tight text-ink">
-              What we never store
-            </h2>
-            <p className="mt-3 max-w-2xl leading-relaxed text-ink-soft">
-              Most platforms ask for your documents and keep them. We built this the other way
-              round, partly because the law is strict and mostly because a database of Filipino
-              workers&rsquo; IDs is a target we refuse to become.
-            </p>
-          </div>
+          <SectionHeader
+            title="What we never store"
+            lede={
+              <>
+                Most platforms ask for your documents and keep them. We built this the other way
+                round, partly because the law is strict and mostly because a database of Filipino
+                workers&rsquo; IDs is a target we refuse to become.
+              </>
+            }
+          />
         </div>
         <dl className="mt-10 grid gap-5 lg:grid-cols-3">
           {neverStore.map(([term, detail]) => (
-            <div key={term} className="rounded-2xl border border-line bg-white p-6">
+            <Card key={term} className="p-6">
               <dt className="font-medium text-ink">{term}</dt>
               <dd className="mt-2 text-sm leading-relaxed text-ink-soft">{detail}</dd>
-            </div>
+            </Card>
           ))}
         </dl>
-      </section>
+      </Section>
 
-      <section className="w-full border-y border-line bg-white">
-        <div className="mx-auto max-w-3xl px-5 py-20 sm:px-8">
-          <h2 className="font-display text-3xl font-semibold tracking-tight text-ink">
+      {/* NBI clearance — long-form prose at reading measure. */}
+      <Section tone="white">
+        <div className="mx-auto max-w-3xl">
+          <h2 className="font-display font-semibold tracking-tight text-ink [font-size:var(--text-h2)]">
             About your NBI clearance
           </h2>
           <p className="mt-4 leading-relaxed text-ink-soft">
@@ -158,11 +162,12 @@ export default function ForTalentPage() {
             .
           </p>
         </div>
-      </section>
+      </Section>
 
-      <section className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8">
+      {/* Two honest cards — limits and the standing rate. */}
+      <Section tone="paper">
         <div className="grid gap-5 lg:grid-cols-2">
-          <div className="rounded-2xl border border-line bg-white p-7">
+          <Card className="p-7">
             <ShieldOff className="h-5 w-5 text-ember" strokeWidth={1.75} />
             <h3 className="font-display mt-4 text-xl font-semibold text-ink">
               What verification won&rsquo;t do
@@ -173,8 +178,8 @@ export default function ForTalentPage() {
               engagements actually support; verification breaks ties, it doesn&rsquo;t win them.
               The fastest way up the list is a confirmed outcome from someone who worked with you.
             </p>
-          </div>
-          <div className="rounded-2xl border border-line bg-white p-7">
+          </Card>
+          <Card className="p-7">
             <BadgeCheck className="h-5 w-5 text-brand" strokeWidth={1.75} />
             <h3 className="font-display mt-4 text-xl font-semibold text-ink">
               One rate, one profile
@@ -185,23 +190,25 @@ export default function ForTalentPage() {
               theatre where whoever guesses the number best wins, instead of whoever does the job
               best.
             </p>
-          </div>
+          </Card>
         </div>
-      </section>
+      </Section>
 
-      <section className="mx-auto w-full max-w-6xl px-5 pb-24 sm:px-8">
-        <div className="rounded-3xl bg-brand px-6 py-12 text-center sm:px-14 sm:py-14">
-          <h2 className="font-display mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-            Upload once. Get matched while you sleep.
-          </h2>
-          <Link
+      {/* Close — the dark brand band. */}
+      <Section tone="band" className="text-center">
+        <h2 className="font-display mx-auto max-w-2xl font-semibold tracking-tight text-white [font-size:var(--text-h1)]">
+          Upload once. Get matched while you sleep.
+        </h2>
+        <div className="mt-8">
+          <ButtonLink
             href="/onboarding"
-            className="mt-8 inline-block rounded-2xl bg-white px-6 py-3.5 text-sm font-semibold text-brand transition-colors hover:bg-brand-soft"
+            variant="solid"
+            className="!bg-white !text-brand !shadow-none hover:!bg-brand-soft"
           >
             Build my profile — free
-          </Link>
+          </ButtonLink>
         </div>
-      </section>
+      </Section>
 
       </PublicPage>
   );

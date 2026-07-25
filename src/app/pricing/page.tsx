@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 import { PublicPage } from "@/components/public-chrome";
 import { JsonLd } from "@/components/json-ld";
+import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Section } from "@/components/ui/section";
 import { pageMeta } from "@/lib/site";
 import { employerPrice } from "@/lib/interviews";
 
@@ -100,9 +102,10 @@ export default function PricingPage() {
       <JsonLd data={faqSchema} />
       <PublicPage>
 
+      {/* Hero — centered, the one pricing promise. */}
       <section className="mx-auto w-full max-w-6xl px-5 pt-14 pb-16 text-center sm:px-8">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-ember">Pricing</p>
-        <h1 className="font-display mx-auto mt-4 max-w-2xl text-[clamp(1.875rem,7vw,3rem)] font-semibold leading-[1.1] tracking-tight text-ink">
+        <h1 className="font-display mx-auto mt-4 max-w-2xl font-semibold leading-[1.1] tracking-tight text-ink [font-size:var(--text-h1)]">
           Employers pay per shortlist.
           <br />
           Talent pays <span className="text-brand">nothing to get hired</span>.
@@ -114,15 +117,16 @@ export default function PricingPage() {
         </p>
       </section>
 
+      {/* Tiers — the highlighted Unlock card carries the band colour. */}
       <section className="mx-auto w-full max-w-6xl px-5 pb-16 sm:px-8">
         <div className="grid gap-5 lg:grid-cols-3">
           {tiers.map((t) => (
             <div
               key={t.name}
-              className={`flex flex-col rounded-3xl p-7 ${
+              className={`flex flex-col p-7 [border-radius:var(--radius-lg)] ${
                 t.highlight
                   ? "bg-brand text-white shadow-xl shadow-brand/25"
-                  : "border border-line bg-white"
+                  : "border border-line bg-[var(--color-surface)] [box-shadow:var(--shadow-card)]"
               }`}
             >
               <h2 className={`text-sm font-medium uppercase tracking-wider ${t.highlight ? "text-white/80" : "text-ink-faint"}`}>
@@ -138,21 +142,23 @@ export default function PricingPage() {
                   </li>
                 ))}
               </ul>
-              <Link
+              <ButtonLink
                 href="/start"
-                className={`mt-7 inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-colors ${
+                variant="solid"
+                size="md"
+                className={`mt-7 ${
                   t.highlight
-                    ? "bg-white text-brand hover:bg-brand-soft"
-                    : "bg-brand text-white hover:bg-brand-dark"
+                    ? "!bg-white !text-brand !shadow-none hover:!bg-brand-soft"
+                    : "!shadow-none"
                 }`}
               >
                 {t.cta} <ArrowRight className="h-4 w-4" />
-              </Link>
+              </ButtonLink>
             </div>
           ))}
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-line bg-white px-7 py-6">
+        <Card className="mt-5 flex flex-wrap items-center justify-between gap-4 px-7 py-6 ![border-radius:var(--radius-lg)]">
           <div>
             <h2 className="font-display text-xl font-semibold text-ink">
               For talent: free to join, free to get hired.
@@ -164,17 +170,15 @@ export default function PricingPage() {
               to pay to be placed, it&rsquo;s not us.
             </p>
           </div>
-          <Link
-            href="/onboarding"
-            className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft"
-          >
+          <ButtonLink href="/onboarding" variant="outline" size="md">
             Upload your resume <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
+          </ButtonLink>
+        </Card>
       </section>
 
+      {/* Interview add-on. */}
       <section className="mx-auto w-full max-w-6xl px-5 pb-16 sm:px-8">
-        <div className="flex flex-col gap-6 rounded-3xl border border-line bg-white px-7 py-8 sm:flex-row sm:items-start sm:justify-between">
+        <Card className="flex flex-col gap-6 px-7 py-8 ![border-radius:var(--radius-lg)] sm:flex-row sm:items-start sm:justify-between">
           <div className="max-w-2xl">
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand">
               Add-on: pay per interview
@@ -189,28 +193,28 @@ export default function PricingPage() {
               candidate consents before anything is charged.
             </p>
           </div>
-          <Link
-            href="/interviews"
-            className="inline-flex shrink-0 items-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft"
-          >
+          <ButtonLink href="/interviews" variant="outline" size="md" className="shrink-0">
             How interviews work <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
+          </ButtonLink>
+        </Card>
       </section>
 
-      <section className="mx-auto w-full max-w-3xl px-5 pb-24 sm:px-8">
-        <h2 className="font-display text-2xl font-semibold tracking-tight text-ink">
-          Questions we always get
-        </h2>
-        <dl className="mt-6 space-y-6">
-          {faqs.map(([q, a]) => (
-            <div key={q} className="rounded-2xl border border-line bg-white p-6">
-              <dt className="font-medium text-ink">{q}</dt>
-              <dd className="mt-2 text-sm leading-relaxed text-ink-soft">{a}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
+      {/* FAQ — narrow measure. */}
+      <Section tone="white">
+        <div className="mx-auto max-w-3xl">
+          <h2 className="font-display font-semibold tracking-tight text-ink [font-size:var(--text-h2)]">
+            Questions we always get
+          </h2>
+          <dl className="mt-6 space-y-6">
+            {faqs.map(([q, a]) => (
+              <Card key={q} className="p-6">
+                <dt className="font-medium text-ink">{q}</dt>
+                <dd className="mt-2 text-sm leading-relaxed text-ink-soft">{a}</dd>
+              </Card>
+            ))}
+          </dl>
+        </div>
+      </Section>
 
       </PublicPage>
     </>

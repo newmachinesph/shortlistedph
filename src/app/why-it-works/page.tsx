@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Camera, EyeOff, FileCheck, Filter, Lock } from "lucide-react";
 import { PublicPage } from "@/components/public-chrome";
+import { Section } from "@/components/ui/section";
 import { pageMeta } from "@/lib/site";
 
 export const metadata: Metadata = pageMeta({
@@ -43,9 +44,10 @@ export default function WhyItWorksPage() {
   return (
     <PublicPage>
 
-      <section className="mx-auto w-full max-w-6xl px-5 pt-14 pb-16 sm:px-8">
+      {/* Hero — Long-Document opening at subpage scale. */}
+      <section className="mx-auto w-full max-w-6xl px-5 pt-14 pb-[var(--space-section)] sm:px-8">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand">Why it works</p>
-        <h1 className="font-display mt-4 max-w-3xl text-[clamp(2rem,8vw,3.75rem)] font-semibold leading-[1.08] tracking-tight text-ink">
+        <h1 className="font-display mt-4 max-w-3xl font-semibold leading-[1.08] tracking-tight text-ink [font-size:var(--text-h1)]">
           Built so resumes can&rsquo;t be gamed.
         </h1>
         <p className="mt-6 max-w-2xl text-lg leading-relaxed text-ink-soft">
@@ -56,8 +58,9 @@ export default function WhyItWorksPage() {
         </p>
       </section>
 
-      <section className="w-full border-y border-line bg-white">
-        <div className="mx-auto max-w-4xl px-5 py-20 sm:px-8">
+      {/* The five mechanics — numbered rail, genuinely ordinal. */}
+      <Section tone="white">
+        <div className="mx-auto max-w-4xl">
           <ol className="space-y-12">
             {mechanics.map((m, i) => (
               <li key={m.title} className="flex gap-4 sm:gap-6">
@@ -80,32 +83,36 @@ export default function WhyItWorksPage() {
             ))}
           </ol>
         </div>
-      </section>
+      </Section>
 
-      <section className="mx-auto w-full max-w-4xl px-5 py-20 sm:px-8">
-        <h2 className="font-display text-3xl font-semibold tracking-tight text-ink">
-          What this doesn&rsquo;t fix
-        </h2>
-        <p className="mt-4 leading-relaxed text-ink-soft">
-          Hidden job descriptions stop tailoring at the matching stage; they don&rsquo;t stop
-          someone overselling in the interview once the job is finally revealed to them. Frozen
-          profiles prove what was claimed and when, not whether it was true. Identity verification,
-          which is optional, ties an account to a real person on one day and says nothing about the
-          next.
-        </p>
-        <p className="mt-4 leading-relaxed text-ink-soft">
-          What the design actually buys is narrower and more useful than &ldquo;no more bad
-          hires&rdquo;: the profile that got someone in front of you existed before you did. Every
-          claim on it is either backed by someone else or visibly not. Whether they can do the job
-          is still a conversation you have to have.
-        </p>
-      </section>
+      {/* The honest limits — prose at reading measure. */}
+      <Section tone="paper">
+        <div className="mx-auto max-w-4xl">
+          <h2 className="font-display font-semibold tracking-tight text-ink [font-size:var(--text-h2)]">
+            What this doesn&rsquo;t fix
+          </h2>
+          <p className="mt-4 leading-relaxed text-ink-soft">
+            Hidden job descriptions stop tailoring at the matching stage; they don&rsquo;t stop
+            someone overselling in the interview once the job is finally revealed to them. Frozen
+            profiles prove what was claimed and when, not whether it was true. Identity verification,
+            which is optional, ties an account to a real person on one day and says nothing about the
+            next.
+          </p>
+          <p className="mt-4 leading-relaxed text-ink-soft">
+            What the design actually buys is narrower and more useful than &ldquo;no more bad
+            hires&rdquo;: the profile that got someone in front of you existed before you did. Every
+            claim on it is either backed by someone else or visibly not. Whether they can do the job
+            is still a conversation you have to have.
+          </p>
+        </div>
+      </Section>
 
-      <section className="mx-auto w-full max-w-6xl px-5 pb-24 sm:px-8">
+      {/* Onward — the two audience doors. */}
+      <Section tone="white">
         <div className="grid gap-5 sm:grid-cols-2">
           <Link
             href="/for-employers"
-            className="group rounded-3xl border border-line bg-white p-8 transition hover:ring-2 hover:ring-brand/30"
+            className="group border border-line bg-[var(--color-surface)] p-8 [border-radius:var(--radius-lg)] [box-shadow:var(--shadow-card)] transition-shadow transition-transform hover:-translate-y-0.5 hover:[box-shadow:var(--shadow-lift)]"
           >
             <h3 className="font-display text-2xl font-semibold tracking-tight text-ink">
               For employers
@@ -119,7 +126,7 @@ export default function WhyItWorksPage() {
           </Link>
           <Link
             href="/for-talent"
-            className="group rounded-3xl border border-line bg-white p-8 transition hover:ring-2 hover:ring-ember/30"
+            className="group border border-line bg-[var(--color-surface)] p-8 [border-radius:var(--radius-lg)] [box-shadow:var(--shadow-card)] transition-shadow transition-transform hover:-translate-y-0.5 hover:[box-shadow:var(--shadow-lift)]"
           >
             <h3 className="font-display text-2xl font-semibold tracking-tight text-ink">
               For talent
@@ -132,7 +139,7 @@ export default function WhyItWorksPage() {
             </span>
           </Link>
         </div>
-      </section>
+      </Section>
 
       </PublicPage>
   );

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { pageMeta } from "@/lib/site";
 import Link from "next/link";
 import { PublicFooter, PublicHeader } from "@/components/public-chrome";
+import { Card } from "@/components/ui/card";
 
 export const metadata: Metadata = pageMeta({
   title: "Code of Conduct",
@@ -42,17 +43,17 @@ export default function ConductPage() {
     <div className="min-h-screen bg-paper">
       <PublicHeader />
       <main className="mx-auto w-full max-w-3xl px-5 pt-8 pb-20 sm:px-8">
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-ink">Code of Conduct</h1>
+        <h1 className="font-display font-semibold tracking-tight text-ink [font-size:var(--text-h1)]">Code of Conduct</h1>
         <p className="mt-3 max-w-xl leading-relaxed text-ink-soft">
           Being shortlisted here means something because of what we don&rsquo;t
           allow. This page is the whole doctrine — short on purpose.
         </p>
         <div className="mt-8 space-y-6">
           {sections.map(([t, b]) => (
-            <section key={t} className="rounded-2xl border border-line bg-white p-6">
+            <Card key={t} className="p-6">
               <h2 className="font-medium text-ink">{t}</h2>
               <p className="mt-2 text-sm leading-relaxed break-words text-ink-soft">{b}</p>
-            </section>
+            </Card>
           ))}
         </div>
         <p className="mt-8 text-sm text-ink-soft">

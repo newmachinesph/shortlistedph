@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { ArrowRight, BadgeCheck, Camera, FileWarning, Fingerprint, XCircle } from "lucide-react";
 import { PublicPage } from "@/components/public-chrome";
+import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Section, SectionHeader } from "@/components/ui/section";
 import { pageMeta } from "@/lib/site";
 
 export const metadata: Metadata = pageMeta({
@@ -45,13 +47,32 @@ const doesNotProve: [string, string][] = [
   ],
 ];
 
+const builtInChecks = [
+  {
+    icon: Camera,
+    title: "Profiles are frozen",
+    body: "You see each candidate as they were the day you posted, with the date they last edited. Nobody can rewrite their history after reading your requirements, because they never see them.",
+  },
+  {
+    icon: Fingerprint,
+    title: "Claims carry provenance",
+    body: "Every skill is marked confirmed or self-reported. Confirmed means both sides of a past engagement agreed how it went; self-reported means somebody typed it. We weight them differently and show you which is which.",
+  },
+  {
+    icon: FileWarning,
+    title: "One standing rate",
+    body: "Rates are set once, locked for 30 days, and their history is visible. You'll never be quoted one number because you sound American and another because you sound like a startup.",
+  },
+];
+
 export default function ForEmployersPage() {
   return (
     <PublicPage>
 
-      <section className="mx-auto w-full max-w-6xl px-5 pt-14 pb-16 sm:px-8">
+      {/* Hero — subpage scale, same voice as the homepage marquee. */}
+      <section className="mx-auto w-full max-w-6xl px-5 pt-14 pb-[var(--space-section)] sm:px-8">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand">For employers</p>
-        <h1 className="font-display mt-4 max-w-3xl text-[clamp(2rem,8vw,3.75rem)] font-semibold leading-[1.08] tracking-tight text-ink">
+        <h1 className="font-display mt-4 max-w-3xl font-semibold leading-[1.08] tracking-tight text-ink [font-size:var(--text-h1)]">
           Stop reading 400 applications.
         </h1>
         <p className="mt-6 max-w-xl text-lg leading-relaxed text-ink-soft">
@@ -60,108 +81,85 @@ export default function ForEmployersPage() {
           or fewer if only three deserve the slot.
         </p>
         <div className="mt-8 flex flex-wrap items-center gap-4">
-          <Link
-            href="/start"
-            className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-colors hover:bg-brand-dark"
-          >
+          <ButtonLink href="/start" variant="solid">
             Write a job description <ArrowRight className="h-4 w-4" />
-          </Link>
+          </ButtonLink>
           <span className="text-sm text-ink-soft">
             Previewing your shortlist costs nothing.
           </span>
         </div>
       </section>
 
-      <section className="w-full border-y border-line bg-white">
-        <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8">
-          <h2 className="font-display max-w-2xl text-3xl font-semibold tracking-tight text-ink">
-            What a verified candidate actually gives you
-          </h2>
-          <p className="mt-3 max-w-2xl leading-relaxed text-ink-soft">
-            Most platforms wave the word &ldquo;verified&rdquo; around without saying what it
-            covers. Here is the whole scope, including the parts that don&rsquo;t flatter us.
-          </p>
-
-          <div className="mt-10 grid gap-10 lg:grid-cols-2">
-            <div>
-              <h3 className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-brand">
-                <BadgeCheck className="h-4 w-4" /> What it proves
-              </h3>
-              <dl className="mt-5 space-y-5">
-                {proves.map(([term, detail]) => (
-                  <div key={term} className="rounded-2xl border border-line p-5">
-                    <dt className="font-medium text-ink">{term}</dt>
-                    <dd className="mt-1.5 text-sm leading-relaxed text-ink-soft">{detail}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-
-            <div>
-              <h3 className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-ember">
-                <XCircle className="h-4 w-4" /> What it doesn&rsquo;t
-              </h3>
-              <dl className="mt-5 space-y-5">
-                {doesNotProve.map(([term, detail]) => (
-                  <div key={term} className="rounded-2xl border border-line p-5">
-                    <dt className="font-medium text-ink">{term}</dt>
-                    <dd className="mt-1.5 text-sm leading-relaxed text-ink-soft">{detail}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
+      {/* Verification scope — the honest two-column ledger. */}
+      <Section tone="white">
+        <SectionHeader
+          title="What a verified candidate actually gives you"
+          lede={
+            <>
+              Most platforms wave the word &ldquo;verified&rdquo; around without saying what it
+              covers. Here is the whole scope, including the parts that don&rsquo;t flatter us.
+            </>
+          }
+        />
+        <div className="mt-10 grid gap-10 lg:grid-cols-2">
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-brand">
+              <BadgeCheck className="h-4 w-4" /> What it proves
+            </h3>
+            <dl className="mt-5 space-y-5">
+              {proves.map(([term, detail]) => (
+                <Card key={term} className="p-5">
+                  <dt className="font-medium text-ink">{term}</dt>
+                  <dd className="mt-1.5 text-sm leading-relaxed text-ink-soft">{detail}</dd>
+                </Card>
+              ))}
+            </dl>
           </div>
 
-          <p className="mt-10 max-w-3xl rounded-2xl bg-paper p-6 text-sm leading-relaxed text-ink-soft">
-            Verification is optional here, so you&rsquo;ll see both verified and unverified people
-            on a shortlist. Verified profiles rank slightly higher when everything else is close;
-            the badge breaks ties rather than deciding them, because a verified mediocre match is
-            still a mediocre match.
-          </p>
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-ember">
+              <XCircle className="h-4 w-4" /> What it doesn&rsquo;t
+            </h3>
+            <dl className="mt-5 space-y-5">
+              {doesNotProve.map(([term, detail]) => (
+                <Card key={term} className="p-5">
+                  <dt className="font-medium text-ink">{term}</dt>
+                  <dd className="mt-1.5 text-sm leading-relaxed text-ink-soft">{detail}</dd>
+                </Card>
+              ))}
+            </dl>
+          </div>
         </div>
-      </section>
 
-      <section className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8">
-        <h2 className="font-display max-w-2xl text-3xl font-semibold tracking-tight text-ink">
-          The checks identity can&rsquo;t make for you
-        </h2>
-        <p className="mt-3 max-w-2xl leading-relaxed text-ink-soft">
-          Three things we built into the product precisely because no KYC provider covers them.
+        <p className="mt-10 max-w-3xl bg-paper p-6 text-sm leading-relaxed text-ink-soft [border-radius:var(--radius-card)]">
+          Verification is optional here, so you&rsquo;ll see both verified and unverified people
+          on a shortlist. Verified profiles rank slightly higher when everything else is close;
+          the badge breaks ties rather than deciding them, because a verified mediocre match is
+          still a mediocre match.
         </p>
-        <div className="mt-10 grid gap-5 lg:grid-cols-3">
-          <div className="rounded-2xl border border-line bg-white p-6">
-            <Camera className="h-5 w-5 text-brand" strokeWidth={1.75} />
-            <h3 className="mt-4 font-medium text-ink">Profiles are frozen</h3>
-            <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-              You see each candidate as they were the day you posted, with the date they last
-              edited. Nobody can rewrite their history after reading your requirements, because
-              they never see them.
-            </p>
-          </div>
-          <div className="rounded-2xl border border-line bg-white p-6">
-            <Fingerprint className="h-5 w-5 text-brand" strokeWidth={1.75} />
-            <h3 className="mt-4 font-medium text-ink">Claims carry provenance</h3>
-            <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-              Every skill is marked confirmed or self-reported. Confirmed means both sides of a
-              past engagement agreed how it went; self-reported means somebody typed it. We weight
-              them differently and show you which is which.
-            </p>
-          </div>
-          <div className="rounded-2xl border border-line bg-white p-6">
-            <FileWarning className="h-5 w-5 text-brand" strokeWidth={1.75} />
-            <h3 className="mt-4 font-medium text-ink">One standing rate</h3>
-            <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-              Rates are set once, locked for 30 days, and their history is visible. You&rsquo;ll
-              never be quoted one number because you sound American and another because you sound
-              like a startup.
-            </p>
-          </div>
-        </div>
-      </section>
+      </Section>
 
-      <section className="w-full border-y border-line bg-white">
-        <div className="mx-auto max-w-3xl px-5 py-20 sm:px-8">
-          <h2 className="font-display text-3xl font-semibold tracking-tight text-ink">
+      {/* The product's own checks — card trio. */}
+      <Section tone="paper">
+        <SectionHeader
+          title={<>The checks identity can&rsquo;t make for you</>}
+          lede="Three things we built into the product precisely because no KYC provider covers them."
+        />
+        <div className="mt-10 grid gap-5 lg:grid-cols-3">
+          {builtInChecks.map((f) => (
+            <Card key={f.title} className="p-6">
+              <f.icon className="h-5 w-5 text-brand" strokeWidth={1.75} />
+              <h3 className="mt-4 font-medium text-ink">{f.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-ink-soft">{f.body}</p>
+            </Card>
+          ))}
+        </div>
+      </Section>
+
+      {/* NBI clearance — long-form prose at reading measure. */}
+      <Section tone="white">
+        <div className="mx-auto max-w-3xl">
+          <h2 className="font-display font-semibold tracking-tight text-ink [font-size:var(--text-h2)]">
             NBI clearance, and how to ask for it
           </h2>
           <p className="mt-4 leading-relaxed text-ink-soft">
@@ -177,7 +175,7 @@ export default function ForEmployersPage() {
             year, so asking for a recent one is reasonable; asking for one before you&rsquo;ve
             decided to hire is not, and good candidates will read it as a bad sign.
           </p>
-          <div className="mt-6 rounded-2xl bg-ember-soft p-6">
+          <div className="mt-6 bg-ember-soft p-6 [border-radius:var(--radius-card)]">
             <h3 className="font-medium text-ink">A warning about online verification</h3>
             <p className="mt-2 text-sm leading-relaxed text-ink-soft">
               Several sites offer to verify NBI clearances. We checked the most prominent one: it
@@ -196,7 +194,7 @@ export default function ForEmployersPage() {
             no authenticity check catches that.
           </p>
 
-          <div className="mt-8 rounded-2xl border border-line p-6">
+          <Card className="mt-8 p-6">
             <h3 className="text-sm font-medium uppercase tracking-wider text-ink-faint">
               Further reading
             </h3>
@@ -224,27 +222,29 @@ export default function ForEmployersPage() {
               Bureau. Take the explanation of hits, which is sound, and get the clearance itself
               from the candidate.
             </p>
-          </div>
+          </Card>
         </div>
-      </section>
+      </Section>
 
-      <section className="mx-auto w-full max-w-6xl px-5 pb-24 pt-20 sm:px-8">
-        <div className="rounded-3xl bg-brand px-6 py-12 text-center sm:px-14 sm:py-14">
-          <h2 className="font-display mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-            See your shortlist before you pay for it.
-          </h2>
-          <p className="mx-auto mt-4 max-w-lg text-sm leading-relaxed text-white/80">
-            Post a job description, get a ranked slate with names hidden and every score visible.
-            $49 unlocks it, and only if the match quality convinces you.
-          </p>
-          <Link
+      {/* Close — the dark brand band, same voice as the homepage. */}
+      <Section tone="band" className="text-center">
+        <h2 className="font-display mx-auto max-w-2xl font-semibold tracking-tight text-white [font-size:var(--text-h1)]">
+          See your shortlist before you pay for it.
+        </h2>
+        <p className="mx-auto mt-4 max-w-lg text-sm leading-relaxed text-white/80">
+          Post a job description, get a ranked slate with names hidden and every score visible.
+          $49 unlocks it, and only if the match quality convinces you.
+        </p>
+        <div className="mt-8">
+          <ButtonLink
             href="/start"
-            className="mt-8 inline-block rounded-2xl bg-white px-6 py-3.5 text-sm font-semibold text-brand transition-colors hover:bg-brand-soft"
+            variant="solid"
+            className="!bg-white !text-brand !shadow-none hover:!bg-brand-soft"
           >
             Write a job description
-          </Link>
+          </ButtonLink>
         </div>
-      </section>
+      </Section>
 
       </PublicPage>
   );

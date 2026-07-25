@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { ArrowRight, Check, Download, X } from "lucide-react";
 import { PublicPage } from "@/components/public-chrome";
+import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Section } from "@/components/ui/section";
 import { pageMeta } from "@/lib/site";
 
 export const metadata: Metadata = pageMeta({
@@ -103,12 +105,27 @@ EDUCATION
 CERTIFICATIONS
 [Certification] — [Issuer] ([Year])`;
 
+/** The download target is a static file, not a route — a plain anchor styled
+ *  in the primary CTA voice, since ButtonLink renders a next/link. */
+function DownloadButton() {
+  return (
+    <a
+      href={TEMPLATE_FILE}
+      download
+      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-brand px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-all hover:bg-brand-dark hover:shadow-brand/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
+    >
+      <Download className="h-4 w-4" strokeWidth={1.75} /> Download the template
+    </a>
+  );
+}
+
 export default function ResumeTemplatePage() {
   return (
     <PublicPage>
+      {/* Hero — Long-Document opening at reading measure. */}
       <section className="mx-auto w-full max-w-3xl px-5 pt-14 pb-12 sm:px-8">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-ember">Resume template</p>
-        <h1 className="font-display mt-4 text-[clamp(1.9rem,7vw,3.25rem)] font-semibold leading-[1.1] tracking-tight text-ink">
+        <h1 className="font-display mt-4 font-semibold leading-[1.1] tracking-tight text-ink [font-size:var(--text-h1)]">
           A resume format we can actually read
         </h1>
         <p className="mt-6 text-lg leading-relaxed text-ink-soft">
@@ -123,20 +140,15 @@ export default function ResumeTemplatePage() {
           file exactly as it is.
         </p>
         <div className="mt-8 flex flex-wrap items-center gap-4">
-          <a
-            href={TEMPLATE_FILE}
-            download
-            className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-colors hover:bg-brand-dark"
-          >
-            <Download className="h-4 w-4" strokeWidth={1.75} /> Download the template
-          </a>
+          <DownloadButton />
           <span className="text-sm text-ink-soft">Plain text, 4KB, free.</span>
         </div>
       </section>
 
-      <section className="w-full border-y border-line bg-white">
-        <div className="mx-auto max-w-3xl px-5 py-16 sm:px-8">
-          <h2 className="font-display text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+      {/* What each section is for. */}
+      <Section tone="white">
+        <div className="mx-auto max-w-3xl">
+          <h2 className="font-display font-semibold tracking-tight text-ink [font-size:var(--text-h2)]">
             What each section is for
           </h2>
           <p className="mt-3 leading-relaxed text-ink-soft">
@@ -145,10 +157,10 @@ export default function ResumeTemplatePage() {
           </p>
           <dl className="mt-8 space-y-5">
             {SECTIONS.map(([term, detail]) => (
-              <div key={term} className="rounded-2xl border border-line bg-white p-6">
+              <Card key={term} className="p-6">
                 <dt className="font-medium text-ink">{term}</dt>
                 <dd className="mt-2 text-sm leading-relaxed text-ink-soft">{detail}</dd>
-              </div>
+              </Card>
             ))}
           </dl>
           <p className="mt-6 text-sm leading-relaxed text-ink-faint">
@@ -157,31 +169,35 @@ export default function ResumeTemplatePage() {
             through this platform confirms the outcome.
           </p>
         </div>
-      </section>
+      </Section>
 
-      <section className="mx-auto w-full max-w-3xl px-5 py-16 sm:px-8">
-        <h2 className="font-display text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
-          The structure
-        </h2>
-        <p className="mt-3 leading-relaxed text-ink-soft">
-          The blank version. The downloadable file adds a filled-in example underneath it, which is
-          the part most people actually copy.
-        </p>
-        <div className="mt-6 overflow-x-auto rounded-2xl border border-line bg-white">
-          <pre className="min-w-max p-5 font-mono text-xs leading-relaxed text-ink-soft sm:text-sm">
-            {BLANK_TEMPLATE}
-          </pre>
+      {/* The blank structure. */}
+      <Section tone="paper">
+        <div className="mx-auto max-w-3xl">
+          <h2 className="font-display font-semibold tracking-tight text-ink [font-size:var(--text-h2)]">
+            The structure
+          </h2>
+          <p className="mt-3 leading-relaxed text-ink-soft">
+            The blank version. The downloadable file adds a filled-in example underneath it, which is
+            the part most people actually copy.
+          </p>
+          <Card className="mt-6 overflow-x-auto">
+            <pre className="min-w-max p-5 font-mono text-xs leading-relaxed text-ink-soft sm:text-sm">
+              {BLANK_TEMPLATE}
+            </pre>
+          </Card>
         </div>
-      </section>
+      </Section>
 
-      <section className="w-full border-y border-line bg-white">
-        <div className="mx-auto max-w-3xl px-5 py-16 sm:px-8">
-          <h2 className="font-display text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+      {/* Parses / doesn't parse. */}
+      <Section tone="white">
+        <div className="mx-auto max-w-3xl">
+          <h2 className="font-display font-semibold tracking-tight text-ink [font-size:var(--text-h2)]">
             What parses, and what does not
           </h2>
           <div className="mt-8 grid gap-5 lg:grid-cols-2">
-            <div className="rounded-2xl border border-line bg-white p-6">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3 py-1 text-xs font-medium text-brand">
+            <Card className="p-6">
+              <span className="inline-flex items-center gap-1.5 [border-radius:var(--radius-pill)] bg-brand-soft px-3 py-1 text-xs font-medium text-brand">
                 <Check className="h-3.5 w-3.5" strokeWidth={1.75} /> Reads cleanly
               </span>
               <ul className="mt-4 space-y-3">
@@ -191,9 +207,9 @@ export default function ResumeTemplatePage() {
                   </li>
                 ))}
               </ul>
-            </div>
-            <div className="rounded-2xl border border-line bg-white p-6">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-ember-soft px-3 py-1 text-xs font-medium text-ember">
+            </Card>
+            <Card className="p-6">
+              <span className="inline-flex items-center gap-1.5 [border-radius:var(--radius-pill)] bg-ember-soft px-3 py-1 text-xs font-medium text-ember">
                 <X className="h-3.5 w-3.5" strokeWidth={1.75} /> Loses information
               </span>
               <ul className="mt-4 space-y-3">
@@ -203,7 +219,7 @@ export default function ResumeTemplatePage() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </Card>
           </div>
           <p className="mt-6 text-sm leading-relaxed text-ink-faint">
             None of this asks you to write for a machine at the cost of writing for a person. The
@@ -211,28 +227,28 @@ export default function ResumeTemplatePage() {
             point. A resume that is easy to parse is usually just a resume that is easy to read.
           </p>
         </div>
-      </section>
+      </Section>
 
-      <section className="mx-auto w-full max-w-3xl px-5 py-16 pb-24 sm:px-8">
-        <div className="rounded-2xl border border-line bg-white p-7">
-          <h2 className="font-display text-xl font-semibold text-ink">When it is filled in</h2>
-          <p className="mt-3 leading-relaxed text-ink-soft">
-            Upload it once. You can correct anything we got wrong before the profile goes live, and
-            you never have to send it anywhere again.
-          </p>
-          <div className="mt-6 flex flex-wrap items-center gap-4">
-            <Link
-              href="/onboarding"
-              className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-colors hover:bg-brand-dark"
-            >
-              Upload your resume <ArrowRight className="h-4 w-4" strokeWidth={1.75} />
-            </Link>
-            <a href={TEMPLATE_FILE} download className="text-sm font-medium text-brand hover:underline">
-              Download the template
-            </a>
-          </div>
+      {/* Close. */}
+      <Section tone="paper">
+        <div className="mx-auto max-w-3xl">
+          <Card className="p-7">
+            <h2 className="font-display text-xl font-semibold text-ink">When it is filled in</h2>
+            <p className="mt-3 leading-relaxed text-ink-soft">
+              Upload it once. You can correct anything we got wrong before the profile goes live, and
+              you never have to send it anywhere again.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center gap-4">
+              <ButtonLink href="/onboarding" variant="solid">
+                Upload your resume <ArrowRight className="h-4 w-4" strokeWidth={1.75} />
+              </ButtonLink>
+              <a href={TEMPLATE_FILE} download className="text-sm font-medium text-brand hover:underline">
+                Download the template
+              </a>
+            </div>
+          </Card>
         </div>
-      </section>
+      </Section>
     </PublicPage>
   );
 }
