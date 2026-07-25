@@ -74,7 +74,38 @@ preserved on later edits). Board still fails closed without `publicTitle` + `lis
 
 ### ~~1. Scorer calibration~~ — DONE (`686b7c2`, see the resolved note at the top)
 
-### 1. E2E harness (not started)
+## Later session additions (2026-07-25/26, all pushed, prod migrated)
+
+- **Recurring affiliate commissions** (`6ae1736`): $9 flat per shortlist-credit purchase,
+  lifetime of the referred company, never per credit. New `ReferralCommission` table
+  (paymentId unique = webhook-replay safe); conversions stay as attribution; void kills
+  unpaid commissions + future accrual. Rule + tests in `lib/referral-reward.ts`.
+- **Engine 1c — Stage 0 hard filters** (`cc57607`): pure `lib/filters.ts` (rate ceiling
+  ×1.15 band, hours, booked) behind the `hard_filters_enabled` AppSetting — **still OFF**;
+  flip it in AppSetting when ready (eval showed zero slate change, only over-ceiling noise
+  removed). Eliminations persist to `MatchElimination` for the employer dashboard (UI not
+  built yet). Weight redistribution (drop rate dim) deliberately deferred, needs a
+  measured calibration pass.
+- **Embedding drift closed** (`cc57607`): published-profile edits + availability confirms
+  re-embed via `lib/profile-embedding.ts`. Resume upload still does NOT embed — publish
+  stays the consent/embed boundary, by design.
+- **`scripts/db-run.ts`** (`c348881`): applies a SQL file to dev or prod
+  (`DB=prod node --experimental-strip-types scripts/db-run.ts scripts/x.sql`) without
+  exporting secrets into the shell. Use this for all future migrations.
+- **Openings admin control + marketing redesign + calibration**: see sections above.
+
+### 1. NEXT: Engine Phase 2a — tool canonicalisation (engine-plan §2a)
+Alias table (`lib/tools/aliases.ts`) already shipped + tested. Remaining, in order:
+1. `ProfileTool` model {profileId, canonicalId, name, years, lastUsedYear, category} +
+   `JobDescription.requiredTools/preferredTools String[]` — raw SQL via db-run, dev + prod.
+2. Fix `scripts/tool-frequency.ts` known-flag undercount (noted in eval-canonical-result.md).
+3. Backfill: map `Skill` rows + `TalentProfile.tools` free text through `canonicalizeTool`;
+   unmapped stays prose, never guess.
+4. Map employer must/nice-to-haves → canonical arrays at JD save (`api/jds/route.ts`).
+5. Scorer keeps using Skill+aliases for now — ProfileTool feeds Phase 3 modifiers.
+Then 2b structured engagements → 2c canonical fields (functions facet!) → 2d JD extraction.
+
+### 2. E2E harness (user said skip testing for now)
 Fully planned in `docs/e2e-plan.md`. Playwright + real Postgres + Mailpit, no real emails.
 Build J7 (public-route smoke) first — it becomes the redesign regression net.
 
