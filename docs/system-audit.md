@@ -1,4 +1,11 @@
-# System audit — 2026-07-26
+# System audit — 2026-07-26 (ROUND 1)
+
+> **STATUS: addressed in commit `32e8fce`.** Every P0–P5 item below was worked in
+> the round-1 rebuild. This document is now the RECORD OF WHAT WAS WRONG, not a
+> to-do list — do not read a heading here as a live defect without checking the
+> code. Round 2 re-audits the result adversarially; see `docs/system-audit-2.md`
+> for what actually survived and what the rebuild broke.
+
 
 Full-system review by five parallel deep audits (employer, talent, interviewer+admin,
 affiliate, engine/infra), every claim cited to file:line at audit time. This is the
