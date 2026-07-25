@@ -194,12 +194,24 @@ export function scoreRate(rate: number | null, min: number | null, max: number |
   return 0;
 }
 
+/**
+ * Weekly capacity left after existing commitments. The one definition of
+ * "free" — Stage 0's hours filter eliminates on the same arithmetic scoreOverlap
+ * scores on, so a candidate can never be filtered out for hours they are still
+ * scored as having.
+ */
+export const FULL_WEEK_HOURS = 40;
+
+export function freeHours(committed: number): number {
+  return Math.max(0, FULL_WEEK_HOURS - committed);
+}
+
 export function scoreOverlap(
   availability: string,
   committed: number,
   hoursNeeded: number | null,
 ): number {
-  const free = Math.max(0, 40 - committed);
+  const free = freeHours(committed);
   if (availability === "booked") return 10;
   if (!hoursNeeded) return availability === "open" ? 100 : 70;
   if (free >= hoursNeeded) return 100;

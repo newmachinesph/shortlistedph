@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { NOINDEX } from "@/lib/site";
-import { getAdminOverview, money, timeAgo } from "@/lib/admin";
+import { getAdminOverview, money, requireAdminPage, timeAgo } from "@/lib/admin";
 
 export const metadata: Metadata = { title: "Admin", ...NOINDEX };
 
 export default async function AdminOverview() {
+  await requireAdminPage();
   const o = await getAdminOverview();
 
   const revenueLabel =

@@ -9,7 +9,7 @@ import { requirePageUser, talentOrOnboard } from "@/lib/queries";
 // The same buttons the emailed page uses, posting to the same public token
 // endpoint — the accept/decline logic lives in lib/consent and is not
 // reimplemented here.
-import { RespondButtons } from "@/app/consent/[token]/respond-buttons";
+import { RespondButtons } from "@/components/consent-respond-buttons";
 
 export const metadata: Metadata = { title: "Match invitations", ...NOINDEX };
 

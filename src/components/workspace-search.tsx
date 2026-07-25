@@ -43,11 +43,10 @@ export function WorkspaceSearch({ role }: { role: "employer" | "talent" }) {
 
   useEffect(() => {
     const query = q.trim();
-    if (query.length < MIN_QUERY) {
-      setResults([]);
-      setOpen(false);
-      return;
-    }
+    // Below the floor there is nothing to fetch and nothing to clear: the
+    // panel's own condition already hides stale results, so this returns
+    // instead of setting state synchronously inside the effect.
+    if (query.length < MIN_QUERY) return;
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
@@ -94,7 +93,7 @@ export function WorkspaceSearch({ role }: { role: "employer" | "talent" }) {
         Ctrl K
       </kbd>
 
-      {open && (
+      {open && q.trim().length >= MIN_QUERY && (
         <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl border border-line bg-white py-1.5 shadow-lg shadow-ink/5">
           {results.length === 0 ? (
             <p className="px-4 py-2.5 text-sm text-ink-faint">No matches</p>

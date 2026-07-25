@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ok, fail, parseBody } from "@/lib/api";
 import { prospectCount } from "@/lib/prospect-count";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { draftCookie, upsertDraft } from "@/lib/job-draft";
 
 /**
@@ -19,6 +20,8 @@ const Body = z.object({
 
 export async function POST(req: Request) {
   try {
+    // Unauthenticated: a raw-SQL count plus a draft write, open to anyone.
+    rateLimit("publicIntake", clientIp(req));
     const body = await parseBody(req, Body);
 
     const skills = [body.rawText, body.title, ...body.mustHaves].filter(Boolean);

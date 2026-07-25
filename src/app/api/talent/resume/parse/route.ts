@@ -2,6 +2,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
 import { refreshProfileEmbeddings } from "@/lib/profile-embedding";
+import { syncProfileTools } from "@/lib/profile-tools";
+import { rateLimit } from "@/lib/rate-limit";
 import { getObjectBuffer } from "@/lib/r2";
 import { educationSummary, extractText, normalizeSkill, parseResume } from "@/lib/resume";
 import { HttpError, requireRole, requireTalentProfile } from "@/lib/session";
@@ -113,6 +115,14 @@ export async function POST(req: Request) {
       } catch (e) {
         console.error("[talent/resume/parse] re-embed after parse failed", e);
       }
+    }
+
+    // A parse writes new Skill rows and the tools free text, both of which
+    // ProfileTool is derived from (engine-plan 2a).
+    try {
+      await syncProfileTools(profile.id);
+    } catch (e) {
+      console.error("[talent/resume/parse] tool sync after parse failed", e);
     }
 
     return ok({ parsed });

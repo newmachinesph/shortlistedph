@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
 import { mail } from "@/lib/email";
 import { notify } from "@/lib/notify";
+import { rateLimit } from "@/lib/rate-limit";
 import { HttpError, requireUser } from "@/lib/session";
 import { agreementForUser, applyConfirmedOutcome, currentPeriod, periodLabel } from "@/lib/agreements";
 
@@ -20,6 +21,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     const { id } = await params;
     const user = await requireUser();
+    // The both-sides-confirmed branch re-embeds the profile (four calls), so
+    // this is no longer a cheap write.
+    rateLimit("profileWrite", user.id);
     const { period } = await parseBody(req, Body);
     const { agreement, snap, side } = await agreementForUser(id, user.id);
 

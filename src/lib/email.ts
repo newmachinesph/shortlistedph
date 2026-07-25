@@ -291,9 +291,6 @@ export const mail = {
       { stream: "program" },
     ),
 
-  // Not wired yet — lib/referral*.ts and the admin payout routes belong to
-  // another change in flight. Call them from recordCommission and from the
-  // admin payout rejection path respectively.
   commissionEarned: (
     to: string,
     args: { name: string; amount: number; currency: string; balance: number },

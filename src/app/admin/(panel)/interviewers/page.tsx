@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { UserCheck } from "lucide-react";
 import { db } from "@/lib/db";
 import { NOINDEX } from "@/lib/site";
-import { HttpError, requireAdmin } from "@/lib/session";
-import { InterviewerToggle, InterviewerVet } from "@/components/interview-admin-vet";
+import { requireAdminPage } from "@/lib/admin";
+import { InterviewerToggle, InterviewerVet } from "./actions";
 
 export const metadata: Metadata = { title: "Admin · Interviewers", ...NOINDEX };
 
@@ -15,8 +14,11 @@ async function load() {
       orderBy: { createdAt: "asc" },
       include: { user: { select: { name: true, email: true } } },
     }),
+    // Revoked people stay on the roster, greyed out. Dropping them from the
+    // list made a revoke look like a deletion, and their interview history is
+    // still money the platform owes or paid.
     db.interviewer.findMany({
-      where: { status: { in: ["active", "paused"] } },
+      where: { status: { in: ["active", "paused", "revoked"] } },
       orderBy: [{ status: "asc" }, { createdAt: "asc" }],
       include: {
         user: { select: { name: true, email: true } },
@@ -27,13 +29,14 @@ async function load() {
   return { pending, roster };
 }
 
+const rosterChip: Record<string, string> = {
+  active: "bg-brand-soft text-brand",
+  paused: "bg-ember-soft text-ember",
+  revoked: "bg-line text-ink-soft",
+};
+
 export default async function AdminInterviewers() {
-  try {
-    await requireAdmin();
-  } catch (e) {
-    if (e instanceof HttpError) redirect("/");
-    throw e;
-  }
+  await requireAdminPage();
 
   const { pending, roster } = await load();
 
@@ -41,9 +44,9 @@ export default async function AdminInterviewers() {
     <>
       <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Interviewers</h1>
       <p className="mt-1 text-sm text-ink-soft">
-        Vetted people who run paid interviews. Applications are not self-serve — approving one makes
-        the person an interviewer and lets them into the portal. Approving flips their account role;
-        pausing keeps them off the roster without removing them.
+        Vetted people who run paid interviews. Applications are not self-serve — approving one lets
+        the person into the interviewer portal. It grants a capability, not a role: their talent or
+        employer account keeps working exactly as before.
       </p>
 
       <h2 className="mt-8 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
@@ -93,9 +96,8 @@ export default async function AdminInterviewers() {
         )}
       </div>
       <p className="mt-2 text-xs text-ink-faint">
-        Approving sets the interviewer active and flips the account to the interviewer role in one
-        step. Rejecting removes the application; the person keeps their current role and can apply
-        again.
+        Approving sets the interviewer active and opens the portal. Rejecting removes the
+        application; the account is untouched and they can apply again.
       </p>
 
       <h2 className="mt-8 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
@@ -125,16 +127,23 @@ export default async function AdminInterviewers() {
               </div>
               <span
                 className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${
-                  iv.status === "active" ? "bg-brand-soft text-brand" : "bg-ember-soft text-ember"
+                  rosterChip[iv.status] ?? rosterChip.paused
                 }`}
               >
                 {iv.status}
               </span>
-              <InterviewerToggle interviewerId={iv.id} status={iv.status} />
+              {iv.status !== "revoked" && (
+                <InterviewerToggle interviewerId={iv.id} status={iv.status} />
+              )}
             </div>
           ))
         )}
       </div>
+      <p className="mt-2 text-xs text-ink-faint">
+        Pausing stops new assignments only — a paused interviewer still finishes the interviews
+        already on their plate, and still gets paid for them. Revoking is permanent: the portal
+        closes and there is no way back from this page.
+      </p>
     </>
   );
 }

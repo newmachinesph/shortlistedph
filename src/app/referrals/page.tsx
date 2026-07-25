@@ -16,8 +16,6 @@ import {
 
 export const metadata: Metadata = { title: "Referrals", ...NOINDEX };
 
-const peso = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" });
-
 /** Renders in whatever currency the payment cleared in. No FX anywhere. */
 function money(amount: number, currency: string | null) {
   return new Intl.NumberFormat("en-PH", { style: "currency", currency: currency ?? "PHP" }).format(
@@ -127,9 +125,9 @@ export default async function ReferralsPage() {
                   yourself does not count.
                 </li>
                 <li>
-                  Payouts are sent to your PayPal in USD, settled by hand. The minimum is the
-                  equivalent of {peso.format(REFERRAL_REWARD.minPayout)}, which one conversion
-                  normally covers. No cap on how many companies you refer.
+                  Payouts are sent to your PayPal in USD, settled by hand. The minimum is{" "}
+                  {money(REFERRAL_REWARD.minPayout, REFERRAL_REWARD.currency)} — one purchase
+                  clears it. No cap on how many companies you refer.
                 </li>
               </ul>
             </div>
@@ -149,7 +147,7 @@ export default async function ReferralsPage() {
           />
           <Stat label="Shortlist purchases" value={String(stats.qualified)} />
           {stats.earned.length === 0 ? (
-            <Stat label="Earned" value={peso.format(0)} />
+            <Stat label="Earned" value={money(0, REFERRAL_REWARD.currency)} />
           ) : (
             stats.earned.map((e) => (
               <Stat

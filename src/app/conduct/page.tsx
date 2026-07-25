@@ -30,7 +30,7 @@ const sections: [string, string][] = [
   ],
   [
     "Employers are held to the same bar",
-    "Non-payment of confirmed work, fake job descriptions, harvesting personal data, unpaid 'trial tasks', or asking anyone for money is grounds for removal. Every candidate sees an employer's track record (response rate, confirmed hires, outcome history) before consenting to connect. Reputation here is earned in both directions.",
+    "Non-payment of confirmed work, fake job descriptions, harvesting personal data, unpaid 'trial tasks', or asking anyone for money is grounds for removal. Employers are rated by the talent they work with, and we act on reports. Reputation here is earned in both directions.",
   ],
   [
     "Talent never pays to be hired.",

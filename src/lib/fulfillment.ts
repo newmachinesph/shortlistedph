@@ -4,7 +4,7 @@ import { db } from "./db";
 import { mail } from "./email";
 import { notify } from "./notify";
 import { PRODUCTS, type ProductId } from "./payments";
-import { recordCommission } from "./referral";
+import { REFUNDED_REASON, recordCommission } from "./referral";
 
 /**
  * Every path that grants something paid-for goes through here.
@@ -254,9 +254,11 @@ export async function markPaymentRefunded(providerRef: string): Promise<{
     }
 
     // The affiliate is paid for a purchase that no longer exists.
+    // The exact string matters: the admin un-void path refuses to resurrect
+    // commissions killed by a refund, and it keys off this reason.
     const voided = await tx.referralCommission.updateMany({
       where: { paymentId: providerRef, voidedAt: null },
-      data: { voidedAt: new Date(), voidedReason: "payment refunded" },
+      data: { voidedAt: new Date(), voidedReason: REFUNDED_REASON },
     });
 
     await tx.auditLog.create({

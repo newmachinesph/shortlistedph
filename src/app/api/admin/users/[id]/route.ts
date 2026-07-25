@@ -1,11 +1,18 @@
 import { z } from "zod";
 import { fail, ok, parseBody } from "@/lib/api";
-import { adjustEmployerCredits, applyUserStatus, unpublishProfile } from "@/lib/admin";
+import {
+  TALENT_LEVERS,
+  adjustEmployerCredits,
+  applyUserStatus,
+  clearTalentLever,
+  unpublishProfile,
+} from "@/lib/admin";
 import { requireAdmin } from "@/lib/session";
 
 const Body = z.union([
   z.object({ status: z.enum(["active", "suspended", "banned"]) }),
   z.object({ unpublish: z.literal(true) }),
+  z.object({ clear: z.enum(TALENT_LEVERS) }),
   z.object({
     credits: z.object({
       // Which balance: shortlist (unlock a slate) or interview (book one each).
@@ -32,6 +39,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     if ("unpublish" in body) {
       return ok(await unpublishProfile({ actorId: admin.id, userId: id }));
+    }
+
+    if ("clear" in body) {
+      return ok(await clearTalentLever({ actorId: admin.id, userId: id, lever: body.clear }));
     }
 
     if ("credits" in body) {

@@ -3,6 +3,7 @@ import { fail, ok } from "@/lib/api";
 import { jdFacetTexts } from "@/lib/facets";
 import { embedMany, toVectorLiteral } from "@/lib/openai";
 import { buildSlate } from "@/lib/matching";
+import { rateLimit } from "@/lib/rate-limit";
 import { HttpError, requireEmployer, requireRole } from "@/lib/session";
 
 /** Publish = embed + match. The JD is never visible to talent at any point. */
@@ -10,6 +11,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   try {
     const { id } = await params;
     const user = await requireRole("employer");
+    // Two embeddings plus a full ranking pass (which embeds again) per call.
+    rateLimit("publish", user.id);
     const employer = await requireEmployer(user.id);
 
     const jd = await db.jobDescription.findUnique({ where: { id } });

@@ -3,6 +3,12 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+/**
+ * Accept/decline for a match invitation. Shared by the emailed public consent
+ * page and the in-app invitations list, so both answer through exactly one
+ * endpoint — a second copy would be a second chance to drift from the rules
+ * the API enforces (expiry, idempotency, one-strike dormancy).
+ */
 export function RespondButtons({ token }: { token: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();

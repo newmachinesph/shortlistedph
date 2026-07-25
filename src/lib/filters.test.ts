@@ -47,6 +47,18 @@ test("booked availability eliminates regardless of other fields", () => {
   assert.deepEqual(r.eliminated, [{ profileId: "b", reason: "booked" }]);
 });
 
+test("a JD with no stated budget or hours still eliminates booked", () => {
+  // jdHardRequirements derives {rateMaxUsd: null, hoursPerWeekMin: null} from a
+  // JD that stated neither — an object, so the loop runs, but only availability
+  // can eliminate. A zero ceiling is treated the same as none.
+  const r = applyHardFilters([cand("open"), cand("b", { availability: "booked" })], {
+    rateMaxUsd: 0,
+    hoursPerWeekMin: 0,
+  });
+  assert.deepEqual(r.passed.map((c) => c.id), ["open"]);
+  assert.deepEqual(r.eliminated, [{ profileId: "b", reason: "booked" }]);
+});
+
 test("startWithinDays never eliminates yet — no profile signal to test", () => {
   const r = applyHardFilters([cand("a")], { startWithinDays: 7 });
   assert.equal(r.passed.length, 1);

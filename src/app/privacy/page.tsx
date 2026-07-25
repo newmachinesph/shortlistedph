@@ -14,7 +14,7 @@ export const metadata: Metadata = pageMeta({
 const sections: [string, string][] = [
   [
     "What we collect",
-    "Talent: your resume and the standing profile built from it, your standing rate and its history, and engagement outcomes you confirm. Employers: contact details, job descriptions, and activity that forms your public track record (response rate, confirmed hires).",
+    "Talent: your resume and the standing profile built from it, your standing rate and its history, and engagement outcomes you confirm. Employers: contact details, job descriptions, the shortlists and connections you request, and the ratings talent leave you after a confirmed engagement.",
   ],
   [
     "What we never store",

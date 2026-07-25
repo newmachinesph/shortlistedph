@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { fail, ok, parseBody } from "@/lib/api";
 import { MODELS, openai } from "@/lib/openai";
+import { rateLimit } from "@/lib/rate-limit";
 import { requireRole } from "@/lib/session";
 
 const Body = z.object({ text: z.string().min(20).max(20000) });
@@ -32,7 +33,11 @@ This is NEVER shown to candidates — it exists only to drive matching. So:
 
 export async function POST(req: Request) {
   try {
-    await requireRole("employer");
+    // An LLM call over up to 20 000 characters, repeatable at will. Being
+    // signed in as an employer was the only thing standing between this
+    // endpoint and an unbounded bill.
+    const user = await requireRole("employer");
+    rateLimit("jdDraft", user.id);
     const { text } = await parseBody(req, Body);
 
     const res = await openai().responses.create({

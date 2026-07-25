@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PlayCircle } from "lucide-react";
@@ -5,6 +6,7 @@ import { db } from "@/lib/db";
 import { NOINDEX } from "@/lib/site";
 import { requireAdminPage } from "@/lib/admin";
 import {
+  CLOSED,
   INTERVIEW_STATUSES,
   RECOMMENDATION_LABEL,
   type InterviewStatus,
@@ -20,9 +22,10 @@ const usd = (n: number) => `$${n.toFixed(2)}`;
 
 /**
  * Statuses cancelInterview refuses — everything else is still live and can be
- * unwound. The API is the authority; this only decides whether to offer it.
+ * unwound. Imported from the lib rather than restated, so the button can never
+ * disagree with what the API will accept.
  */
-const CLOSED_STATUSES = ["declined", "cancelled"];
+const CLOSED_STATUSES: readonly string[] = CLOSED;
 
 function isStatus(value: string | undefined): value is InterviewStatus {
   return !!value && (INTERVIEW_STATUSES as readonly string[]).includes(value);
@@ -108,6 +111,52 @@ async function load(filter?: InterviewStatus) {
   return { interviews, pendingPayouts, owed };
 }
 
+type AssessmentRow = NonNullable<
+  Awaited<ReturnType<typeof load>>["interviews"][number]["assessment"]
+>;
+
+const SCORES: [key: "overall" | "technical" | "communication" | "englishFluency", label: string][] = [
+  ["overall", "Overall"],
+  ["technical", "Technical"],
+  ["communication", "Communication"],
+  ["englishFluency", "English"],
+];
+
+/** The thing the platform pays interviewers to produce. */
+function Assessment({ a }: { a: AssessmentRow }) {
+  return (
+    <div className="max-w-3xl">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-brand-soft px-2.5 py-1 text-[11px] font-medium text-brand">
+          {RECOMMENDATION_LABEL[a.recommendation as Recommendation] ?? a.recommendation}
+        </span>
+        {SCORES.map(([key, label]) => (
+          <span key={key} className="text-[11px] text-ink-faint">
+            {label} <span className="font-medium text-ink">{a[key]}/5</span>
+          </span>
+        ))}
+        <span className="text-[11px] text-ink-faint">submitted {stamp(a.submittedAt)}</span>
+      </div>
+      <dl className="mt-2 space-y-1.5 text-xs leading-relaxed text-ink-soft">
+        <div>
+          <dt className="inline font-medium text-ink">Strengths: </dt>
+          <dd className="inline">{a.strengths}</dd>
+        </div>
+        <div>
+          <dt className="inline font-medium text-ink">Concerns: </dt>
+          <dd className="inline">{a.concerns}</dd>
+        </div>
+        {a.notes && (
+          <div>
+            <dt className="inline font-medium text-ink">Notes: </dt>
+            <dd className="inline">{a.notes}</dd>
+          </div>
+        )}
+      </dl>
+    </div>
+  );
+}
+
 export default async function AdminInterviews({
   searchParams,
 }: {
@@ -123,8 +172,8 @@ export default async function AdminInterviews({
     <>
       <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Interviews</h1>
       <p className="mt-1 text-sm text-ink-soft">
-        Every interview across the platform. Watch the pipeline, spot stuck ones, review recordings,
-        and settle what interviewers are owed.
+        Every interview across the platform. Watch the pipeline, read the assessment we paid for,
+        cancel one that stalled, and settle what interviewers are owed.
       </p>
 
       <h2 className="mt-8 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
@@ -221,7 +270,7 @@ export default async function AdminInterviews({
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[52rem] text-sm">
+            <table className="w-full min-w-[60rem] text-sm">
               <thead>
                 <tr className="border-b border-line text-xs uppercase tracking-wider text-ink-faint">
                   <th className="px-6 py-3 text-left font-medium">Candidate</th>
@@ -237,40 +286,55 @@ export default async function AdminInterviews({
               <tbody>
                 {interviews.map((iv, i) => (
                   <Fragment key={iv.id}>
-                  <tr className={i > 0 ? "border-t border-line" : ""}>
-                    <td className="px-6 py-3.5">
-                      <p className="text-sm font-medium text-ink">{iv.talent.name}</p>
-                      <p className="break-all text-xs text-ink-faint">{iv.talent.email}</p>
-                      {iv.scheduledAt && (
-                        <p className="text-xs text-ink-faint">{stamp(iv.scheduledAt)}</p>
-                      )}
-                    </td>
-                    <td className="px-3 py-3.5 text-ink-soft">{iv.employer.companyName}</td>
-                    <td className="px-3 py-3.5 text-ink-soft">{iv.interviewer.user.name}</td>
-                    <td className="px-3 py-3.5">
-                      <span className="rounded-full border border-line px-2.5 py-1 text-[11px] font-medium text-ink-soft">
-                        {iv.status}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3.5 text-right text-ink">{usd(iv.priceUsd)}</td>
-                    <td className="px-3 py-3.5 text-right text-ink-soft">
-                      {usd(iv.interviewerPayoutUsd)}
-                    </td>
-                    <td className="px-6 py-3.5 text-right">
-                      {iv.recordingKey ? (
-                        <a
-                          href={`/api/admin/interviews/${iv.id}/recording`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs font-medium text-brand hover:text-brand-dark"
-                        >
-                          <PlayCircle className="h-4 w-4" strokeWidth={1.75} /> Watch
-                        </a>
-                      ) : (
-                        <span className="text-xs text-ink-faint">—</span>
-                      )}
-                    </td>
-                  </tr>
+                    <tr className={i > 0 ? "border-t border-line" : ""}>
+                      <td className="px-6 py-3.5">
+                        <p className="text-sm font-medium text-ink">{iv.talent.name}</p>
+                        <p className="break-all text-xs text-ink-faint">{iv.talent.email}</p>
+                        {iv.scheduledAt && (
+                          <p className="text-xs text-ink-faint">{stamp(iv.scheduledAt)}</p>
+                        )}
+                      </td>
+                      <td className="px-3 py-3.5 text-ink-soft">{iv.employer.companyName}</td>
+                      <td className="px-3 py-3.5 text-ink-soft">{iv.interviewer.user.name}</td>
+                      <td className="px-3 py-3.5">
+                        <span className="rounded-full border border-line px-2.5 py-1 text-[11px] font-medium text-ink-soft">
+                          {iv.status}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3.5 text-right text-ink">{usd(iv.priceUsd)}</td>
+                      <td className="px-3 py-3.5 text-right text-ink-soft">
+                        {usd(iv.interviewerPayoutUsd)}
+                      </td>
+                      <td className="px-3 py-3.5 text-right">
+                        {iv.recordingKey ? (
+                          <a
+                            href={`/api/admin/interviews/${iv.id}/recording`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs font-medium text-brand hover:text-brand-dark"
+                          >
+                            <PlayCircle className="h-4 w-4" strokeWidth={1.75} /> Watch
+                          </a>
+                        ) : (
+                          <span className="text-xs text-ink-faint">—</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-3.5 text-right">
+                        {CLOSED_STATUSES.includes(iv.status) ? (
+                          <span className="text-xs text-ink-faint">—</span>
+                        ) : (
+                          <CancelInterview interviewId={iv.id} />
+                        )}
+                      </td>
+                    </tr>
+                    {iv.assessment && (
+                      <tr className="border-t border-line/60 bg-paper">
+                        <td colSpan={8} className="px-6 py-4">
+                          <Assessment a={iv.assessment} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

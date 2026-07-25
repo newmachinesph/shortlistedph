@@ -621,7 +621,7 @@ model Referral {
   // Where to send the money. Nullable because an affiliate exists long before
   // they have anything to be paid. payoutAccountNumber is the sensitive one:
   // never logged, never in an audit meta blob, masked to the last 4 in admin.
-  payoutMethod        String? // gcash | bank
+  payoutMethod        String? // paypal — the allowed set is PAYOUT_METHODS in lib/referral.ts
   payoutAccountName   String?
   payoutAccountNumber String?
 
@@ -690,6 +690,10 @@ model ReferralConversion {
   userId       String    @unique
   source       String?
   status       String    @default("signed_up") // signed_up | qualified | void
+  // Attribution-era history. Money moved to ReferralCommission when the model
+  // became recurring; nothing writes or aggregates these four any more. They
+  // survive so pre-migration rows still explain themselves — do not add a
+  // reader, or two things start claiming to hold "the reward".
   rewardAmount Decimal?  @db.Decimal(10, 2)
   currency     String?
   paymentId    String?

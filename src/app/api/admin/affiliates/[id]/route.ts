@@ -73,6 +73,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         method: payout.method,
         reference: reference!,
       });
+    } else {
+      // The admin's note is the only explanation the affiliate ever gets for
+      // money leaving their pending balance — a bell entry alone was not
+      // enough for someone who does not open the app.
+      await mail.payoutRejected(payout.user.email, {
+        name: payout.user.name,
+        amount: Number(payout.amount),
+        currency: payout.currency,
+        note,
+      });
     }
 
     return ok({ id: updated.id, status: updated.status });

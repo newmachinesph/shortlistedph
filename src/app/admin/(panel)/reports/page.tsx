@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AlertTriangle, FileText, ShieldCheck } from "lucide-react";
 import { NOINDEX } from "@/lib/site";
-import { listReports, timeAgo } from "@/lib/admin";
+import { listReports, requireAdminPage, timeAgo } from "@/lib/admin";
 import { ReportActions } from "./actions";
 
 export const metadata: Metadata = { title: "Admin · Reports", ...NOINDEX };
@@ -20,6 +20,7 @@ export default async function AdminReports({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
+  await requireAdminPage();
   const { status } = await searchParams;
   // Open is the working queue; resolved and dismissed are the archive.
   const filter = (REPORT_STATUSES as readonly string[]).includes(status ?? "") ? status! : "open";

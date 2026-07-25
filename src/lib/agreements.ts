@@ -1,5 +1,7 @@
 import "server-only";
 import { db } from "./db";
+import { refreshProfileEmbeddings } from "./profile-embedding";
+import { normalizeSkill } from "./scoring";
 import { HttpError } from "./session";
 
 /**
@@ -160,10 +162,28 @@ export async function applyConfirmedOutcome(snap: OutcomeSnapshot, period: strin
     }
 
     if (names.length) {
+      // Matched on normalizedName, like every other skill comparison in the
+      // engine: the snapshot froze the display name, and a talent who re-cases
+      // or re-punctuates a skill afterwards must not lose the confirmation.
       await tx.skill.updateMany({
-        where: { profileId: snap.profileId, name: { in: names }, confirmed: false },
+        where: {
+          profileId: snap.profileId,
+          normalizedName: { in: names.map(normalizeSkill) },
+          confirmed: false,
+        },
         data: { confirmed: true },
       });
     }
   });
+
+  // Both writes above change text the profile embeds ("Confirmed skills:", the
+  // engagement line), so the platform's core trust signal has to reach the
+  // vector now — not whenever the talent next saves something unrelated.
+  // Best-effort: a confirmation is DB truth, an embedding is derived and
+  // rebuildable, so an OpenAI hiccup must not undo the confirmation.
+  try {
+    await refreshProfileEmbeddings(snap.profileId);
+  } catch (e) {
+    console.error("[agreements] re-embed after confirmed outcome failed", snap.profileId, e);
+  }
 }

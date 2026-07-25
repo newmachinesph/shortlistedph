@@ -2,6 +2,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
 import { refreshProfileEmbeddings } from "@/lib/profile-embedding";
+import { syncProfileTools } from "@/lib/profile-tools";
+import { rateLimit } from "@/lib/rate-limit";
 import { isHttpUrl, normalizeSkill } from "@/lib/resume";
 import { requireRole, requireTalentProfile } from "@/lib/session";
 
@@ -66,6 +68,9 @@ const Patch = z.object({
 export async function PATCH(req: Request) {
   try {
     const user = await requireRole("talent");
+    // Every save of a published profile fires four embedding calls, so an
+    // autosave loop or a stuck client is a real bill, not just noise.
+    rateLimit("profileWrite", user.id);
     const profile = await requireTalentProfile(user.id);
     const body = await parseBody(req, Patch);
     const { skills, engagements, ...scalars } = body;
@@ -141,6 +146,17 @@ export async function PATCH(req: Request) {
         await refreshProfileEmbeddings(profile.id);
       } catch (e) {
         console.error("[talent/profile] re-embed after edit failed", e);
+      }
+    }
+
+    // Canonical tools are derived from skills + the tools free text, so any
+    // edit that touches either has to re-derive them. Without this the table
+    // only ever reflected the one-off backfill (engine-plan 2a).
+    if (skills || scalars.tools !== undefined) {
+      try {
+        await syncProfileTools(profile.id);
+      } catch (e) {
+        console.error("[talent/profile] tool sync after edit failed", e);
       }
     }
 

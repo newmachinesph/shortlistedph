@@ -26,7 +26,11 @@ export const CONSENT_CAP_MULTIPLIER = 3;
  */
 export async function sendConsentRequests(jdId: string, limit?: number): Promise<{ sent: number }> {
   const pending = await db.matchConsent.findMany({
-    where: { jdId, status: "pending", sentAt: null },
+    // A closed role must stop recruiting. Nothing unsent goes out for one, so
+    // an employer who fills the job never has more candidates asked on its
+    // behalf — the cron's own filter covers the backfill path, this covers
+    // consents created before the close.
+    where: { jdId, status: "pending", sentAt: null, jd: { status: { not: "closed" } } },
     orderBy: { createdAt: "asc" },
     ...(limit ? { take: limit } : {}),
     select: {
@@ -177,12 +181,19 @@ export async function respondToConsent(token: string, action: "accept" | "declin
 
   const slate = await db.slate.findUnique({
     where: { id: slateId },
-    select: { id: true, status: true },
+    select: { id: true, status: true, jd: { select: { status: true } } },
   });
   // Consents are only emailed after admin approval, so an approved slate must
   // exist by the time anyone can click accept.
   if (!slate || slate.status === "pending_review") {
     throw new HttpError(409, "This shortlist is no longer active");
+  }
+  // The employer closed the role after the invitation went out. Placing
+  // someone on a dead job's shortlist would waste their yes and their rotation
+  // turn — the accept is refused, and no dormancy strike is applied because
+  // they did answer.
+  if (slate.jd.status === "closed") {
+    throw new HttpError(409, "This role has been closed by the employer");
   }
 
   await db.$transaction(async (tx) => {

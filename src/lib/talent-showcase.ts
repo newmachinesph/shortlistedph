@@ -11,7 +11,10 @@ import { showcaseAvatarsEnabled } from "./settings";
  * page is a different thing than being matchable. Faces only, or nothing.
  *
  * The gate is identical to the one `getPublicStats().matchable` counts, so the
- * faces shown are drawn from exactly the pool the number claims.
+ * faces shown are drawn from exactly the pool the number claims. Both must
+ * track the real matching gate in lib/matching.ts — when that changes, all
+ * three change together or the page starts showing people the engine will
+ * never return.
  */
 
 export async function getShowcaseAvatars(limit = 12): Promise<string[]> {
@@ -27,6 +30,8 @@ export async function getShowcaseAvatars(limit = 12): Promise<string[]> {
         join "user" u on u.id = p."userId"
        where p."publishedAt" is not null
          and p.visibility = true
+         and p."dormantAt" is null
+         and p.embedding is not null
          and u.status = 'active'
          and u.image is not null
        order by random()

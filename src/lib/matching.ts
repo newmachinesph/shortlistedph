@@ -175,6 +175,12 @@ export function frozenProfileJson(
 export async function rankQualifiedForJd(jd: Jd): Promise<{
   scanned: number;
   eligible: RankedCandidate[];
+  /**
+   * Scored but below the quality gates. Production ignores these; the eval
+   * harness reads them, because the distance between the best reject and the
+   * bar is exactly what the thresholds in scoring.ts were reasoned from.
+   */
+  rejected: RankedCandidate[];
   /** Stage 0 eliminations from this run — empty when the flag is off. */
   eliminated: { profileId: string; reason: string }[];
 }> {
@@ -210,7 +216,9 @@ export async function rankQualifiedForJd(jd: Jd): Promise<{
     : { passed: rawPool, aboveBudget: new Set<string>(), eliminated: [] };
   const pool = stage0.passed;
 
-  if (pool.length === 0) return { scanned: rawPool.length, eligible: [], eliminated: stage0.eliminated };
+  if (pool.length === 0) {
+    return { scanned: rawPool.length, eligible: [], rejected: [], eliminated: stage0.eliminated };
+  }
 
   const ids = pool.map((c) => c.id);
   const [skills, engagements] = await Promise.all([
@@ -233,7 +241,7 @@ export async function rankQualifiedForJd(jd: Jd): Promise<{
 
   const freshCutoff = Date.now() - AVAILABILITY_FRESH_DAYS * 86_400_000;
 
-  const eligible = pool
+  const scored = pool
     .map((c) => {
       const cSkills = skillsBy.get(c.id) ?? [];
       const cEng = engBy.get(c.id) ?? [];
@@ -248,11 +256,17 @@ export async function rankQualifiedForJd(jd: Jd): Promise<{
         skills: cSkills,
         engagements: cEng,
       };
-    })
-    // Quality gates eligibility: a candidate rotates only if the composite
-    // clears QUALIFY *and* there is real skill overlap for this job. Fairness
-    // never places anyone below the bar; padding can't buy a wrong-domain slot.
-    .filter((r) => r.score >= QUALIFY_SCORE && r.dims.skills >= QUALIFY_SKILLS)
+    });
+
+  // Quality gates eligibility: a candidate rotates only if the composite
+  // clears QUALIFY *and* there is real skill overlap for this job. Fairness
+  // never places anyone below the bar; padding can't buy a wrong-domain slot.
+  const qualifies = (r: RankedCandidate) =>
+    r.score >= QUALIFY_SCORE && r.dims.skills >= QUALIFY_SKILLS;
+  const rejected = scored.filter((r) => !qualifies(r)).sort((a, b) => b.score - a.score);
+
+  const eligible = scored
+    .filter(qualifies)
     // Rotate among the qualified. Fewer prior placements first (shown least),
     // then longest-waiting (older/null lastShownAt), then a light nudge for
     // freshly-confirmed availability, and finally score as the tiebreaker.
@@ -268,7 +282,7 @@ export async function rankQualifiedForJd(jd: Jd): Promise<{
       return b.score - a.score;
     });
 
-  return { scanned: rawPool.length, eligible, eliminated: stage0.eliminated };
+  return { scanned: rawPool.length, eligible, rejected, eliminated: stage0.eliminated };
 }
 
 /**

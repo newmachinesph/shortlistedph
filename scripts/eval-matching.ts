@@ -12,7 +12,7 @@
  * below; reimplementing it costs silent mis-calibration of the whole engine.
  */
 import { config } from "dotenv";
-import { registerHooks } from "node:module";
+import Module from "node:module";
 import { existsSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { PrismaClient } from "@prisma/client";
@@ -33,7 +33,20 @@ const STUB_API =
   "data:text/javascript,export function requireEnv(n){const v=process.env[n];" +
   "if(!v)throw new Error(n+' is not configured');return v;}";
 
-registerHooks({
+type ResolveContext = { parentURL: string };
+type Resolved = { url: string; shortCircuit?: boolean };
+type ResolveHook = (
+  spec: string,
+  ctx: ResolveContext,
+  next: (spec: string, ctx: ResolveContext) => Resolved,
+) => Resolved;
+
+// @types/node 20 predates module.registerHooks (Node 22.15+); the runtime has it.
+const nodeModule = Module as unknown as {
+  registerHooks(hooks: { resolve: ResolveHook }): void;
+};
+
+nodeModule.registerHooks({
   resolve(spec, ctx, next) {
     if (spec === "server-only") return { url: STUB_SERVER_ONLY, shortCircuit: true };
     if (spec === "./api") return { url: STUB_API, shortCircuit: true };

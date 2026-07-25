@@ -96,15 +96,23 @@ export function AvailabilitySection({ initial, label, note, stale }: Props) {
       )}
 
       <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-        <label className="flex min-h-[44px] items-center gap-3">
-          <input
-            type="checkbox"
-            checked={openToOffers}
-            onChange={(e) => setOpenToOffers(e.target.checked)}
-            className="h-5 w-5 rounded border-line text-brand focus:ring-brand"
-          />
-          <span className="text-sm text-ink">I&rsquo;m open to new offers</span>
-        </label>
+        <div>
+          <label className="flex min-h-[44px] items-center gap-3">
+            <input
+              type="checkbox"
+              checked={openToOffers}
+              onChange={(e) => setOpenToOffers(e.target.checked)}
+              className="h-5 w-5 rounded border-line text-brand focus:ring-brand"
+            />
+            <span className="text-sm text-ink">I&rsquo;m open to new offers</span>
+          </label>
+          <p className="mt-1 pl-8 text-xs leading-relaxed text-ink-faint">
+            This is a signal, not a switch — it does not take you out of matching. Unchecked,
+            employers read &ldquo;not open to offers&rdquo; on your availability and you drop the
+            small rotation nudge recently-confirmed profiles get. To leave the pool entirely, use
+            the matching control above.
+          </p>
+        </div>
 
         <div>
           <label htmlFor="availability" className="block text-sm text-ink-soft">

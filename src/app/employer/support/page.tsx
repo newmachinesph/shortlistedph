@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Support", ...NOINDEX };
 
 const faqs = [
   { label: "Billing & credits", href: "/employer/billing" },
-  { label: "Re-slate policy", href: "/employer/briefs" },
+  { label: "How shortlists work", href: "/why-it-works" },
   { label: "Report a candidate", href: "#report" },
   { label: "Code of Conduct", href: "/conduct" },
 ];

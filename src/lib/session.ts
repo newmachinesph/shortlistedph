@@ -34,8 +34,15 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
 
 /** Throws a Response — route handlers should let it bubble via requireRole's caller. */
 export class HttpError extends Error {
-  constructor(public status: number, message: string) {
+  // Plain field, not a `public status` parameter property: TS parameter
+  // properties emit code, so Node's type-stripping mode rejects the file
+  // outright — and that killed any script importing anything that
+  // transitively reaches session.ts (the eval harness, for one).
+  status: number;
+
+  constructor(status: number, message: string) {
     super(message);
+    this.status = status;
   }
 }
 

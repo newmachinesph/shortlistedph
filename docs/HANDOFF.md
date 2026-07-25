@@ -64,7 +64,9 @@ Full list + recommended attack order in the audit doc (P0 → P5).
 
 - `docs/system-audit.md` — THE audit + roadmap (new).
 - `docs/HANDOFF.md` — this file.
-- `design.md` — locked design system.
+- **`design.md` is referenced all over the docs but DOES NOT EXIST** — the design
+  system lives only in the Tailwind tokens in `globals.css` and the primitives in
+  `src/components/ui/`. Read those; write the doc or stop citing it.
 - `docs/engine/engine-plan.md` + `docs/engine/eval-*.md` — engine history; recalibrate
   after audit P2-15 (harness parity) and profile reload.
 - `docs/e2e-plan.md` — Playwright plan, still deferred by user choice.

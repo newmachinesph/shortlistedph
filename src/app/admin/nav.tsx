@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BadgeCheck,
+  Coins,
   Flag,
+  Globe,
   LayoutDashboard,
   ListChecks,
   Menu,
@@ -22,10 +25,13 @@ import { Logo } from "@/components/logo";
 const nav: { label: string; icon: LucideIcon; href: string }[] = [
   { label: "Overview", icon: LayoutDashboard, href: "/admin" },
   { label: "Reports", icon: Flag, href: "/admin/reports" },
+  { label: "Verifications", icon: BadgeCheck, href: "/admin/verifications" },
   { label: "Users", icon: Users, href: "/admin/users" },
   { label: "Slates", icon: ListChecks, href: "/admin/slates" },
+  { label: "Openings", icon: Globe, href: "/admin/openings" },
   { label: "Interviewers", icon: UserCheck, href: "/admin/interviewers" },
   { label: "Interviews", icon: Video, href: "/admin/interviews" },
+  { label: "Credits", icon: Coins, href: "/admin/credits" },
   { label: "Affiliates", icon: Share2, href: "/admin/affiliates" },
   { label: "Settings", icon: Settings, href: "/admin/settings" },
 ];

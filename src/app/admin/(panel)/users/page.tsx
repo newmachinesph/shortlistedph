@@ -3,8 +3,8 @@ import Link from "next/link";
 import { Search, Users as UsersIcon } from "lucide-react";
 import { NOINDEX } from "@/lib/site";
 import { Avatar } from "@/components/avatar";
-import { listUsers } from "@/lib/admin";
-import { EmployerCredits, UserStatusActions } from "./actions";
+import { listUsers, requireAdminPage } from "@/lib/admin";
+import { EmployerCredits, TalentLevers, UserStatusActions } from "./actions";
 
 export const metadata: Metadata = { title: "Admin · Users", ...NOINDEX };
 
@@ -58,14 +58,32 @@ function subtitle(u: Awaited<ReturnType<typeof listUsers>>["users"][number]): st
 export default async function AdminUsers({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; role?: string; status?: string; page?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    role?: string;
+    status?: string;
+    flagged?: string;
+    page?: string;
+  }>;
 }) {
+  await requireAdminPage();
   const params = await searchParams;
   const { q } = params;
-  const { users, total, page: current, pageCount, roleCounts, role, status } = await listUsers({
+  const {
+    users,
+    total,
+    page: current,
+    pageCount,
+    roleCounts,
+    flaggedCount,
+    role,
+    status,
+    flagged,
+  } = await listUsers({
     q,
     role: params.role,
     status: params.status,
+    flagged: params.flagged === "1",
     page: Number(params.page) || 1,
   });
 
@@ -73,11 +91,12 @@ export default async function AdminUsers({
 
   // One builder for every link on the page. Page is only carried when passed,
   // so switching tab, status, or search always lands back on page 1.
-  const href = (next: { role?: string; status?: string; page?: number }) => {
+  const href = (next: { role?: string; status?: string; flagged?: boolean; page?: number }) => {
     const sp = new URLSearchParams();
     if (q) sp.set("q", q);
     if (next.role) sp.set("role", next.role);
     if (next.status) sp.set("status", next.status);
+    if (next.flagged) sp.set("flagged", "1");
     if (next.page && next.page > 1) sp.set("page", String(next.page));
     const qs = sp.toString();
     return qs ? `/admin/users?${qs}` : "/admin/users";
@@ -98,7 +117,7 @@ export default async function AdminUsers({
           return (
             <Link
               key={t.label}
-              href={href({ role: t.value, status })}
+              href={href({ role: t.value, status, flagged })}
               aria-current={active ? "page" : undefined}
               className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                 active
@@ -120,7 +139,7 @@ export default async function AdminUsers({
             <Link
               key={s.value}
               // Clicking the active chip clears the filter.
-              href={href({ role, status: active ? undefined : s.value })}
+              href={href({ role, status: active ? undefined : s.value, flagged })}
               className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                 active
                   ? "bg-ink text-white"
@@ -131,12 +150,26 @@ export default async function AdminUsers({
             </Link>
           );
         })}
+        {/* Resume-injection flags reach a queue here instead of only showing up
+            as a "⚠" to whoever happens to scroll past the row. */}
+        <Link
+          href={href({ role, status, flagged: !flagged })}
+          aria-current={flagged ? "page" : undefined}
+          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+            flagged
+              ? "bg-ember text-white"
+              : "bg-white text-ember ring-1 ring-inset ring-ember/30 hover:bg-ember-soft"
+          }`}
+        >
+          Flagged <span className={flagged ? "text-white/70" : "text-ember/60"}>{flaggedCount}</span>
+        </Link>
       </div>
 
       <form className="mt-4 flex gap-2" action="/admin/users">
         {/* Searching keeps the current tab and status filter, resets the page. */}
         {role && <input type="hidden" name="role" value={role} />}
         {status && <input type="hidden" name="status" value={status} />}
+        {flagged && <input type="hidden" name="flagged" value="1" />}
         <div className="relative flex-1">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint"
@@ -208,6 +241,14 @@ export default async function AdminUsers({
                   userId={u.id}
                   credits={u.employer.credits}
                   interviewCredits={u.employer.interviewCredits}
+                />
+              )}
+              {u.talentProfile && (
+                <TalentLevers
+                  userId={u.id}
+                  dormantAt={u.talentProfile.dormantAt}
+                  flags={u.talentProfile.flags}
+                  rateLockedUntil={u.talentProfile.rateLockedUntil}
                 />
               )}
             </div>

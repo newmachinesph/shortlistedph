@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { EyeOff } from "lucide-react";
 import { NOINDEX } from "@/lib/site";
-import { HttpError, requireAdmin } from "@/lib/session";
-import { getSlateForReview, timeAgo } from "@/lib/admin";
+import { getSlateForReview, requireAdminPage, timeAgo } from "@/lib/admin";
 import type { Dims } from "@/lib/scoring";
 import type { FrozenProfile } from "@/lib/slate";
 import { Avatar } from "@/components/avatar";
@@ -28,6 +27,15 @@ const dimLabels: [key: keyof Dims, label: string][] = [
   ["experience", "Experience"],
 ];
 
+// Stage 0 eliminations (lib/filters.ts) in the operator's words, not the
+// engine's enum. Anything unrecognised falls back to the raw reason rather
+// than disappearing — a new filter should show up here the day it ships.
+const eliminationLabels: Record<string, string> = {
+  rate_above_ceiling: "rate over the ceiling",
+  hours_short: "not enough free hours",
+  booked: "already booked",
+};
+
 // Consent lifecycle chips. "pending" = created but not yet emailed (approval or
 // the kill switch hasn't released it); "sent" = candidate is deciding.
 const consentChip: Record<string, string> = {
@@ -44,18 +52,14 @@ const consentChip: Record<string, string> = {
  * gets looked at before the Approve button releases it.
  */
 export default async function AdminSlateReview({ params }: { params: Promise<{ id: string }> }) {
-  try {
-    await requireAdmin();
-  } catch (e) {
-    if (e instanceof HttpError) redirect("/");
-    throw e;
-  }
+  await requireAdminPage();
 
   const { id } = await params;
   const slate = await getSlateForReview(id);
   if (!slate) notFound();
 
   const { jd } = slate;
+  const eliminationTotal = slate.eliminations.reduce((sum, e) => sum + e.count, 0);
 
   return (
     <>
@@ -105,6 +109,37 @@ export default async function AdminSlateReview({ params }: { params: Promise<{ i
           ))}
         </div>
       </div>
+
+      <section className="mt-3 rounded-2xl border border-line bg-white p-6">
+        <h2 className="text-sm font-medium uppercase tracking-wider text-ink-faint">
+          Stage 0 — cut before ranking
+        </h2>
+        {slate.eliminations.length === 0 ? (
+          <p className="mt-2 text-sm text-ink-soft">
+            Nobody was eliminated on metadata. A thin slate here came from the ranking bar or
+            from candidates declining, not from the hard filters.
+          </p>
+        ) : (
+          <>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {slate.eliminations.map((e) => (
+                <span
+                  key={e.reason}
+                  className="rounded-full border border-line px-2.5 py-1 text-xs text-ink-soft"
+                >
+                  {eliminationLabels[e.reason] ?? e.reason}{" "}
+                  <span className="font-medium text-ink">{e.count}</span>
+                </span>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-ink-faint">
+              {eliminationTotal} candidate{eliminationTotal === 1 ? "" : "s"} never reached the
+              ranker for this brief. Loosen the rate ceiling or the hours requirement to get
+              them back.
+            </p>
+          </>
+        )}
+      </section>
 
       <ListPubliclyForm
         jdId={jd.id}

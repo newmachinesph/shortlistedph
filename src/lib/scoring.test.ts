@@ -3,8 +3,25 @@
  * Run with: node --experimental-strip-types src/lib/scoring.test.ts
  */
 import assert from "node:assert/strict";
-import { composite, scoreRate, scoreSkills, type Dims } from "./scoring.ts";
+import {
+  MIN_SLATE_SCORE,
+  QUALIFY_SCORE,
+  SKILL_COVERAGE_DENOM,
+  VERIFIED_BONUS,
+  composite,
+  freeHours,
+  scoreOverlap,
+  scoreRate,
+  scoreSkills,
+  type Dims,
+} from "./scoring.ts";
+// blendSimilarity is tested here rather than beside facets.ts because it exists
+// only to feed scoreSkills — its weighting is a ranking decision.
+import { FACET_BLEND, blendSimilarity } from "./facets.ts";
 import { initials } from "./format.ts";
+
+const close = (a: number, b: number, msg: string) =>
+  assert.ok(Math.abs(a - b) < 1e-9, `${msg}: ${a} vs ${b}`);
 
 // ── scoreRate ────────────────────────────────────────────────────────────
 // In-band pays full; below-band tapers; over-band decays; nulls are neutral.
@@ -13,6 +30,7 @@ assert.equal(scoreRate(8, 8, 12), 100, "min edge in-band");
 assert.equal(scoreRate(12, 8, 12), 100, "max edge in-band");
 assert.equal(scoreRate(null, 8, 12), 60, "null rate -> neutral 60");
 assert.equal(scoreRate(10, null, 12), 60, "null bound -> neutral 60");
+assert.equal(scoreRate(10, 8, null), 60, "no stated ceiling -> neutral 60");
 assert.equal(scoreRate(9, 10, 20), 90, "just below -> 90"); // under = 0.1
 assert.equal(scoreRate(6, 10, 20), 80, "further below -> 80"); // under = 0.4
 assert.equal(scoreRate(4, 10, 20), 70, "far below -> 70"); // under = 0.6
@@ -49,6 +67,66 @@ const dupConfirmedLast = scoreSkills(
   0.5,
 );
 assert.equal(dupConfirmedFirst, dupConfirmedLast, "duplicate-skill scoring is order-independent");
+
+// ── blendSimilarity: weighting and the un-backfilled COALESCE case ────────
+// Weights must sum to 1, because that identity is what makes a profile whose
+// facet columns are NULL — all three distances COALESCEd to the whole-profile
+// distance — score exactly as it did before facets existed.
+close(FACET_BLEND.skills + FACET_BLEND.experience + FACET_BLEND.prefs, 1, "blend weights sum");
+close(blendSimilarity(0.3, 0.3, 0.3), 0.7, "identical distances reduce to 1 - d");
+close(blendSimilarity(0, 0, 0), 1, "zero distance is perfect similarity");
+// Cosine distance runs to 2, so similarity is unclamped and negative at the far
+// end — scoreSkills is what clamps it (see the -0.5 case above).
+close(blendSimilarity(2, 2, 2), -1, "opposite vectors stay negative");
+
+// Skills dominate: the same distance improvement is worth more on the skills
+// facet than on prefs. If this inverts, a JD ranks on timezone preferences.
+const base = blendSimilarity(0.5, 0.5, 0.5);
+assert.ok(
+  blendSimilarity(0.2, 0.5, 0.5) - base > blendSimilarity(0.5, 0.5, 0.2) - base,
+  "skills facet must outweigh prefs",
+);
+
+// ── scoreSkills: the coverage denominator ─────────────────────────────────
+// The calibration anchor thresholds were tuned against (see SKILL_COVERAGE_DENOM):
+// every must-have claimed but none confirmed reaches 63, not the 50 it capped
+// at when the denominator was CONFIRMED_SKILL_WEIGHT. Change the denominator
+// and 68/55 need re-deriving — that is what this pins.
+const claimed = [
+  { normalizedName: "alpha", confirmed: false },
+  { normalizedName: "beta", confirmed: false },
+];
+const confirmed = claimed.map((s) => ({ ...s, confirmed: true }));
+assert.equal(SKILL_COVERAGE_DENOM, 1.5, "coverage denominator moved — re-derive the thresholds");
+assert.equal(scoreSkills(["alpha", "beta"], claimed, 0.5), 63, "fully claimed -> 63");
+assert.equal(scoreSkills(["alpha", "beta"], confirmed, 0.5), 100, "confirmation is the bonus");
+assert.ok(
+  scoreSkills(["alpha", "beta"], [claimed[0]], 0.5) < scoreSkills(["alpha", "beta"], claimed, 0.5),
+  "covering half the must-haves scores below covering all of them",
+);
+// The denominator divides by requirement COUNT, so a longer must-have list is
+// harder to cover — one match out of four cannot score like one out of one.
+assert.ok(
+  scoreSkills(["alpha", "b1", "b2", "b3"], [claimed[0]], 0.5) <
+    scoreSkills(["alpha"], [claimed[0]], 0.5),
+  "coverage denominator scales with the number of requirements",
+);
+
+// ── free hours: one definition, shared with the Stage 0 hours filter ──────
+assert.equal(freeHours(0), 40, "nothing committed -> a full week free");
+assert.equal(freeHours(50), 0, "over-committed never goes negative");
+// The filter eliminates below hoursPerWeekMin; the score must agree at the same
+// arithmetic, or a candidate is scored as having hours they were filtered on.
+assert.equal(scoreOverlap("open", 30, 10), 100, "10 free hours covers a 10-hour job");
+assert.equal(scoreOverlap("open", 30, 20), 50, "half the hours needed -> half the score");
+
+// ── tiering: the two bars only mean something apart ───────────────────────
+// MIN_SLATE_SCORE tiers who fills a slate first, QUALIFY gates who is eligible
+// at all. Collapse the gap and the backfill tier disappears silently.
+assert.ok(QUALIFY_SCORE < MIN_SLATE_SCORE, "eligibility bar must sit below the strong bar");
+// Verification is a tiebreaker: it must never be able to lift a merely-eligible
+// candidate into the strong tier on identity alone.
+assert.ok(VERIFIED_BONUS < MIN_SLATE_SCORE - QUALIFY_SCORE, "verified bonus cannot buy a tier");
 
 // ── initials edge cases ───────────────────────────────────────────────────
 assert.equal(initials("Kristine Bautista"), "KB", "two words");

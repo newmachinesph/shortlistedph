@@ -207,8 +207,9 @@ export async function confirmInterview(args: {
 /** Statuses whose work is already delivered — cancelling can't undo them, so
  * the credit stays spent and the interviewer still gets paid. */
 const DELIVERED: InterviewStatus[] = ["recorded", "reported"];
-/** Already over. */
-const CLOSED: InterviewStatus[] = ["declined", "cancelled"];
+/** Already over. Exported so the admin UI decides whether to offer a cancel
+ * from the same list the API enforces, rather than a second copy of it. */
+export const CLOSED: InterviewStatus[] = ["declined", "cancelled"];
 /** A credit was spent to reach these, so cancelling returns it. */
 const CREDIT_SPENT: InterviewStatus[] = ["paid", "scheduled"];
 

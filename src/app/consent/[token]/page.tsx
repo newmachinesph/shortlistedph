@@ -3,7 +3,7 @@ import { CalendarClock, CheckCircle2, Clock3, MailX, XCircle } from "lucide-reac
 import { NOINDEX } from "@/lib/site";
 import { getConsentByToken, isConsentExpired } from "@/lib/consent";
 import { rateBand } from "@/lib/format";
-import { RespondButtons } from "./respond-buttons";
+import { RespondButtons } from "@/components/consent-respond-buttons";
 
 export const metadata: Metadata = { title: "You've been shortlisted", ...NOINDEX };
 
@@ -50,7 +50,7 @@ export default async function ConsentPage({ params }: { params: Promise<{ token:
           <StatusCard
             icon={<Clock3 className="mx-auto h-8 w-8 text-ember" strokeWidth={1.5} />}
             title="This request has expired"
-            body="Consent requests stay open for 48 hours so employers get timely shortlists. Because this one lapsed, we've paused matching you with new roles — log in to your talent workspace to switch matching back on."
+            body="Consent requests stay open for 48 hours so employers get timely shortlists. Because this one lapsed, we've paused matching you with new roles. There is no switch to flip: opening your talent workspace lifts the pause by itself, immediately."
           />
         ) : (
           <div className="rounded-2xl border border-line bg-white p-6 sm:p-8">

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ListChecks, Loader, ShieldCheck } from "lucide-react";
 import { NOINDEX } from "@/lib/site";
-import { listSlates, listStuckJds, timeAgo } from "@/lib/admin";
+import { listSlates, listStuckJds, requireAdminPage, timeAgo } from "@/lib/admin";
 import { ApproveSlateButton, StuckJdActions } from "./actions";
 
 export const metadata: Metadata = { title: "Admin · Slates", ...NOINDEX };
@@ -27,6 +27,7 @@ export default async function AdminSlates({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
+  await requireAdminPage();
   const { status } = await searchParams;
   const filter = (SLATE_STATUSES as readonly string[]).includes(status ?? "")
     ? (status as (typeof SLATE_STATUSES)[number])

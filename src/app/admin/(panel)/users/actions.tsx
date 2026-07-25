@@ -112,6 +112,94 @@ export function UserStatusActions({
   );
 }
 
+/**
+ * The three talent states that had no operator lever at all.
+ *
+ * Each button renders only when there is something to clear, so the strip is
+ * absent on a healthy profile and the presence of a button IS the alert — a
+ * dormant profile is invisible to matching, an injection flag is waiting on a
+ * human, and a locked rate holds a typo on a live profile for 30 days.
+ */
+export function TalentLevers({
+  userId,
+  dormantAt,
+  flags,
+  rateLockedUntil,
+}: {
+  userId: string;
+  dormantAt: Date | null;
+  flags: string[];
+  rateLockedUntil: Date | null;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function clear(lever: "dormancy" | "flags" | "rate_lock") {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clear: lever }),
+      });
+      const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) {
+        setError(payload?.error ?? "Could not clear");
+        return;
+      }
+      startTransition(() => router.refresh());
+    } catch {
+      setError("Network error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const levers: { lever: "dormancy" | "flags" | "rate_lock"; label: string; detail: string }[] = [];
+  if (dormantAt) {
+    levers.push({
+      lever: "dormancy",
+      label: "Clear dormancy",
+      detail: `dormant since ${dormantAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })} — excluded from matching`,
+    });
+  }
+  if (flags.length > 0) {
+    levers.push({ lever: "flags", label: "Clear flags", detail: `⚠ ${flags.join(", ")} — reviewed?` });
+  }
+  if (rateLockedUntil && rateLockedUntil > new Date()) {
+    levers.push({
+      lever: "rate_lock",
+      label: "Release rate lock",
+      detail: `rate locked until ${rateLockedUntil.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
+    });
+  }
+  if (levers.length === 0) return null;
+
+  const disabled = busy || pending;
+
+  return (
+    <div className="mt-2 flex w-full flex-wrap items-center gap-2 border-t border-line pt-2">
+      {levers.map((l) => (
+        <span key={l.lever} className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-ink-faint">{l.detail}</span>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => clear(l.lever)}
+            className="inline-flex min-h-11 items-center rounded-xl px-3 py-1.5 text-xs font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper disabled:opacity-50 sm:min-h-0"
+          >
+            {l.label}
+          </button>
+        </span>
+      ))}
+      {error && <span className="w-full text-[11px] text-ember">{error}</span>}
+    </div>
+  );
+}
+
 /** Grant, deduct, or set an employer's shortlist OR interview credits. */
 export function EmployerCredits({
   userId,

@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { NOINDEX } from "@/lib/site";
-import { HttpError, requireAdmin } from "@/lib/session";
+import { requireAdminPage } from "@/lib/admin";
 import { ReferralSettle, ReferralVoid } from "@/components/referral-admin-actions";
 import {
   EARNED,
   REFERRAL_REWARD,
+  REFUNDED_REASON,
   getSelfReferralSignals,
   type RiskFlag,
 } from "@/lib/referral";
@@ -22,8 +22,12 @@ function date(d: Date) {
   return d.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function round2(n: number) {
+  return Math.round(n * 100) / 100;
+}
+
 async function load() {
-  const [referrals, pendingPayoutsRaw] = await Promise.all([
+  const [referrals, pendingPayoutsRaw, settledPayoutsRaw, voidedRaw] = await Promise.all([
     db.referral.findMany({
       include: {
         user: { select: { name: true, email: true } },
@@ -33,7 +37,7 @@ async function load() {
             user: { select: { employer: { select: { id: true } } } },
           },
         },
-        commissions: { select: { amount: true, currency: true } },
+        commissions: { where: EARNED, select: { amount: true, currency: true } },
         _count: { select: { clicks: true } },
       },
     }),
@@ -42,9 +46,59 @@ async function load() {
       orderBy: { createdAt: "asc" },
       include: { user: { select: { name: true, email: true } } },
     }),
+    // Settled and rejected requests used to disappear from admin entirely while
+    // the affiliate still saw them on their own page — so a "where is my money"
+    // question had no answer on this side of the desk.
+    db.referralPayout.findMany({
+      where: { NOT: { status: "pending" } },
+      orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
+      take: 25,
+      include: { user: { select: { name: true, email: true } } },
+    }),
+    // Voided conversions, so a void made in error has somewhere to be undone —
+    // ReferralConversion.userId is unique, so there is no second chance to
+    // create one for that company.
+    db.referralConversion.findMany({
+      where: { status: "void" },
+      orderBy: { createdAt: "desc" },
+      take: 25,
+      select: {
+        id: true,
+        createdAt: true,
+        commissions: { select: { amount: true, currency: true, voidedReason: true } },
+        user: { select: { email: true, employer: { select: { companyName: true } } } },
+        referral: { select: { code: true, user: { select: { email: true } } } },
+      },
+    }),
   ]);
 
   const pendingPayouts = pendingPayoutsRaw.map((p) => ({ ...p, amount: Number(p.amount) }));
+  const settledPayouts = settledPayoutsRaw.map((p) => ({ ...p, amount: Number(p.amount) }));
+
+  const voided = voidedRaw.map((c) => {
+    const restorable = c.commissions.filter((m) => m.voidedReason !== REFUNDED_REASON);
+    return {
+      ...c,
+      restorable: round2(restorable.reduce((sum, m) => sum + Number(m.amount), 0)),
+      currency: c.commissions[0]?.currency ?? REFERRAL_REWARD.currency,
+      // Refund-voided rows never come back, so say how many will not.
+      refunded: c.commissions.length - restorable.length,
+    };
+  });
+
+  // A refund voids the commission for its payment wherever it sits — including
+  // inside a payout already requested. The request keeps the amount it was
+  // created with, so the only thing standing between a refunded purchase and a
+  // real transfer is the operator seeing that the two no longer agree.
+  const liveByPayout = new Map(
+    (
+      await db.referralCommission.groupBy({
+        by: ["payoutId"],
+        where: { payoutId: { in: pendingPayouts.map((p) => p.id) }, ...EARNED },
+        _sum: { amount: true },
+      })
+    ).map((g) => [g.payoutId, round2(Number(g._sum.amount ?? 0))]),
+  );
 
   const signals = await getSelfReferralSignals();
 
@@ -61,8 +115,10 @@ async function load() {
     ? await db.referralConversion.findMany({
         where: {
           status: "qualified",
-          // Something is still owed on it — that is what voiding can reverse.
-          commissions: { some: { payoutId: null } },
+          // Any live commission, not just unpaid ones: an affiliate whose whole
+          // balance had already moved into a pending payout dropped off this
+          // list entirely, leaving a check chip with no lever anywhere near it.
+          commissions: { some: EARNED },
           referral: { userId: { in: flaggedUserIds } },
         },
         orderBy: { qualifiedAt: "desc" },
@@ -71,18 +127,27 @@ async function load() {
           id: true,
           qualifiedAt: true,
           createdAt: true,
-          commissions: { where: { payoutId: null }, select: { amount: true, currency: true } },
+          commissions: {
+            where: EARNED,
+            select: { amount: true, currency: true, payoutId: true },
+          },
           user: { select: { email: true, employer: { select: { companyName: true } } } },
           referral: { select: { code: true, userId: true, user: { select: { email: true } } } },
         },
       })
     : [];
-  const flaggedConversions = flaggedConversionsRaw.map((c) => ({
-    ...c,
-    unpaid: c.commissions.reduce((sum, m) => sum + Number(m.amount), 0),
-    unpaidCurrency: c.commissions[0]?.currency ?? null,
-    purchases: c.commissions.length,
-  }));
+  const flaggedConversions = flaggedConversionsRaw.map((c) => {
+    const unpaid = c.commissions.filter((m) => m.payoutId === null);
+    return {
+      ...c,
+      unpaid: round2(unpaid.reduce((sum, m) => sum + Number(m.amount), 0)),
+      unpaidCurrency: c.commissions[0]?.currency ?? null,
+      purchases: unpaid.length,
+      // Inside a payout, so voiding is blocked until that payout is settled or
+      // rejected — the row still shows, with the reason.
+      locked: c.commissions.length - unpaid.length,
+    };
+  });
 
   const rows = referrals
     .map((r) => {
@@ -130,10 +195,13 @@ async function load() {
     rows,
     owed,
     flaggedConversions,
+    settledPayouts,
+    voided,
     pendingPayouts: pendingPayouts.map((p) => ({
       ...p,
       flags: signals.get(p.userId) ?? [],
       payTo: details.get(p.userId) ?? null,
+      live: liveByPayout.get(p.id) ?? 0,
     })),
   };
 }
@@ -160,14 +228,9 @@ function RiskChips({ flags }: { flags: RiskFlag[] }) {
 }
 
 export default async function AdminAffiliates() {
-  try {
-    await requireAdmin();
-  } catch (e) {
-    if (e instanceof HttpError) redirect("/");
-    throw e;
-  }
+  await requireAdminPage();
 
-  const { rows, owed, flaggedConversions, pendingPayouts } = await load();
+  const { rows, owed, flaggedConversions, settledPayouts, voided, pendingPayouts } = await load();
   const owedLabel = owed.map((o) => money(o.amount, o.currency)).join(" + ");
 
   return (
@@ -213,6 +276,12 @@ export default async function AdminAffiliates() {
                 <p className="break-all text-xs text-ink-faint">
                   Pay to {p.payTo?.email ?? "no PayPal on file"}
                 </p>
+                {p.live < p.amount && (
+                  <p className="mt-1.5 text-xs font-medium text-ember">
+                    Only {money(p.live, p.currency)} of this is still earned — the rest was refunded
+                    or voided after the request. Reject it and let them request the real balance.
+                  </p>
+                )}
                 <RiskChips flags={p.flags} />
               </div>
               <div className="flex items-center gap-3">
@@ -264,6 +333,7 @@ export default async function AdminAffiliates() {
                     referred by /r/{c.referral.code} ({c.referral.user.email}) · first purchase{" "}
                     {date(c.qualifiedAt ?? c.createdAt)} · {c.purchases} unpaid commission
                     {c.purchases === 1 ? "" : "s"}
+                    {c.locked > 0 && ` · ${c.locked} inside a payout`}
                   </p>
                 </div>
                 <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
@@ -272,16 +342,113 @@ export default async function AdminAffiliates() {
                       ? money(c.unpaid, c.unpaidCurrency ?? REFERRAL_REWARD.currency)
                       : "—"}
                   </span>
-                  <ReferralVoid conversionId={c.id} />
+                  {c.locked > 0 ? (
+                    <span className="max-w-64 text-xs text-ink-faint">
+                      In a payout — reject it above to release the balance, then void. A settled
+                      one cannot be reversed here.
+                    </span>
+                  ) : (
+                    <ReferralVoid conversionId={c.id} />
+                  )}
                 </div>
               </div>
             ))}
           </div>
           <p className="mt-2 max-w-2xl text-xs leading-relaxed text-ink-faint">
-            Referred companies with unpaid commissions belonging to an affiliate with a check chip.
-            Voiding one deletes its unpaid commissions, stops all future accrual from that company,
-            and takes it out of every balance. A conversion with a commission inside a payout cannot
-            be voided — settle or reject that payout first.
+            Referred companies with live commissions belonging to an affiliate with a check chip.
+            Voiding one marks its unpaid commissions void, stops all future accrual from that
+            company, and takes it out of every balance — the rows survive, so it can be undone
+            below. A conversion with a commission inside a payout cannot be voided: settle or
+            reject that payout first.
+          </p>
+        </>
+      )}
+
+      {settledPayouts.length > 0 && (
+        <>
+          <h2 className="mt-8 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
+            Payout history
+            <span className="ml-2 rounded-full bg-line px-2 py-0.5 text-[11px] font-medium normal-case tracking-normal text-ink-soft">
+              {settledPayouts.length}
+            </span>
+          </h2>
+          <div className="overflow-hidden rounded-2xl border border-line bg-white">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[40rem] text-sm">
+                <tbody>
+                  {settledPayouts.map((p, i) => (
+                    <tr key={p.id} className={i > 0 ? "border-t border-line" : ""}>
+                      <td className="px-6 py-3.5">
+                        <p className="text-sm font-medium text-ink">{p.user.name}</p>
+                        <p className="break-all text-xs text-ink-faint">{p.user.email}</p>
+                      </td>
+                      <td className="px-3 py-3.5 text-right font-medium text-ink">
+                        {money(p.amount, p.currency)}
+                      </td>
+                      <td className="px-3 py-3.5 text-xs text-ink-faint">{p.reference ?? "—"}</td>
+                      <td className="px-3 py-3.5 text-xs text-ink-faint">{p.note ?? "—"}</td>
+                      <td className="px-3 py-3.5 text-xs text-ink-faint">
+                        {date(p.paidAt ?? p.createdAt)}
+                      </td>
+                      <td className="px-6 py-3.5 text-right">
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${p.status === "paid" ? "bg-brand-soft text-brand" : "bg-line text-ink-soft"}`}
+                        >
+                          {p.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <p className="mt-2 max-w-2xl text-xs leading-relaxed text-ink-faint">
+            The last {settledPayouts.length} settled or rejected requests — the affiliate sees these
+            on their own page, so this is the same history from the other side of the desk. A
+            rejected request released its commissions back into the affiliate&apos;s balance.
+          </p>
+        </>
+      )}
+
+      {voided.length > 0 && (
+        <>
+          <h2 className="mt-8 mb-3 text-sm font-medium uppercase tracking-wider text-ink-faint">
+            Voided conversions
+            <span className="ml-2 rounded-full bg-line px-2 py-0.5 text-[11px] font-medium normal-case tracking-normal text-ink-soft">
+              {voided.length}
+            </span>
+          </h2>
+          <div className="overflow-hidden rounded-2xl border border-line bg-white">
+            {voided.map((c, i) => (
+              <div
+                key={c.id}
+                className={`flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 sm:px-6 ${i > 0 ? "border-t border-line" : ""}`}
+              >
+                <div className="min-w-0 flex-1 basis-48">
+                  <p className="truncate text-sm font-medium text-ink">
+                    {c.user.employer?.companyName ?? c.user.email}
+                  </p>
+                  <p className="break-all text-xs text-ink-faint">
+                    referred by /r/{c.referral.code} ({c.referral.user.email}) · signed up{" "}
+                    {date(c.createdAt)}
+                    {c.refunded > 0 && ` · ${c.refunded} refunded, stays void`}
+                  </p>
+                </div>
+                <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
+                  <span className="text-sm text-ink">
+                    {c.restorable > 0 ? money(c.restorable, c.currency) : "—"}
+                  </span>
+                  <ReferralVoid conversionId={c.id} restore />
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 max-w-2xl text-xs leading-relaxed text-ink-faint">
+            A company can only be referred once, so a void made in error would otherwise bar them
+            from ever earning again. Un-voiding restores the amount shown and lets the referral
+            accrue on future purchases. Commissions voided because the payment was refunded are
+            never restored — that money does not exist.
           </p>
         </>
       )}

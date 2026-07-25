@@ -15,6 +15,8 @@
  * against. When Phase 2 adds one, the filter lands here.
  */
 
+import { freeHours } from "./scoring.ts";
+
 export const RATE_TOLERANCE = 1.15;
 
 export type HardRequirements = {
@@ -38,11 +40,6 @@ export type FilterResult<C extends FilterCandidate> = {
   aboveBudget: Set<string>;
   eliminated: { profileId: string; reason: EliminationReason }[];
 };
-
-/** Same capacity arithmetic scoreOverlap uses — one definition of "free". */
-function freeHours(committedHours: number): number {
-  return Math.max(0, 40 - committedHours);
-}
 
 export function applyHardFilters<C extends FilterCandidate>(
   candidates: C[],

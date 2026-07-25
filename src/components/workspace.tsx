@@ -14,6 +14,7 @@ import {
   Scale,
   Bell,
   Gift,
+  Inbox,
   CreditCard,
   User,
   LogOut,
@@ -47,6 +48,10 @@ const employerNav: NavItem[] = [
 
 const talentNav: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/talent" },
+  // Match invitations run on a 48h clock and cost a dormancy strike if
+  // ignored, so they need a permanent home in the nav — email alone was the
+  // only way to find them.
+  { label: "Match invitations", icon: Inbox, href: "/talent/matches" },
   { label: "Services", icon: FileText, href: "/talent/services" },
   { label: "Connections", icon: Users, href: "/talent/connections" },
   { label: "Interviews", icon: Video, href: "/talent/interviews" },

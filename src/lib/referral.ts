@@ -234,7 +234,9 @@ export async function recordCommission(
 
   const conversion = await db.referralConversion.findUnique({
     where: { userId },
-    include: { referral: { select: { userId: true } } },
+    include: {
+      referral: { select: { userId: true, user: { select: { email: true, name: true } } } },
+    },
   });
   if (!conversion || conversion.status === "void") return null;
 
@@ -276,12 +278,27 @@ export async function recordCommission(
   }
 
   // The recurring pitch is that earnings keep arriving; accruing in silence
-  // meant an affiliate only ever found out by opening the page.
-  await notify({
-    userId: conversion.referral.userId,
-    type: "referral_commission",
-    payload: { amount: reward.amount, currency: reward.currency },
-  });
+  // meant an affiliate only ever found out by opening the page. Best-effort on
+  // both channels — the money is already committed above, and neither a bell
+  // nor a mail server gets to undo it.
+  try {
+    await notify({
+      userId: conversion.referral.userId,
+      type: "referral_commission",
+      payload: { amount: reward.amount, currency: reward.currency },
+    });
+
+    const owed = await getOwed(conversion.referral.userId);
+    const balance = owed.find((b) => b.currency === reward.currency)?.amount ?? reward.amount;
+    await mail.commissionEarned(conversion.referral.user.email, {
+      name: conversion.referral.user.name,
+      amount: reward.amount,
+      currency: reward.currency,
+      balance,
+    });
+  } catch (e) {
+    console.error("[referral] commission notification failed", e);
+  }
 
   return commission;
 }
@@ -437,7 +454,9 @@ export async function requestPayout(userId: string) {
     // request links zero rows and takes its payout row back out.
     // ponytail: relies on the transaction plus this guard rather than a lock.
     const linked = await tx.referralCommission.updateMany({
-      where: { id: { in: covered.map((c) => c.id) }, payoutId: null },
+      // EARNED re-checked here too: a refund landing between the read and the
+      // write must take its commission out of the request, not ride into it.
+      where: { id: { in: covered.map((c) => c.id) }, payoutId: null, ...EARNED },
       data: { payoutId: payout.id },
     });
     if (linked.count !== covered.length) {
