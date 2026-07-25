@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
 import { requireEmployer, requireRole } from "@/lib/session";
 import { claimDraft, draftToken } from "@/lib/job-draft";
+import { extractCanonicalTools } from "@/lib/scoring";
 
 export async function GET() {
   try {
@@ -59,7 +60,15 @@ export async function POST(req: Request) {
     const body = await parseBody(req, Body);
 
     const jd = await db.jobDescription.create({
-      data: { ...body, employerId: employer.id, status: "draft" },
+      data: {
+        ...body,
+        // Canonical tool IDs for Phase 3 — alias-table hits only, unmapped
+        // requirements stay prose in mustHaves/niceToHaves (engine-plan 2a).
+        requiredTools: extractCanonicalTools(body.mustHaves),
+        preferredTools: extractCanonicalTools(body.niceToHaves),
+        employerId: employer.id,
+        status: "draft",
+      },
     });
     // If this JD grew out of an anonymous /start draft, mark it claimed so the
     // builder stops offering it. Trust model unchanged — the draft is not read

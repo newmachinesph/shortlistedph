@@ -2,7 +2,7 @@
  * Pure match scoring. No db, no network, no framework — so the evaluation
  * harness and tests can import the exact logic production ranks with.
  */
-import { canonicalizeTool } from "./tools/aliases.ts";
+import { canonicalizeTool, isKnownTool } from "./tools/aliases.ts";
 
 export type Dims = { skills: number; rate: number; overlap: number; experience: number };
 
@@ -50,6 +50,28 @@ const contentTokens = (phrase: string): string[] =>
   normalizeSkill(phrase)
     .split(" ")
     .filter((t) => t.length > 2 && !STOPWORDS.has(t));
+
+/**
+ * The canonical tools named in a list of free-text phrases (engine-plan 2a).
+ * Two exact table lookups per phrase, nothing fuzzier: the whole normalized
+ * phrase, then the phrase with stopwords stripped, so "Zendesk experience"
+ * maps to zendesk while "attention to detail" maps to nothing. A phrase the
+ * table doesn't know contributes nothing — unmapped stays prose, never a
+ * guess, because a wrong merge scores people for tools they don't have.
+ */
+export function extractCanonicalTools(phrases: string[]): string[] {
+  const out = new Set<string>();
+  for (const phrase of phrases) {
+    const whole = normalizeSkill(phrase);
+    if (isKnownTool(whole)) {
+      out.add(canonicalizeTool(whole));
+      continue;
+    }
+    const stripped = contentTokens(phrase).join(" ");
+    if (isKnownTool(stripped)) out.add(canonicalizeTool(stripped));
+  }
+  return [...out];
+}
 
 /**
  * Two content words match when they are equal or one is a prefix of the other

@@ -94,16 +94,37 @@ preserved on later edits). Board still fails closed without `publicTitle` + `lis
   exporting secrets into the shell. Use this for all future migrations.
 - **Openings admin control + marketing redesign + calibration**: see sections above.
 
-### 1. NEXT: Engine Phase 2a — tool canonicalisation (engine-plan §2a)
-Alias table (`lib/tools/aliases.ts`) already shipped + tested. Remaining, in order:
-1. `ProfileTool` model {profileId, canonicalId, name, years, lastUsedYear, category} +
-   `JobDescription.requiredTools/preferredTools String[]` — raw SQL via db-run, dev + prod.
-2. Fix `scripts/tool-frequency.ts` known-flag undercount (noted in eval-canonical-result.md).
-3. Backfill: map `Skill` rows + `TalentProfile.tools` free text through `canonicalizeTool`;
-   unmapped stays prose, never guess.
-4. Map employer must/nice-to-haves → canonical arrays at JD save (`api/jds/route.ts`).
-5. Scorer keeps using Skill+aliases for now — ProfileTool feeds Phase 3 modifiers.
-Then 2b structured engagements → 2c canonical fields (functions facet!) → 2d JD extraction.
+### ~~1. Engine Phase 2a — tool canonicalisation~~ — DONE (code + dev DB; **prod pending**)
+All five subtasks shipped:
+- `ProfileTool` model + `JobDescription.requiredTools/preferredTools` in schema;
+  migration `scripts/add-profile-tools.sql` (idempotent, applied to **dev only** — the
+  session agent was permission-blocked from prod writes).
+- `tool-frequency.ts` known-flag undercount was already fixed in `371a55f`
+  (`isKnownTool` counts canonicals); stale note in eval-canonical-result.md updated.
+- `scripts/backfill-profile-tools.ts` — Skill rows + `TalentProfile.tools` free text →
+  ProfileTool (known tools only, unmapped stays prose), plus existing JDs → canonical
+  arrays. Idempotent (skipDuplicates + deterministic recompute). Dev run: 12 ProfileTool
+  rows, 2/2 JDs.
+- JD create (`api/jds/route.ts`) now stamps `requiredTools`/`preferredTools` via
+  `extractCanonicalTools` (new in `lib/scoring.ts`, tested in `aliases.test.ts`): exact
+  alias-table lookup on the whole phrase, then stopword-stripped — never fuzzy.
+- Scorer unchanged — still Skill+aliases; ProfileTool feeds Phase 3 modifiers.
+
+**⚠ Run on prod before anything else** (agent blocked from prod DB writes):
+```powershell
+$env:DB="prod"
+node --experimental-strip-types scripts/db-run.ts scripts/add-profile-tools.sql
+node --experimental-strip-types scripts/backfill-profile-tools.ts
+Remove-Item Env:DB
+```
+
+Known follow-up: talent-side profile edits do NOT yet sync ProfileTool (backfill covers
+the pool; new/edited profiles only get rows on the next backfill run). Wire it into the
+profile-save path when Phase 3 starts scoring ProfileTool. `years`/`lastUsedYear`/
+`category` have no data source yet — nulls until 2b structured engagements.
+
+### 1. NEXT: Engine Phase 2b — structured engagements
+Then 2c canonical fields (functions facet!) → 2d JD extraction (see engine-plan).
 
 ### 2. E2E harness (user said skip testing for now)
 Fully planned in `docs/e2e-plan.md`. Playwright + real Postgres + Mailpit, no real emails.

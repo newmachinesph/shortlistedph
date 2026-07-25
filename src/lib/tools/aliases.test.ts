@@ -8,7 +8,7 @@
  */
 import assert from "node:assert/strict";
 import { KNOWN_TOOL_COUNT, canonicalizeTool } from "./aliases.ts";
-import { matchRequirements, normalizeSkill } from "../scoring.ts";
+import { extractCanonicalTools, matchRequirements, normalizeSkill } from "../scoring.ts";
 
 let pass = 0;
 const check = (label: string, fn: () => void) => {
@@ -91,6 +91,28 @@ check("canonicalization does not fabricate matches for genuinely absent tools", 
 
 check("the table knows a sensible number of distinct tools", () => {
   assert.ok(KNOWN_TOOL_COUNT >= 40, `expected >= 40 canonical tools, got ${KNOWN_TOOL_COUNT}`);
+});
+
+// ── extractCanonicalTools: requirement phrases → canonical IDs (2a) ────────
+
+check("extracts a bare tool name and an alias to the same canonical", () => {
+  assert.deepEqual(extractCanonicalTools(["Zendesk"]), ["zendesk"]);
+  assert.deepEqual(extractCanonicalTools(["QBO"]), ["quickbooks online"]);
+});
+
+check("stopword phrasing still maps: 'Zendesk experience' names zendesk", () => {
+  assert.deepEqual(extractCanonicalTools(["Zendesk experience"]), ["zendesk"]);
+  assert.deepEqual(extractCanonicalTools(["experience with QuickBooks Online"]), ["quickbooks online"]);
+});
+
+check("non-tool requirements extract nothing — unmapped stays prose", () => {
+  assert.deepEqual(extractCanonicalTools(["Bank reconciliation", "attention to detail"]), []);
+  assert.deepEqual(extractCanonicalTools(["US dental practice experience"]), []);
+});
+
+check("mixed list keeps only the known tools, deduped", () => {
+  const tools = extractCanonicalTools(["QBO", "quickbooks experience", "Month-end close", "Xero"]);
+  assert.deepEqual(tools.sort(), ["quickbooks online", "xero"]);
 });
 
 console.log(`\n${pass} passed`);

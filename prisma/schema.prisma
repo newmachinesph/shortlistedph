@@ -165,6 +165,7 @@ model TalentProfile {
 
   user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   skills        Skill[]
+  profileTools  ProfileTool[]
   engagements   Engagement[]
   rateChanges   RateChange[]
   snapshots     ProfileSnapshot[]
@@ -184,6 +185,26 @@ model Skill {
 
   @@index([profileId])
   @@index([normalizedName])
+}
+
+// Canonical tool ownership (engine-plan 2a). One row per (profile, canonical
+// tool) the alias table recognises — only KNOWN tools land here; unmapped
+// skills stay prose in Skill, never guessed into a canonical. `Skill` remains
+// the provenance/UI table and what the scorer reads today; ProfileTool is the
+// structured store Phase 3 modifiers (recency, years) will score against.
+model ProfileTool {
+  id           String  @id @default(cuid())
+  profileId    String
+  canonicalId  String // canonicalizeTool output — the exact-match key
+  name         String // as written on the profile ("QBO", "Quick Books", ...)
+  years        Int?
+  lastUsedYear Int?
+  category     String?
+
+  profile TalentProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, canonicalId])
+  @@index([canonicalId])
 }
 
 model Engagement {
@@ -241,6 +262,12 @@ model JobDescription {
   overlap             String?
   mustHaves           String[]
   niceToHaves         String[]
+  // Canonical tool IDs extracted from must/nice-to-haves at save time
+  // (engine-plan 2a): only alias-table hits land here, unmapped requirements
+  // stay prose in mustHaves/niceToHaves. Scorer still reads the prose arrays;
+  // these feed Phase 3.
+  requiredTools       String[]  @default([])
+  preferredTools      String[]  @default([])
   screeningQuestions  Json?
   initialInstructions String?
   schedulingUrl       String?

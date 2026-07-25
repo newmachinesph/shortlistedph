@@ -93,9 +93,9 @@ Dominated by soft skills, not tools: customer service (213), communication (153)
 present as canonicals: microsoft office, google workspace, canva, salesforce, slack, zendesk,
 javascript, python, mysql, quickbooks, hubspot, wordpress, zoom, git.
 
-Note: `scripts/tool-frequency.ts` undercounts coverage — its "known" flag only catches
-aliases, not canonicals that map to themselves, so `salesforce`/`zendesk`/etc. show as
-unmapped when the table does know them. Fix the flag before trusting its coverage percentage.
+Note (resolved): `scripts/tool-frequency.ts` used to undercount coverage — its "known"
+flag only caught aliases, not canonicals mapping to themselves. It now uses
+`isKnownTool`, which counts both; coverage percentages from the script are trustworthy.
 
 ---
 
