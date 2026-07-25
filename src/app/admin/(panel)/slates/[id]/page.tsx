@@ -8,7 +8,8 @@ import { getSlateForReview, timeAgo } from "@/lib/admin";
 import type { Dims } from "@/lib/scoring";
 import type { FrozenProfile } from "@/lib/slate";
 import { Avatar } from "@/components/avatar";
-import { ApproveSlateButton } from "../actions";
+import { CLIENT_REGIONS, ROLE_FAMILIES } from "@/lib/openings-taxonomy";
+import { ApproveSlateButton, ListPubliclyForm } from "../actions";
 
 export const metadata: Metadata = { title: "Admin · Review slate", ...NOINDEX };
 
@@ -104,6 +105,20 @@ export default async function AdminSlateReview({ params }: { params: Promise<{ i
           ))}
         </div>
       </div>
+
+      <ListPubliclyForm
+        jdId={jd.id}
+        suggestedTitle={jd.title}
+        initial={{
+          publicTitle: jd.publicTitle,
+          roleFamily: jd.roleFamily,
+          industry: jd.industry,
+          clientRegion: jd.clientRegion,
+          listed: jd.listedAt != null,
+        }}
+        roleFamilies={ROLE_FAMILIES}
+        clientRegions={CLIENT_REGIONS}
+      />
 
       {slate.consents.length > 0 && (
         <section className="mt-8">
