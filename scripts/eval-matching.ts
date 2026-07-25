@@ -11,6 +11,7 @@
  */
 import { config } from "dotenv";
 import OpenAI from "openai";
+import { applyHardFilters } from "../src/lib/filters.ts";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { blendSimilarity, jdFacetTexts } from "../src/lib/facets.ts";
@@ -141,7 +142,24 @@ async function main() {
       rolesBy.set(e.profileId, list);
     }
 
-    const ranked = pool
+    // EVAL_HARD=1 mirrors the hard_filters_enabled flag: Stage 0 on the raw
+    // pool, requirements derived from the JD exactly as jdHardRequirements does.
+    let stage0Note = "";
+    let filtered = pool;
+    if (process.env.EVAL_HARD === "1") {
+      const r = applyHardFilters(pool, {
+        rateMaxUsd: jd.budgetMax,
+        hoursPerWeekMin: jd.hoursPerWeek,
+      });
+      filtered = r.passed;
+      const byReason = new Map<string, number>();
+      for (const e of r.eliminated) byReason.set(e.reason, (byReason.get(e.reason) ?? 0) + 1);
+      stage0Note = `    stage0: ${r.eliminated.length} eliminated (${[...byReason]
+        .map(([k, n]) => `${k} ${n}`)
+        .join(", ") || "none"}), ${r.aboveBudget.size} tagged above-budget\n`;
+    }
+
+    const ranked = filtered
       .map((c) => {
         const sim = blendSimilarity(c.dskills, c.dexp, c.dprefs);
         const dims = {
@@ -169,6 +187,7 @@ async function main() {
 
     console.log(`━━━ ${jd.title}`);
     console.log(`    budget $${jd.budgetMin}-${jd.budgetMax}/hr · must: ${jd.mustHaves.join(", ")}`);
+    if (stage0Note) process.stdout.write(stage0Note);
     if (qualified.length === 0) {
       console.log(`    NO QUALIFIED CANDIDATES — ${rejected} below QUALIFY ${QUALIFY_SCORE} (top was ${ranked[0]?.score ?? 0})`);
       console.log();

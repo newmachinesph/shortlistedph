@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
+import { refreshProfileEmbeddings } from "@/lib/profile-embedding";
 import { requireRole, requireTalentProfile } from "@/lib/session";
 
 const Body = z.object({
@@ -39,8 +40,20 @@ async function handle(req: Request) {
         availability: true,
         noticePeriodDays: true,
         availabilityConfirmedAt: true,
+        publishedAt: true,
       },
     });
+
+    // Availability feeds the prefs facet text, so a published profile's
+    // vectors refresh with it. Best-effort — a hiccup must not lose the
+    // confirmation itself.
+    if (updated.publishedAt) {
+      try {
+        await refreshProfileEmbeddings(profile.id);
+      } catch (e) {
+        console.error("[talent/availability] re-embed failed", e);
+      }
+    }
 
     return ok(updated);
   } catch (e) {

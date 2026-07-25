@@ -248,6 +248,12 @@ model JobDescription {
   publishedAt         DateTime?
   createdAt           DateTime  @default(now())
 
+  // Stage 0 hard requirements (spec §3, engine-plan 1c): {rateMaxUsd,
+  // hoursPerWeekMin, startWithinDays}. Nullable — when null and the
+  // hard_filters_enabled flag is on, matching derives a default from
+  // budgetMax/hoursPerWeek. Flag off = today's behaviour exactly.
+  hardRequirements Json?
+
   // Public openings board (anonymized demand). All admin-set and nullable: a
   // JD is listable only once an admin approves a sanitized publicTitle, so the
   // board fails closed — null publicTitle means "not listed", never a leak of
@@ -263,14 +269,31 @@ model JobDescription {
   // Skills-facet query vector; `embedding` doubles as the role/experience query.
   embeddingSkills Unsupported("vector(1536)")?
 
-  employer      EmployerAccount   @relation(fields: [employerId], references: [id], onDelete: Cascade)
+  employer      EmployerAccount    @relation(fields: [employerId], references: [id], onDelete: Cascade)
   slates        Slate[]
   snapshots     ProfileSnapshot[]
   matchConsents MatchConsent[]
+  eliminations  MatchElimination[]
 
   @@index([employerId, status])
   @@index([status]) // stuck-JD recovery + admin counts filter by status alone
   @@index([listedAt]) // openings board lists by recency
+}
+
+// Stage 0 eliminations, persisted per matching run (engine-plan 1c / P1-12)
+// so the employer dashboard can say "N matches were above your budget
+// ceiling" instead of the pool just looking thin. Rewritten on each re-run of
+// a JD's matching — a log of the latest run, not an append-only history.
+model MatchElimination {
+  id        String   @id @default(cuid())
+  jdId      String
+  profileId String
+  reason    String // rate_above_ceiling | hours_short | booked
+  createdAt DateTime @default(now())
+
+  jd JobDescription @relation(fields: [jdId], references: [id], onDelete: Cascade)
+
+  @@index([jdId, reason])
 }
 
 // Consent-first matching: a slate starts empty and candidates are ASKED before

@@ -22,6 +22,13 @@ export const MAINTENANCE_MODE_KEY = "maintenance_mode";
  */
 export const SHOWCASE_AVATARS_KEY = "showcase_avatars";
 
+/**
+ * "on" applies Stage 0 hard filters (lib/filters.ts) before ranking; missing
+ * or anything else means off — today's behaviour exactly. Flip only after
+ * comparing slates for the same JDs both ways (engine-plan 1c).
+ */
+export const HARD_FILTERS_KEY = "hard_filters_enabled";
+
 export async function getSetting(key: string): Promise<string | null> {
   const row = await db.appSetting.findUnique({ where: { key } });
   return row?.value ?? null;
@@ -45,4 +52,8 @@ export async function maintenanceModeEnabled(): Promise<boolean> {
 
 export async function showcaseAvatarsEnabled(): Promise<boolean> {
   return (await getSetting(SHOWCASE_AVATARS_KEY)) !== "off";
+}
+
+export async function hardFiltersEnabled(): Promise<boolean> {
+  return (await getSetting(HARD_FILTERS_KEY)) === "on";
 }

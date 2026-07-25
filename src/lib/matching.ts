@@ -2,7 +2,9 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { db } from "./db";
 import { blendSimilarity, jdFacetTexts } from "./facets";
+import { applyHardFilters, type HardRequirements } from "./filters";
 import { embedMany, toVectorLiteral } from "./openai";
+import { hardFiltersEnabled } from "./settings";
 import {
   MIN_SLATE_SCORE,
   QUALIFY_SCORE,
@@ -57,7 +59,23 @@ export type Jd = {
   budgetMax: number | null;
   hoursPerWeek: number | null;
   overlap: string | null;
+  /** Stage 0 hard requirements; absent/null derives from budgetMax + hoursPerWeek. */
+  hardRequirements?: unknown;
 };
+
+/**
+ * The JD's Stage 0 requirements: the explicit hardRequirements JSON when the
+ * employer set one, else derived from the fields they already filled in. The
+ * derivation is what makes the flag meaningful on existing JDs — flipping it
+ * on turns every stated budget ceiling into a real ceiling.
+ */
+export function jdHardRequirements(jd: Jd): HardRequirements {
+  const h = (jd.hardRequirements ?? null) as HardRequirements | null;
+  if (h && (h.rateMaxUsd != null || h.hoursPerWeekMin != null || h.startWithinDays != null)) {
+    return h;
+  }
+  return { rateMaxUsd: jd.budgetMax, hoursPerWeekMin: jd.hoursPerWeek };
+}
 
 // Single owner is facets.ts — the eval harness and backfill embed this exact text.
 export function jdEmbedText(jd: Jd): string {
@@ -153,13 +171,18 @@ export function frozenProfileJson(
  * rotation order. Shared by buildSlate (initial consent fan-out) and the
  * consent-refresh cron (backfill re-runs this instead of persisting a queue).
  */
-export async function rankQualifiedForJd(jd: Jd): Promise<{ scanned: number; eligible: RankedCandidate[] }> {
+export async function rankQualifiedForJd(jd: Jd): Promise<{
+  scanned: number;
+  eligible: RankedCandidate[];
+  /** Stage 0 eliminations from this run — empty when the flag is off. */
+  eliminated: { profileId: string; reason: string }[];
+}> {
   // Two query vectors, one batch call: the whole-JD role text (also the hnsw
   // pool cut) and the skills-facet text.
   const q = jdFacetTexts(jd);
   const [roleVec, skillsVec] = await embedMany([q.role, q.skills]);
 
-  const pool = await db.$queryRawUnsafe<Candidate[]>(
+  const rawPool = await db.$queryRawUnsafe<Candidate[]>(
     `SELECT p.id, p."userId", p.headline, p.summary, p.city, p."yearsExperience",
             p."rateUsd", p.availability, p."committedHours", p."verifiedTier", p."lastEditedAt",
             p."shortlistCount", p."lastShownAt", p."openToOffers", p."availabilityConfirmedAt",
@@ -179,7 +202,14 @@ export async function rankQualifiedForJd(jd: Jd): Promise<{ scanned: number; eli
     toVectorLiteral(skillsVec),
   );
 
-  if (pool.length === 0) return { scanned: 0, eligible: [] };
+  // Stage 0 — hard filters (spec §3), behind the operator flag. Off means the
+  // raw pool passes through untouched: today's behaviour exactly.
+  const stage0 = (await hardFiltersEnabled())
+    ? applyHardFilters(rawPool, jdHardRequirements(jd))
+    : { passed: rawPool, aboveBudget: new Set<string>(), eliminated: [] };
+  const pool = stage0.passed;
+
+  if (pool.length === 0) return { scanned: rawPool.length, eligible: [], eliminated: stage0.eliminated };
 
   const ids = pool.map((c) => c.id);
   const [skills, engagements] = await Promise.all([
@@ -237,7 +267,7 @@ export async function rankQualifiedForJd(jd: Jd): Promise<{ scanned: number; eli
       return b.score - a.score;
     });
 
-  return { scanned: pool.length, eligible };
+  return { scanned: rawPool.length, eligible, eliminated: stage0.eliminated };
 }
 
 /**
@@ -251,7 +281,21 @@ export async function rankQualifiedForJd(jd: Jd): Promise<{ scanned: number; eli
  */
 export async function buildSlate(jdId: string) {
   const jd = await db.jobDescription.findUniqueOrThrow({ where: { id: jdId } });
-  const { scanned, eligible } = await rankQualifiedForJd(jd);
+  const { scanned, eligible, eliminated } = await rankQualifiedForJd(jd);
+
+  // The latest run's Stage 0 eliminations, so the employer dashboard can say
+  // "N matches were above your budget ceiling" (P1-12). Replaced wholesale on
+  // every re-run — a snapshot of this run, not history.
+  await db.$transaction([
+    db.matchElimination.deleteMany({ where: { jdId: jd.id } }),
+    ...(eliminated.length
+      ? [
+          db.matchElimination.createMany({
+            data: eliminated.map((e) => ({ jdId: jd.id, profileId: e.profileId, reason: e.reason })),
+          }),
+        ]
+      : []),
+  ]);
 
   if (scanned === 0) {
     // Terminal state, not "still matching" — otherwise the dashboard spins forever.

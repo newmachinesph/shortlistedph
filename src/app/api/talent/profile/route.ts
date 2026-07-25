@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
+import { refreshProfileEmbeddings } from "@/lib/profile-embedding";
 import { isHttpUrl, normalizeSkill } from "@/lib/resume";
 import { requireRole, requireTalentProfile } from "@/lib/session";
 
@@ -118,6 +119,22 @@ export async function PATCH(req: Request) {
         data: { ...scalars, lastEditedAt: new Date() },
       });
     });
+
+    // A published profile's vectors must track its text, or matching ranks a
+    // person the pool no longer contains. Best-effort: an embed hiccup must
+    // not lose the save itself — the stale vector self-heals on the next save
+    // or publish.
+    const { publishedAt } = await db.talentProfile.findUniqueOrThrow({
+      where: { id: profile.id },
+      select: { publishedAt: true },
+    });
+    if (publishedAt) {
+      try {
+        await refreshProfileEmbeddings(profile.id);
+      } catch (e) {
+        console.error("[talent/profile] re-embed after edit failed", e);
+      }
+    }
 
     return ok({ updated: true });
   } catch (e) {
