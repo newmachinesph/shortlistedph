@@ -37,6 +37,17 @@ each assumed the other had done something. That is now four rounds running.
 
 ## BLOCKERS — a real user cannot finish the journey
 
+> **All six verified fixed, 2026-07-27.** Checked against the code rather than
+> assumed: `/register` drives `/api/onboarding/role` (1); the wizard has a
+> manual path off the upload screen (2); `brief-builder` can skip the AI compose
+> step (3); `Interview.meetingUrl` exists (4); `Interviewer` carries payout
+> fields (5); and the migrated pool question was closed by the decision to
+> launch with zero jobseekers, with the re-activation flow built and verified
+> should a bulk import ever be wanted again (6).
+>
+> This section was written before the round-4 fix wave landed and describes the
+> state before it.
+
 1. **Google sign-in is a closed loop.** A first-time Google user goes to
    `/talent` → `/onboarding` → `/register`, whose submit calls `signUp.email`
    and creates a *second, different* account. Nothing on that path ever calls
@@ -64,6 +75,15 @@ each assumed the other had done something. That is now four rounds running.
    session-gated page they cannot log into.
 
 ## SECURITY
+
+> **All six verified fixed, 2026-07-27.** `presignUpload` takes a mandatory
+> `contentLength` and SigV4 signs it; `requireEmailVerification: true` is set and
+> the smoke test asserts signup issues no session; both embedding endpoints call
+> `rateLimit`; the manual profile editor scans every free-text field and records
+> `INJECTION_FLAG`; `requirePageUser` redirects a non-active user; and the
+> candidate recording route audit-logs before presigning, as the admin one does.
+>
+> Written before the round-4 fix wave; describes the state before it.
 
 - **HIGH — no presigned upload enforces size.** Every caller checks a
   client-declared `sizeBytes` in application code and then signs a bare
@@ -97,6 +117,17 @@ token's grant and lifetime; every raw SQL site; both webhook signature paths;
 session handling and `role`/`status` being server-set; secrets.
 
 ## DATA INTEGRITY
+
+> **All five verified fixed, 2026-07-27.** `ProfileSnapshot`, `Slate`,
+> `Payment`, `Entitlement`, `ReferralCommission` and `Interview` are all
+> `onDelete: Restrict` — so thoroughly that every dbtest teardown in `src/lib`
+> has to clear them by hand, which is the guard proving itself.
+> `Entitlement.spentOn*` carry real foreign keys; the credits and
+> `entitlement_kind` CHECKs shipped in `protect_delivered_work_and_money`;
+> `SET LOCAL hnsw.ef_search` is issued inside the pool transaction; and the
+> expiry cron sweeps the `recorded` trap.
+>
+> Written before the round-4 fix wave; describes the state before it.
 
 - **CRITICAL — deleting one talent profile destroys the employer's paid
   shortlist**, agreements, ratings, and reported interviews an interviewer is
