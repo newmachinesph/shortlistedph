@@ -80,5 +80,26 @@ purges its own accounts first, so runs are repeatable. `Slate` and
 `onDelete: Restrict` because they are delivered work, and having to name them
 is the guard proving itself.
 
-Still unexercised: money (PayPal/PayMongo unlock, refunds, entitlements),
-interviews, ratings, referral payouts. Everything there remains typecheck-only.
+- **The refund ledger**, via `npm run test:money` — 10 tests against a real
+  Postgres. Grants, idempotent redelivery, the catalog-price check, full
+  refunds, already-spent credits, and partial refunds (proportional revocation,
+  accumulation across events, replayed webhooks, commission survival).
+
+## Testing the money paths
+
+No Docker and no disposable Neon branch: `src/lib/*.dbtest.ts` import the real
+modules and run against `DATABASE_URL`. Three things make that work, all in
+`scripts/node-resolve.mjs`:
+
+- `--conditions=react-server` makes `import "server-only"` resolve to the
+  package's own empty module, exactly as the RSC build does;
+- a resolve hook for `@/…` and extensionless imports, which tsconfig knows
+  about and Node does not;
+- a stub for `@/emails/templates`, the one `.tsx` file `lib/` pulls in — Node
+  strips types but does not transform JSX.
+
+The resolver is opt-in via `--import`, so nothing but the test runner sees it.
+
+Still unexercised: interviews, ratings, referral payouts, and the two checkout
+routes that talk to PayPal and PayMongo live. The webhooks either side of them
+are covered.

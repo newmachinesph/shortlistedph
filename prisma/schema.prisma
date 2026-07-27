@@ -586,7 +586,19 @@ model Payment {
   currency    String
   purpose     String // a ProductId: single | three_pack | interview_single | interview_five | verification
   status      String   @default("pending")
+  // Set only by a FULL refund, which is what `status = "refunded"` means to
+  // every reader of this table. A partial refund moves refundedAmount and
+  // leaves both of these alone — the purchase still stands, just for less.
   refundedAt  DateTime?
+  // Cumulative money handed back. Both providers support partial refunds, and
+  // treating every refund event as the whole purchase revoked goods the buyer
+  // had still paid for.
+  refundedAmount Decimal @default(0) @db.Decimal(10, 2)
+  // Provider refund ids already applied. providerRef's uniqueness makes the
+  // CAPTURE idempotent; it cannot do the same job for refunds, because many
+  // refunds share one payment and a redelivered webhook would otherwise claw
+  // back the same amount twice.
+  refundRefs  String[] @default([])
   createdAt   DateTime @default(now())
 
   // Restrict, not Cascade: a payment is the record that money changed hands.

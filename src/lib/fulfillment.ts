@@ -261,43 +261,114 @@ export async function markPaymentFailed(providerRef: string) {
  */
 export async function markPaymentRefunded(
   providerRef: string,
-  /**
-   * What the provider says was refunded, used only when the capture has not
-   * landed yet. Payment.userId is not nullable, so a pre-capture refund can be
-   * recorded at all only when the caller could resolve the payer from the
-   * event itself.
-   */
-  refunded?: {
-    userId: string;
-    provider: "paypal" | "paymongo";
-    productId: ProductId;
-    amount: number;
-    currency: string;
-  },
+  opts: {
+    /**
+     * What the provider says was refunded, used only when the capture has not
+     * landed yet. Payment.userId is not nullable, so a pre-capture refund can
+     * be recorded at all only when the caller could resolve the payer from the
+     * event itself.
+     */
+    payer?: {
+      userId: string;
+      provider: "paypal" | "paymongo";
+      productId: ProductId;
+      amount: number;
+      currency: string;
+    };
+    /**
+     * THIS refund — its own provider id and the amount it returned, which is
+     * not necessarily the whole purchase.
+     *
+     * Omitting it means "the whole thing came back", which is what every caller
+     * used to mean implicitly. The id is the idempotency key: Payment's unique
+     * providerRef makes the CAPTURE safe to redeliver and says nothing at all
+     * about refunds, of which one payment can have several.
+     */
+    refund?: { id?: string; amount?: number };
+  } = {},
 ): Promise<{
   revoked: number;
   alreadySpent: number;
   commissionVoided: boolean;
+  /** False when money came back but the purchase still partly stands. */
+  full: boolean;
 }> {
   const payment = await db.payment.findUnique({ where: { providerRef } });
-  if (!payment) return recordPreCaptureRefund(providerRef, refunded);
+  if (!payment) return recordPreCaptureRefund(providerRef, opts.payer);
+
+  const paidMinor = toMinorUnits(payment.amount.toString());
+  const refundId = opts.refund?.id;
 
   const result = await db.$transaction(async (tx) => {
+    // Re-read inside the transaction: two refund webhooks for the same payment
+    // can land at once, and the running total each one adds to has to be the
+    // one the other already committed.
+    const current = await tx.payment.findUniqueOrThrow({ where: { providerRef } });
+    if (refundId && current.refundRefs.includes(refundId)) {
+      return {
+        revoked: 0,
+        alreadySpent: 0,
+        commissionVoided: false,
+        full: current.status === "refunded",
+      };
+    }
+
+    // No amount means the caller could not say, and the only safe reading of
+    // "refunded, amount unknown" is all of it.
+    const thisMinor =
+      opts.refund?.amount == null ? paidMinor : toMinorUnits(opts.refund.amount);
+    const returnedMinor = Math.min(
+      paidMinor,
+      toMinorUnits(current.refundedAmount.toString()) + thisMinor,
+    );
+    const full = returnedMinor >= paidMinor;
+
     await tx.payment.update({
       where: { providerRef },
-      data: { status: "refunded", refundedAt: new Date() },
+      data: {
+        refundedAmount: (returnedMinor / 100).toFixed(2),
+        ...(refundId ? { refundRefs: { push: refundId } } : {}),
+        // status and refundedAt say "this purchase is undone" to every reader
+        // of the table, so only a refund that actually undoes it writes them.
+        ...(full ? { status: "refunded", refundedAt: new Date() } : {}),
+      },
     });
 
     const granted = await tx.entitlement.findMany({
-      where: { source: providerRef, revokedAt: null },
-      select: { id: true, kind: true, spentOnSlateId: true, spentOnInterviewId: true },
+      where: { source: providerRef },
+      select: {
+        id: true,
+        kind: true,
+        revokedAt: true,
+        spentOnSlateId: true,
+        spentOnInterviewId: true,
+      },
     });
-    const spendable = granted.filter((e) => !e.spentOnSlateId && !e.spentOnInterviewId);
-    const alreadySpent = granted.length - spendable.length;
+    const alreadyRevoked = granted.filter((e) => e.revokedAt).length;
+    const live = granted.filter((e) => !e.revokedAt);
+    const spendable = live.filter((e) => !e.spentOnSlateId && !e.spentOnInterviewId);
 
-    if (spendable.length > 0) {
+    // How many of the goods the money returned so far actually pays for. A
+    // refund of one credit out of five used to revoke all five — the buyer
+    // still holds four they paid for. Floored, so a rounding cent never takes
+    // back a credit the refund did not cover; the epsilon is there because
+    // $39.67 of $119.00 is one third and does not divide exactly.
+    const covered =
+      granted.length === 0
+        ? 0
+        : full
+          ? granted.length
+          : Math.floor((returnedMinor * granted.length) / paidMinor + 1e-9);
+    const owed = Math.max(0, covered - alreadyRevoked);
+    const toRevoke = spendable.slice(0, owed);
+    // Credits this refund should have reclaimed but could not, because they are
+    // already spent. An unlocked slate cannot be un-seen — that is a human
+    // conversation, not a rollback.
+    const alreadySpent = Math.min(live.length - spendable.length, owed - toRevoke.length);
+
+    if (toRevoke.length > 0) {
       await tx.entitlement.updateMany({
-        where: { id: { in: spendable.map((e) => e.id) } },
+        where: { id: { in: toRevoke.map((e) => e.id) } },
         data: { revokedAt: new Date(), revokedReason: `refund:${providerRef}` },
       });
 
@@ -309,11 +380,11 @@ export async function markPaymentRefunded(
         // Entitlements are revoked but no balance moved. Loud, because the
         // silent version of this reported a clean clawback that never happened.
         console.error(
-          `[fulfillment] refund ${providerRef}: revoked ${spendable.length} entitlement(s) but user ${payment.userId} has no employer account — balance NOT adjusted`,
+          `[fulfillment] refund ${providerRef}: revoked ${toRevoke.length} entitlement(s) but user ${payment.userId} has no employer account — balance NOT adjusted`,
         );
       } else {
-        const credits = spendable.filter((e) => e.kind === "credit").length;
-        const interview = spendable.filter((e) => e.kind === "interview_credit").length;
+        const credits = toRevoke.filter((e) => e.kind === "credit").length;
+        const interview = toRevoke.filter((e) => e.kind === "interview_credit").length;
         // Atomic decrement, NOT read-then-write. Reading the balance and
         // writing back `read - n` loses any concurrent unlock or interview
         // confirm that commits in between: the refund would restore a credit
@@ -337,12 +408,15 @@ export async function markPaymentRefunded(
       }
     }
 
-    if (payment.purpose === "verification") {
+    if (payment.purpose === "verification" && full) {
       // Fulfilment opened a review; without closing it hasOpenVerification
       // keeps refusing a new attempt forever — paid, refunded, and locked out
       // of ever paying again. Only a still-pending attempt is touched: an
       // approved one is a badge already granted, which is a human conversation
       // rather than a status flip.
+      //
+      // Full refunds only. A partial refund of the at-cost verification fee
+      // still leaves an attempt that was paid for.
       await tx.identityBinding.updateMany({
         where: { userId: payment.userId, status: "pending" },
         data: {
@@ -353,34 +427,50 @@ export async function markPaymentRefunded(
       });
     }
 
-    // The affiliate is paid for a purchase that no longer exists.
-    // The exact string matters: the admin un-void path refuses to resurrect
-    // commissions killed by a refund, and it keys off this reason.
-    const voided = await tx.referralCommission.updateMany({
-      where: { paymentId: providerRef, voidedAt: null },
-      data: { voidedAt: new Date(), voidedReason: REFUNDED_REASON },
-    });
+    // The affiliate is paid for a purchase that no longer exists — but only a
+    // FULL refund makes that true. The commission is a flat fee per qualifying
+    // purchase, not a share of it, so a partly-refunded purchase that still
+    // stands still earned it. Taking someone else's money back over a partial
+    // refund is the more expensive mistake of the two.
+    const voided = full
+      ? await tx.referralCommission.updateMany({
+          // The exact string matters: the admin un-void path refuses to
+          // resurrect commissions killed by a refund, and it keys off this
+          // reason.
+          where: { paymentId: providerRef, voidedAt: null },
+          data: { voidedAt: new Date(), voidedReason: REFUNDED_REASON },
+        })
+      : { count: 0 };
 
     // An admin void that landed FIRST matched every live row, so the write
     // above matches none and the refund leaves no trace at all — the un-void
     // then pays out a purchase that was handed back. Overwriting the reason is
     // what makes the refund the last word regardless of arrival order.
-    const claimed = await tx.referralCommission.updateMany({
-      where: { paymentId: providerRef, voidedReason: VOIDED_REASON },
-      data: { voidedReason: REFUNDED_REASON },
-    });
+    const claimed = full
+      ? await tx.referralCommission.updateMany({
+          where: { paymentId: providerRef, voidedReason: VOIDED_REASON },
+          data: { voidedReason: REFUNDED_REASON },
+        })
+      : { count: 0 };
 
     const commissionVoided = voided.count + claimed.count > 0;
     await tx.auditLog.create({
       data: {
         actorId: null,
-        action: "payment.refunded",
+        action: full ? "payment.refunded" : "payment.partially_refunded",
         target: providerRef,
-        meta: { revoked: spendable.length, alreadySpent, commissionVoided },
+        meta: {
+          revoked: toRevoke.length,
+          alreadySpent,
+          commissionVoided,
+          returned: (returnedMinor / 100).toFixed(2),
+          of: payment.amount.toString(),
+          ...(refundId ? { refundId } : {}),
+        },
       },
     });
 
-    return { revoked: spendable.length, alreadySpent, commissionVoided };
+    return { revoked: toRevoke.length, alreadySpent, commissionVoided, full };
   });
 
   if (result.alreadySpent > 0) {
@@ -390,11 +480,17 @@ export async function markPaymentRefunded(
   }
 
   // Best-effort, post-commit: never let a notification failure undo a refund.
+  // Only announces what this event actually returned — telling someone their
+  // whole purchase was refunded when one credit came back is worse than silence.
   try {
     await notify({
       userId: payment.userId,
       type: "payment_refunded",
-      payload: { amount: String(payment.amount), currency: payment.currency, reference: providerRef },
+      payload: {
+        amount: String(opts.refund?.amount ?? payment.amount),
+        currency: payment.currency,
+        reference: providerRef,
+      },
     });
   } catch (e) {
     console.error("[fulfillment] refund notification failed", e);
@@ -422,8 +518,16 @@ async function recordPreCaptureRefund(
     amount: number;
     currency: string;
   },
-): Promise<{ revoked: number; alreadySpent: number; commissionVoided: boolean }> {
-  const nothing = { revoked: 0, alreadySpent: 0, commissionVoided: false };
+): Promise<{
+  revoked: number;
+  alreadySpent: number;
+  commissionVoided: boolean;
+  full: boolean;
+}> {
+  // `full: true` because the row this writes exists only to STOP a later
+  // capture granting anything. Whether the provider returned part or all of it,
+  // nothing was granted, so there is no remainder still standing.
+  const nothing = { revoked: 0, alreadySpent: 0, commissionVoided: false, full: true };
   if (!refunded) {
     console.error(
       `[fulfillment] refund ${providerRef}: no payment row and no payer resolvable from the event — a later capture WILL grant against it`,
@@ -443,6 +547,7 @@ async function recordPreCaptureRefund(
           purpose: refunded.productId,
           status: "refunded",
           refundedAt: new Date(),
+          refundedAmount: refunded.amount,
         },
       });
       await tx.auditLog.create({

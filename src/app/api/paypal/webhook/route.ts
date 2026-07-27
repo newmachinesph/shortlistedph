@@ -94,18 +94,28 @@ export async function POST(req: Request) {
             })
           : null;
 
-      await markPaymentRefunded(
-        refundedCapture,
-        employer && product
-          ? {
-              userId: employer.userId,
-              provider: "paypal",
-              productId: product,
-              amount: Number(event.resource?.amount?.value ?? 0),
-              currency: event.resource?.amount?.currency_code ?? "USD",
-            }
-          : undefined,
-      );
+      const amount = Number(event.resource?.amount?.value ?? 0);
+
+      await markPaymentRefunded(refundedCapture, {
+        // resource.amount on a REFUNDED delivery is what this refund returned,
+        // and PayPal allows that to be part of the capture. resource.id is the
+        // refund's own id, which is what makes it the right idempotency key —
+        // one capture can be refunded more than once.
+        refund: {
+          id: captureId,
+          amount: refundedCapture === captureId ? undefined : amount,
+        },
+        payer:
+          employer && product
+            ? {
+                userId: employer.userId,
+                provider: "paypal",
+                productId: product,
+                amount,
+                currency: event.resource?.amount?.currency_code ?? "USD",
+              }
+            : undefined,
+      });
       return NextResponse.json({ received: true, refunded: true });
     }
 

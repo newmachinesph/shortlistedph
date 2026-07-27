@@ -13,7 +13,8 @@
     "backfill:facets": "node --experimental-strip-types scripts/backfill-facet-embeddings.ts",
     "seed:admin": "node --experimental-strip-types scripts/seed-admin.ts",
     "seed:interviewers": "node --experimental-strip-types scripts/seed-interviewers.ts",
-    "smoke": "node --experimental-strip-types scripts/smoke-core-loop.ts"
+    "smoke": "node --experimental-strip-types scripts/smoke-core-loop.ts",
+    "test:money": "node --conditions=react-server --import ./scripts/node-resolve.mjs --experimental-strip-types --test \"src/**/*.dbtest.ts\""
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1090.0",

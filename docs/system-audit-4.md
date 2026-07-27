@@ -144,9 +144,17 @@ session handling and `role`/`status` being server-set; secrets.
   comment describing parking behaviour nobody implemented.
 - Opt-out still doesn't stop queued invitations: the consent agent filtered on
   `visibility` while the engine agent redefined opt-out as `openToOffers`.
-- Partial refunds revoke the entire purchase.
-- The PayMongo webhook has the exact id-mismatch twin of the PayPal bug round 3
-  fixed.
+- ~~Partial refunds revoke the entire purchase.~~ **Fixed and executed.**
+  Revocation is now proportional to what actually came back, the running total
+  lives on `Payment.refundedAmount`, and `refundRefs` makes a redelivered refund
+  webhook a no-op — `providerRef` only ever made the *capture* idempotent. Only
+  a full refund flips `status`, closes a verification or voids the commission.
+  Proven by `npm run test:money`: the four partial-refund tests failed against
+  the old code and pass against the new.
+- ~~The PayMongo webhook has the exact id-mismatch twin of the PayPal bug round
+  3 fixed.~~ **Fixed.** A refund delivery carries the refund (`ref_…`), and the
+  payment is in `attributes.payment_id` — confirmed against PayMongo's current
+  docs, not assumed.
 
 ---
 
@@ -160,3 +168,8 @@ close to what is being removed.
 
 The next increment of confidence does not come from a fifth audit. It comes from
 running the application and from tests on the money paths.
+
+**Both now exist** (2026-07-27). `npm run smoke` drives the core loop against a
+running app; `npm run test:money` runs the refund ledger against a real
+Postgres. The two money bugs above were fixed under tests written to fail
+first — which is the difference between this round and the four before it.

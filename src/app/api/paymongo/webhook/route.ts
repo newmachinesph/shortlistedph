@@ -28,6 +28,8 @@ export async function POST(req: Request) {
             currency?: string;
             metadata?: Record<string, string>;
             payment_intent_id?: string;
+            // Refund payloads only — the payment this refund belongs to.
+            payment_id?: string;
           };
         };
       };
@@ -81,22 +83,37 @@ export async function POST(req: Request) {
     }
 
     if ((type === "payment.refunded" || type === "payment.refund.updated") && ref) {
+      // On a refund delivery the payload is the REFUND (ref_…), not the payment
+      // it belongs to — its id is in attributes.payment_id. Matching
+      // Payment.providerRef against the refund's own id found nothing, so every
+      // PayMongo refund was dropped: the exact twin of the PayPal bug where
+      // resource.id is the refund and the capture lives in related_ids. The
+      // fallback covers a delivery that carries the payment itself.
+      const refundedPayment = attrs?.payment_id ?? ref;
+
       // The payer is passed through so a refund arriving before the paid event
       // still leaves a refunded row behind — without one, the paid event that
       // follows opens a verification attempt for money already returned.
+      // A refund payload carries no metadata of its own, so this only resolves
+      // when PayMongo echoes the payment's; markPaymentRefunded logs loudly
+      // when it cannot.
       const userId = attrs?.metadata?.userId;
-      await markPaymentRefunded(
-        ref,
-        userId
+      const amount = (attrs?.amount ?? 0) / 100;
+
+      await markPaymentRefunded(refundedPayment, {
+        // attributes.amount on a refund is what THIS refund returned, which
+        // PayMongo allows to be less than the payment.
+        refund: { id: ref, amount },
+        payer: userId
           ? {
               userId,
               provider: "paymongo",
               productId: "verification",
-              amount: (attrs?.amount ?? 0) / 100,
+              amount,
               currency: attrs?.currency ?? "PHP",
             }
           : undefined,
-      );
+      });
       return NextResponse.json({ received: true, refunded: true });
     }
 
