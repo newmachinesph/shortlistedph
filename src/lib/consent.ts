@@ -66,7 +66,20 @@ export async function sendConsentRequests(jdId: string, limit?: number): Promise
       // killing the link silently would leave the expiry cron free to stamp a
       // dormancy strike for an invite we had barred them from answering. The
       // toggle's own copy scopes itself the same way ("no NEW invitations").
-      profile: { visibility: true },
+      //
+      // THIS LIST MUST MATCH THE POOL QUERY in lib/matching.ts. It did not:
+      // this end checked `visibility` alone while the engine end had grown
+      // three more gates, so unticking "I'm open to new offers" stopped new
+      // ranking and still let every already-queued invitation through — the
+      // one promise the checkbox makes in so many words. Being un-matchable
+      // has four doors and all four have to close the outbox too.
+      profile: {
+        visibility: true,
+        openToOffers: true,
+        dormantAt: null,
+        availability: { not: "booked" },
+        user: { status: "active" },
+      },
     },
     orderBy: { createdAt: "asc" },
     select: {

@@ -137,13 +137,25 @@ session handling and `role`/`status` being server-set; secrets.
 
 ## ROUND-3 FIXES THAT DO NOT WORK
 
-- The mass-elimination bug is still live: `jdHardRequirements` returns the
-  stored JSON before reaching the corrected derivation, and round 3's own JD
-  PATCH now rewrites that JSON on every edit.
-- `sendAttempts` is a dead column — shipped with a migration and a schema
-  comment describing parking behaviour nobody implemented.
-- Opt-out still doesn't stop queued invitations: the consent agent filtered on
-  `visibility` while the engine agent redefined opt-out as `openToOffers`.
+- ~~The mass-elimination bug is still live.~~ **Stale entry — verified fixed.**
+  `jdHardRequirements` builds a fresh object and never returns the stored JSON
+  wholesale, `hardRequirementsJson` no longer composes `hoursPerWeekMin` on
+  either the POST or the PATCH path, and `filters.test.ts` asserts the exact
+  scenario ("$12/hr ceiling, 40h role" must not eliminate a candidate with one
+  committed hour). This entry was written before the round-4 fix wave landed.
+- ~~`sendAttempts` is a dead column.~~ **Stale entry — verified implemented.**
+  `lib/consent.ts` counts failed deliveries and parks the row at
+  `CONSENT_MAX_SEND_ATTEMPTS`, expired with no dormancy strike.
+- ~~Opt-out still doesn't stop queued invitations.~~ **Fixed and executed.**
+  This one was real. The pool query requires `visibility AND openToOffers AND
+  dormantAt IS NULL AND availability <> 'booked' AND user.status = 'active'`;
+  `sendConsentRequests` checked `visibility` alone, so unticking "I'm open to
+  new offers" — whose copy promises "no new invitation is sent" — stopped new
+  ranking while every already-queued invitation still went out. Booked, dormant
+  and suspended had the same hole. All three send paths (admin approval, cron
+  backfill, cron resend) route through that one function, so the single filter
+  covers them. `consent.dbtest.ts` holds the two lists together; four of its
+  six tests failed against the old code.
 - ~~Partial refunds revoke the entire purchase.~~ **Fixed and executed.**
   Revocation is now proportional to what actually came back, the running total
   lives on `Payment.refundedAmount`, and `refundRefs` makes a redelivered refund

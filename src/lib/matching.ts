@@ -211,6 +211,12 @@ export async function rankQualifiedForJd(jd: Jd): Promise<{
   // employer — 15% overlap weight could never stop skills 90 / rate 100 from
   // leading a slate with them. Both belong to the same class as visibility and
   // dormancy: not matchable, so never fetched, whatever the flag says.
+  //
+  // The WHERE below is one half of the definition of "matchable". The other is
+  // sendConsentRequests in lib/consent.ts, which decides whether an invitation
+  // already queued may still be emailed — a candidate can opt out in the gap
+  // between the two. Change either list and change both, or opting out stops
+  // new ranking while the backlog keeps arriving.
   const rawPool = await db.$transaction(
     async (tx) => {
       // hnsw.ef_search caps how many candidates the index will even consider,
