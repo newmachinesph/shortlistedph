@@ -21,6 +21,7 @@ import {
   PayoutRejected,
   PayoutSent,
   RatingReceived,
+  ReactivationInvite,
   ReferralConverted,
   ResetPassword,
   SlateDelivered,
@@ -290,6 +291,13 @@ export const mail = {
       mustHaves: string[];
     },
   ) => send(to, "You've been shortlisted", MatchConsentRequest(args)),
+
+  // The migrated remotetalentph pool's only way in — they have no Account row,
+  // so reset-password cannot reach them. Transactional sender for that reason,
+  // but still kind "outreach": it is an unrequested email to someone who never
+  // signed up here, so the kill switch must be able to stop it.
+  reactivationInvite: (to: string, args: { name: string; token: string }) =>
+    send(to, "Your remotetalentph profile has moved to shortlisted.ph", ReactivationInvite(args)),
 
   paymentReceipt: (
     to: string,

@@ -150,6 +150,21 @@ model TalentProfile {
   // the candidate; it routes the profile to a human. See lib/resume-guard.ts.
   flags String[] @default([])
 
+  // Re-activation, for profiles imported from remotetalentph.
+  //
+  // They land unpublished by design: these people signed up to a different
+  // product, and putting them in front of employers without asking is the
+  // consent violation this platform exists to prevent. They also have no
+  // Account row, so password reset cannot reach them — this token is their
+  // only way in, exactly like a MatchConsent token.
+  //
+  // reactivatedAt records that a real person came back, set a password and
+  // chose what happens to their profile. Publishing is THEIR decision, never
+  // an import's.
+  reactivationToken  String?   @unique
+  reactivationSentAt DateTime?
+  reactivatedAt      DateTime?
+
   publishedAt     DateTime?
   lastEditedAt    DateTime  @default(now())
   createdAt       DateTime  @default(now())

@@ -450,6 +450,61 @@ export function MatchConsentRequest({
   );
 }
 
+export function ReactivationInvite({ name, token }: { name: string; token: string }) {
+  const url = `${SITE_URL}/reactivate/${token}`;
+  // Written to be read by a regulator as easily as by the recipient: what we
+  // hold, that nobody has seen it, that nothing happens without an answer, and
+  // that deleting it outright is one of the three equal options. No deadline,
+  // no counting-down language, nothing that rewards saying yes over saying no.
+  return (
+    <Shell
+      preview="Your remotetalentph profile has moved — nothing is visible until you decide"
+      footnote="You're getting this because you created a profile on remotetalentph with this address. If you never answer, your profile stays unpublished and unseen. This link is personal to you — please don't forward it."
+    >
+      <Text style={s.heading}>Your remotetalentph profile has moved</Text>
+      <Text style={s.text}>
+        Hi {name} — you created a profile on remotetalentph. That profile has
+        been moved to shortlisted.ph, with the details you wrote: your headline,
+        your summary, your skills and your work history.
+      </Text>
+      <Text style={s.text}>
+        <strong style={{ color: s.palette.ink }}>
+          It is not visible to anyone.
+        </strong>{" "}
+        No employer has seen it, it has never been put in front of anyone, and
+        it will stay that way unless you tell us otherwise. You never agreed to
+        be shown to employers here, so we are asking rather than assuming.
+      </Text>
+      <Section style={s.card}>
+        <Text style={{ ...s.text, margin: "0 0 10px" }}>
+          <strong style={{ color: s.palette.ink }}>Publish it.</strong> Your
+          profile enters matching. Employers describe a role, we ask you first,
+          and nothing about you is shared until you say yes to that specific
+          job.
+        </Text>
+        <Text style={{ ...s.text, margin: "0 0 10px" }}>
+          <strong style={{ color: s.palette.ink }}>Keep it private.</strong> We
+          hold it, unpublished and unseen, and you decide another day.
+        </Text>
+        <Text style={{ ...s.text, margin: 0 }}>
+          <strong style={{ color: s.palette.ink }}>Delete it.</strong> The
+          profile and the account are removed for good.
+        </Text>
+      </Section>
+      <Text style={s.text}>
+        The link below shows you everything we hold before you choose.
+      </Text>
+      <Button href={url}>See my profile and decide</Button>
+      <Text style={s.small}>
+        We never had a password for you, so a password reset cannot reach this
+        account — this link is the only way in. You will set a password if you
+        publish or keep the profile. Deleting it needs no password.
+      </Text>
+      <Fallback url={url} />
+    </Shell>
+  );
+}
+
 export function SlateDelivered({
   company,
   jobTitle,

@@ -13,6 +13,7 @@
  * Idempotent via TalentProfile.legacyId and User.email.
  */
 import "dotenv/config";
+import { randomBytes } from "node:crypto";
 import { config } from "dotenv";
 import { Client } from "pg";
 import { PrismaClient } from "@prisma/client";
@@ -202,6 +203,11 @@ async function main() {
             visibility: true,
             // publishedAt stays null — no consent, no matching.
             publishedAt: null,
+            // Minted at import, not at send time, so every imported profile is
+            // invitable from the moment it exists. Without it the re-activation
+            // send has nothing to address and the whole pool is unreachable —
+            // which is exactly the state this migration used to leave behind.
+            reactivationToken: randomBytes(16).toString("hex"),
             lastEditedAt: r.updatedAt ?? new Date(),
             skills: {
               create: profileSkills.map((n) => ({ name: n, normalizedName: normalizeSkill(n) })),
