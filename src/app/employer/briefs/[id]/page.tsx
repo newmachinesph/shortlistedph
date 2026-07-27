@@ -17,6 +17,7 @@ import { db } from "@/lib/db";
 import { SLATE_SIZE, jdHardRequirements } from "@/lib/matching";
 import { eliminationCounts, employerOrOnboard, getSlateForJd, requirePageUser } from "@/lib/queries";
 import { availabilityHint, availabilityStatus, freshnessNote } from "@/lib/availability";
+import { prospectCount } from "@/lib/prospect-count";
 import { activeInterviewers, employerPrice, INTERVIEW_DURATION_MINUTES } from "@/lib/interviews";
 import { RequestConnection } from "@/components/request-connection";
 import { InterviewPool } from "@/components/interview-pool";
@@ -145,6 +146,12 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
       ? eliminationLines(await eliminationCounts(jd.id), jdHardRequirements(jd).rateMaxUsd ?? null)
       : [];
 
+  // "no_matches" covers two outcomes the copy used to collapse: nobody cleared
+  // the bar, and there was nobody to rank at all. Nothing on the row records
+  // which, so the whole matchable pool is counted here — the same count the
+  // public funnel is sold on — and only for the branch that needs it.
+  const poolSize = jd.status === "no_matches" ? await prospectCount({}) : 0;
+
   const interviewedIds = new Set<string>();
   if (slate?.unlocked) {
     const live = await db.interview.findMany({
@@ -229,23 +236,51 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
         <div className="mt-6 rounded-2xl border border-line bg-white p-6 text-center sm:p-10">
           <SearchX className="mx-auto h-8 w-8 text-ember" strokeWidth={1.5} />
           <h2 className="font-display mt-4 text-lg font-semibold text-ink">
-            No one cleared the bar
+            {poolSize === 0 ? "There was nobody to rank" : "No one cleared the bar"}
           </h2>
+          {/* Two different verdicts that used to read as one. An empty pool is
+              not a failed bar: nothing was scanned, and no wording about the
+              must-haves being too tight is true of it. */}
           <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-ink-soft">
-            We ranked the market against this job description and nobody was a strong enough match
-            to put in front of you. You have not been charged, and no credit was used.
+            {poolSize === 0 ? (
+              <>
+                There is nobody in the matchable pool right now, so this job description was never
+                ranked against anyone. You have not been charged, and no credit was used. This one
+                needs sourcing, not a narrower or wider brief.
+              </>
+            ) : (
+              <>
+                Nobody was a strong enough match to put in front of you. You have not been charged,
+                and no credit was used.
+              </>
+            )}
           </p>
           <EliminationNotes lines={elimLines} className="mx-auto mt-4 max-w-md text-left" />
-          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-ink-faint">
-            Padding a shortlist with near-misses would waste your time and ours. Try widening the
-            must-haves or the budget band — we&rsquo;ll re-run the match.
-          </p>
-          <Link
-            href="/employer/briefs/new"
-            className="mt-6 inline-block rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
-          >
-            Adjust and try again
-          </Link>
+          {poolSize > 0 && (
+            <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-ink-faint">
+              Padding a shortlist with near-misses would waste your time and ours. There are{" "}
+              {poolSize} available {poolSize === 1 ? "profile" : "profiles"} in the pool today —
+              widening the must-haves or the budget band is usually what reaches them.
+            </p>
+          )}
+          {/* This brief has already been ranked, so it cannot be posted again —
+              the honest routes out are a fresh brief, or asking us to re-run
+              this one, which is an operator action and not a self-service one.
+              The old CTA promised an automatic re-run that never existed. */}
+          <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Link
+              href="/employer/briefs/new"
+              className="inline-flex min-h-11 items-center rounded-xl bg-brand px-5 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
+            >
+              Post a revised brief
+            </Link>
+            <Link
+              href="/employer/support"
+              className="inline-flex min-h-11 items-center rounded-xl px-5 text-sm font-medium text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft"
+            >
+              Ask us to re-run this one
+            </Link>
+          </div>
         </div>
       ) : jd.status === "failed" ? (
         // Terminal, and NOT "in progress" — nothing will move without us.

@@ -5,6 +5,7 @@ import { mail } from "./email";
 import { candidateRoleLabel } from "./openings-shape";
 import { notify } from "./notify";
 import { HttpError } from "./session";
+import { outreachEmailsEnabled } from "./settings";
 
 /**
  * Consent-first matching, candidate side. A MatchConsent row is created at
@@ -19,15 +20,30 @@ export const CONSENT_WINDOW_HOURS = 48;
 export const CONSENT_CAP_MULTIPLIER = 3;
 
 /**
+ * Delivery failures after which a consent is parked rather than retried.
+ *
+ * Three, not one: a single transport blip must never burn a real invitation.
+ */
+export const CONSENT_MAX_SEND_ATTEMPTS = 3;
+
+/**
  * Emails the pending, not-yet-sent consents for a JD, oldest first. The
  * countdown starts at SEND: expiresAt is stamped sentAt + 48h only when the
- * email actually went out. mail.matchConsentRequest rides the outreach kill
- * switch — when suppressed it returns false, the consent stays unsent, and the
- * cron retries once outreach is back on. Nothing unsent can ever expire anyone.
+ * email actually went out. While the outreach kill switch is off this does
+ * nothing at all and the consents wait, untouched, for it to come back on.
+ * Nothing unsent can ever expire anyone.
  *
  * `limit` counts DELIVERIES, not attempts — see the loop.
  */
 export async function sendConsentRequests(jdId: string, limit?: number): Promise<{ sent: number }> {
+  // The kill switch is read HERE, once, instead of being inferred from a false
+  // return inside the loop. mail.matchConsentRequest reports a suppressed send
+  // and a genuine transport failure identically, so counting the suppressed one
+  // would park the entire pool within CONSENT_MAX_SEND_ATTEMPTS runs of
+  // outreach being switched off — the exact accident the schema comment warns
+  // about. With this, every `delivered === false` below is a real failure.
+  if (!(await outreachEmailsEnabled())) return { sent: 0 };
+
   const pending = await db.matchConsent.findMany({
     where: {
       jdId,
@@ -56,6 +72,7 @@ export async function sendConsentRequests(jdId: string, limit?: number): Promise
     select: {
       id: true,
       token: true,
+      sendAttempts: true,
       profile: { select: { user: { select: { email: true } } } },
       jd: {
         select: {
@@ -94,7 +111,26 @@ export async function sendConsentRequests(jdId: string, limit?: number): Promise
       overlap: c.jd.overlap,
       mustHaves: c.jd.mustHaves,
     });
-    if (!delivered) continue;
+    if (!delivered) {
+      // A real delivery failure. Count it, and park the row once it has failed
+      // CONSENT_MAX_SEND_ATTEMPTS times so one dead address stops being retried
+      // every hour forever. Parking is "expired" with NO dormancy strike: the
+      // candidate was never reached, so there is nothing for them to have
+      // ignored — and leaving it "pending" with a null expiresAt was what kept
+      // it immortal, since the expiry cron only touches rows that were sent.
+      const attempts = c.sendAttempts + 1;
+      const parked = attempts >= CONSENT_MAX_SEND_ATTEMPTS;
+      await db.matchConsent.update({
+        where: { id: c.id },
+        data: { sendAttempts: attempts, ...(parked ? { status: "expired" } : {}) },
+      });
+      if (parked) {
+        console.warn(
+          `[consent] parked ${c.id} after ${attempts} failed deliveries to ${c.profile.user.email}`,
+        );
+      }
+      continue;
+    }
     const now = new Date();
     await db.matchConsent.update({
       where: { id: c.id },

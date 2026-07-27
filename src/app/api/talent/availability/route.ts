@@ -2,6 +2,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
 import { refreshProfileEmbeddings } from "@/lib/profile-embedding";
+import { rateLimit } from "@/lib/rate-limit";
 import { requireRole, requireTalentProfile } from "@/lib/session";
 
 const Body = z.object({
@@ -21,6 +22,10 @@ const Body = z.object({
 async function handle(req: Request) {
   try {
     const user = await requireRole("talent");
+    // A confirm on a published profile re-embeds four texts, same as any other
+    // profile write — so it shares the same bucket rather than being the one
+    // save in the app with no ceiling.
+    rateLimit("profileWrite", user.id);
     const profile = await requireTalentProfile(user.id);
     const { openToOffers, availability, noticePeriodDays } = await parseBody(req, Body);
 

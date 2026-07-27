@@ -243,13 +243,31 @@ export default async function InterviewsPage({
                       )}
 
                       {(iv.status === "paid" || iv.status === "scheduled") && (
-                        <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-                          Confirmed.
-                          {iv.scheduledAt
-                            ? ` Scheduled for ${stamp(iv.scheduledAt)}.`
-                            : " We're arranging a time with the interviewer."}{" "}
-                          The assessment and recording will appear here once the interview is done.
-                        </p>
+                        <>
+                          <p className="mt-3 text-sm leading-relaxed text-ink-soft">
+                            Confirmed.
+                            {iv.scheduledAt
+                              ? ` Scheduled for ${stamp(iv.scheduledAt)}.`
+                              : " We're arranging a time with the interviewer."}{" "}
+                            The assessment and recording will appear here once the interview is done.
+                          </p>
+                          {/* The link the interviewer runs the call on. You are
+                              paying for this interview — you get to sit in. */}
+                          {iv.meetingUrl ? (
+                            <a
+                              href={iv.meetingUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft"
+                            >
+                              <Video className="h-4 w-4" strokeWidth={1.75} /> Join the interview
+                            </a>
+                          ) : (
+                            <p className="mt-3 text-sm text-ink-faint">
+                              The join link appears here once the interviewer posts it.
+                            </p>
+                          )}
+                        </>
                       )}
 
                       {iv.status === "recorded" && (

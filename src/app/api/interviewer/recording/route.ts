@@ -21,8 +21,9 @@ const ALLOWED: Record<string, string> = {
   "audio/webm": "weba",
 };
 
-// Advisory only — a presigned PUT can't enforce length. A 30-minute recording
-// is large; this just stops an obviously wrong upload.
+// A 30-minute recording is large, but not unbounded. The declared size is
+// checked here and signed into the URL, so the object R2 accepts is the one
+// this route agreed to.
 const MAX_BYTES = 2 * 1024 * 1024 * 1024;
 
 const PresignBody = z.object({
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
     await scopedInterview(interviewId, interviewer.id);
 
     const key = `interviews/${interviewer.id}/${interviewId}/${Date.now()}.${ext}`;
-    const uploadUrl = await presignUpload(key, contentType);
+    const uploadUrl = await presignUpload(key, contentType, sizeBytes);
 
     return ok({ uploadUrl, key });
   } catch (e) {

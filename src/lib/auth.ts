@@ -29,6 +29,19 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
+    /**
+     * sendOnSignUp alone sent the mail and enforced nothing: an unverified
+     * account was fully usable, so an address could be squatted and every
+     * per-user rate limit was really limit × (accounts you can make in a
+     * minute). With this, no session is issued until the link is clicked.
+     *
+     * Only the credential path is gated. Google users arrive already verified
+     * from the provider; the migrated pool has no Account row and never signs
+     * in with a password at all, so the emailed consent link — deliberately
+     * session-free — is untouched; and scripts/seed-admin.ts sets
+     * emailVerified explicitly, so the admin is not locked out.
+     */
+    requireEmailVerification: true,
     // Without this, better-auth still answers "check your email" and sends
     // nothing — the reset flow looks fine and silently dead-ends.
     sendResetPassword: async ({ user, url }) => {
@@ -37,6 +50,10 @@ export const auth = betterAuth({
   },
   emailVerification: {
     sendOnSignUp: true,
+    // The 403 on an unverified sign-in is only a dead end if nothing re-sends
+    // the link. Any account that already exists unverified — or whose first
+    // mail was lost — gets a fresh one from the attempt itself.
+    sendOnSignIn: true,
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }) => {
       await mail.verifyEmail(user.email, user.name, url);

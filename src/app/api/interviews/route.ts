@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { fail, isUniqueViolation, ok, parseBody } from "@/lib/api";
 import { db } from "@/lib/db";
+import { mail } from "@/lib/email";
 import { employerPrice, interviewableEntry } from "@/lib/interviews";
 import { notify } from "@/lib/notify";
 import { HttpError, requireEmployer, requireRole } from "@/lib/session";
@@ -98,11 +99,29 @@ export async function POST(req: Request) {
     }
 
     // The candidate is asked to consent to being interviewed and recorded.
+    // Both channels, like a connection request: nothing here obliges the
+    // candidate to be logged in, and in-app alone made an unanswered request
+    // look like someone ignoring the employer. Best-effort — the interview is
+    // already created and a mail server must not undo it.
     await notify({
       userId: talentUserId,
       type: "interview_requested",
       payload: { company: employer.companyName, interviewId: interview.id },
     });
+    try {
+      const talent = await db.user.findUnique({
+        where: { id: talentUserId },
+        select: { email: true, name: true },
+      });
+      if (talent) {
+        await mail.interviewRequested(talent.email, {
+          name: talent.name,
+          company: employer.companyName,
+        });
+      }
+    } catch (e) {
+      console.error("[interviews] request email failed", e);
+    }
 
     return ok({ interviewId: interview.id, status: interview.status }, { status: 201 });
   } catch (e) {

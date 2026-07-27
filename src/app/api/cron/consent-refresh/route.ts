@@ -110,7 +110,16 @@ async function handle(req: Request) {
         if (needed <= 0) continue;
 
         // 2b. Invite the next qualified candidates, capped.
-        const room = SLATE_SIZE * CONSENT_CAP_MULTIPLIER - consents.length;
+        //
+        // The cap counts DELIVERED asks, not rows created. An ask nobody
+        // received consumes none of the market, and counting it let a JD log
+        // "pool exhausted" having emailed nothing at all: consents suppressed
+        // by the kill switch, withheld because the candidate hid their profile,
+        // or parked on a dead address sat pending with a null expiresAt
+        // forever, uncollectable by the expiry sweep above, eating the whole
+        // budget. They are still in `already` below, so nobody is re-invited.
+        const asked = consents.filter((c) => c.sentAt != null).length;
+        const room = SLATE_SIZE * CONSENT_CAP_MULTIPLIER - asked;
         if (room <= 0) {
           exhausted.push(jdId);
           console.info(`[cron:consent-refresh] jd ${jdId} hit the consent cap — pool exhausted`);

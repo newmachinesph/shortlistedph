@@ -64,16 +64,19 @@ export const JdBody = z.object({
 );
 
 /**
- * jdHardRequirements (lib/matching.ts) takes an explicit object WHOLESALE, so a
- * JSON carrying only the ceiling would silently switch the hours filter off.
- * Carry the JD's own hoursPerWeek in alongside it.
+ * The Stage 0 ceiling, and only the ceiling.
+ *
+ * This used to carry the JD's `hoursPerWeek` in as `hoursPerWeekMin`, reasoning
+ * that a JSON with only the ceiling would switch the hours filter off. Off is
+ * the correct behaviour: `hoursPerWeek` is the load the employer wants COVERED,
+ * while lib/filters.ts reads `hoursPerWeekMin` as a floor on the candidate's
+ * SPARE capacity. Deriving one from the other made a routine 40h brief
+ * eliminate every candidate with a single committed hour. A real floor has to
+ * be stated by the employer, and nothing asks for one yet.
  */
-export function hardRequirementsJson(
-  rateMaxUsd: number | null | undefined,
-  hoursPerWeek: number | null | undefined,
-) {
+export function hardRequirementsJson(rateMaxUsd: number | null | undefined) {
   if (rateMaxUsd == null) return Prisma.DbNull;
-  return { rateMaxUsd, hoursPerWeekMin: hoursPerWeek ?? null };
+  return { rateMaxUsd };
 }
 
 export async function POST(req: Request) {
@@ -91,7 +94,7 @@ export async function POST(req: Request) {
         ...body,
         mustHaves,
         niceToHaves,
-        hardRequirements: hardRequirementsJson(rateMaxUsd, body.hoursPerWeek),
+        hardRequirements: hardRequirementsJson(rateMaxUsd),
         // Canonical tool IDs for Phase 3 — alias-table hits only, unmapped
         // requirements stay prose in mustHaves/niceToHaves (engine-plan 2a).
         requiredTools: extractCanonicalTools(mustHaves),

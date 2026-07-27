@@ -11,6 +11,10 @@ import {
   ConnectionAccepted,
   ConnectionDeclined,
   ConnectionRequested,
+  InterviewRequested,
+  InterviewScheduled,
+  InterviewerApproved,
+  InterviewerRejected,
   MatchConsentRequest,
   OutcomeConfirmed,
   PaymentReceipt,
@@ -222,6 +226,24 @@ export const mail = {
     to: string,
     args: { name: string; company: string; jobTitle: string },
   ) => send(to, `${args.company} asked to be introduced`, ConnectionRequested(args)),
+
+  // An interview request is the same shape of ask as a connection: it needs the
+  // candidate's answer, and a candidate has no reason to be logged in. In-app
+  // only meant an unanswered request read as someone ignoring the employer.
+  interviewRequested: (to: string, args: { name: string; company: string }) =>
+    send(to, `${args.company} wants to interview you`, InterviewRequested(args)),
+
+  // The join link is what makes a booked interview actually happen.
+  interviewScheduled: (to: string, args: { name: string; when: string }) =>
+    send(to, "Your interview is scheduled", InterviewScheduled(args)),
+
+  // Both the application page and the portal promise "we'll be in touch". A
+  // bell icon is not being in touch.
+  interviewerApproved: (to: string, args: { name: string }) =>
+    send(to, "You're approved to run interviews", InterviewerApproved(args)),
+
+  interviewerRejected: (to: string, args: { name: string }) =>
+    send(to, "About your interviewer application", InterviewerRejected(args)),
 
   // The employer side of the same decision. Everything below here notifies a
   // party who would otherwise only learn about it by logging in and reloading.

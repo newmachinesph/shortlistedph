@@ -6,8 +6,9 @@ import { INJECTION_FLAG, scanResumeText, scrubExtraction, wrapResumeText } from 
 import { labelledBlocks, readTemplateFacts, splitSections } from "./resume-sections";
 
 /**
- * The presigned PUT carries no length condition, so the size declared when
- * requesting the URL is a claim, not a constraint. This is where it becomes one.
+ * The upload signature now bounds the PUT itself, but this path also parses
+ * objects it did not just sign for, so the bytes are re-checked once they are
+ * actually in hand.
  */
 export const MAX_RESUME_BYTES = 5 * 1024 * 1024;
 
@@ -221,7 +222,14 @@ export async function parseResume(
   if (!raw) throw new HttpError(502, "Extraction returned nothing");
   const parsed = sanitizeParsedUrls(ParsedResume.parse(JSON.parse(raw)));
 
-  const { profile: scrubbed, flags } = scrubExtraction(parsed);
+  // Template facts are applied BEFORE the scrub, not after. Applied after, they
+  // wrote headline, summary, city and tools verbatim from the document into the
+  // profile — four free-text fields that never met scanResumeText, which made
+  // our own parser the cheapest way past the injection guard. A value read off
+  // the page is still a value the candidate wrote.
+  const withTemplate = { ...parsed, ...templateOverrides(facts, parsed) };
+
+  const { profile: scrubbed, flags } = scrubExtraction(withTemplate);
   // Scanning the source too catches an attempt the model correctly ignored —
   // that document still deserves a look from a human.
   const flagged = flags.length > 0 || scanResumeText(text);
@@ -233,18 +241,18 @@ export async function parseResume(
       // so computeGaps asks the candidate to write it themselves.
       headline: scrubbed.headline ?? "",
       summary: scrubbed.summary ?? "",
-      // A value read straight off a template-formatted line beats the model's
-      // reading of the same line, because it is not a reading. Only overrides
-      // where the page actually stated something — a null fact leaves the
-      // model's answer alone. Injection scrubbing already ran, and these
-      // fields are numbers or short labels, so nothing re-enters here.
-      ...templateOverrides(facts, scrubbed),
     },
     flags: flagged ? [INJECTION_FLAG] : [],
   };
 }
 
-/** Only the fields the template states in a fixed, machine-readable format. */
+/**
+ * Only the fields the template states in a fixed, machine-readable format.
+ * A value read straight off a template line beats the model's reading of the
+ * same line, because it is not a reading. Only overrides where the page
+ * actually stated something — a null fact leaves the model's answer alone.
+ * Its free-text output goes through scrubExtraction like everything else.
+ */
 function templateOverrides(
   facts: ReturnType<typeof readTemplateFacts> | null,
   parsed: ParsedResume,

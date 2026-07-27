@@ -223,6 +223,30 @@ export function renderNotification(
         text: `One interview credit was returned to your balance.`,
         href: "/employer/interviews",
       };
+    // Vetting decisions. Every one of these used to be silent, while both the
+    // application page and the portal promised "we'll be in touch" — so an
+    // approved interviewer had no way to learn they could start.
+    case "interviewer_approved":
+      return {
+        text: `You're approved to run interviews — assignments appear in your portal.`,
+        href: "/interviewer",
+      };
+    case "interviewer_rejected":
+      return { text: `Your interviewer application was not approved.`, href: "/apply/interviewer" };
+    case "interviewer_paused":
+      return {
+        text: `Your interviewer account is paused. Existing assignments are still yours to finish.`,
+        href: "/interviewer",
+      };
+    case "interviewer_activated":
+      return { text: `Your interviewer account is active again.`, href: "/interviewer" };
+    case "interviewer_revoked":
+      return { text: `Your interviewer access has ended.`, href: null };
+    case "interview_meeting_link":
+      // Separate from interview_scheduled: the time and the joinable link
+      // arrive as two different events, and "there is now a link" is the one
+      // that decides whether the call can actually happen.
+      return { text: `Your interview now has a join link.`, href: `/${side}/interviews` };
     case "interview_assigned":
       return { text: `You have a confirmed interview to run for ${company}.`, href: "/interviewer" };
     case "interview_booked":

@@ -1,9 +1,25 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
+import { mail } from "@/lib/email";
+import { notify } from "@/lib/notify";
 import { HttpError, requireAdmin } from "@/lib/session";
 
 const Body = z.object({ action: z.enum(["approve", "reject", "pause", "activate", "revoke"]) });
+
+/**
+ * Both /apply/interviewer and the portal promise "we'll be in touch", and
+ * nothing was ever in touch: every one of these decisions was silent, so an
+ * approved interviewer had no way to learn they could start and a rejected one
+ * waited forever. One notification per decision, keyed to the action.
+ */
+const NOTIFY_TYPE: Record<z.infer<typeof Body>["action"], string> = {
+  approve: "interviewer_approved",
+  reject: "interviewer_rejected",
+  pause: "interviewer_paused",
+  activate: "interviewer_activated",
+  revoke: "interviewer_revoked",
+};
 
 /**
  * Vetting actions on one Interviewer application/record. `id` is Interviewer.id.
@@ -27,7 +43,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const interviewer = await db.interviewer.findUnique({
       where: { id },
-      select: { id: true, userId: true, status: true },
+      select: {
+        id: true,
+        userId: true,
+        status: true,
+        user: { select: { email: true, name: true } },
+      },
     });
     if (!interviewer) throw new HttpError(404, "Interviewer not found");
 
@@ -64,6 +85,24 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         meta: { userId: interviewer.userId },
       },
     });
+
+    // After the decision is committed and audited: notify() swallows its own
+    // failures, so a bell that does not light can never undo a vetting call.
+    await notify({ userId: interviewer.userId, type: NOTIFY_TYPE[action], payload: {} });
+
+    // Approve and reject also go by email. Those two are the decisions the
+    // applicant is actually waiting on, and someone who has been told "we'll be
+    // in touch" is by definition not sitting in the portal watching a bell.
+    // Best-effort: the decision is already made and audited.
+    try {
+      if (action === "approve") {
+        await mail.interviewerApproved(interviewer.user.email, { name: interviewer.user.name });
+      } else if (action === "reject") {
+        await mail.interviewerRejected(interviewer.user.email, { name: interviewer.user.name });
+      }
+    } catch (e) {
+      console.error("[admin/interviewers] decision email failed", e);
+    }
 
     return ok({ ok: true });
   } catch (e) {

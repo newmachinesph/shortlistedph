@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyHardFilters } from "./filters.ts";
+import { applyHardFilters, jdHardRequirements } from "./filters.ts";
 
 const cand = (id: string, over: Partial<Parameters<typeof applyHardFilters>[0][number]> = {}) => ({
   id,
@@ -83,4 +83,40 @@ test("limit stops at N survivors and reports only the eliminations met on the wa
 test("limit applies with no requirements too", () => {
   const r = applyHardFilters([cand("a"), cand("b"), cand("c")], null, 2);
   assert.deepEqual(r.passed.map((c) => c.id), ["a", "b"]);
+});
+
+// ── jdHardRequirements: the mass-elimination regression ──────────────────
+// This bug shipped twice. The test is the reason it cannot ship a third time.
+
+test("a stored hoursPerWeekMin never becomes a filter", () => {
+  // Exactly what the JD write path stores for "$12/hr ceiling, 40h role".
+  const hard = jdHardRequirements({
+    budgetMax: 12,
+    hardRequirements: { rateMaxUsd: 12, hoursPerWeekMin: 40 },
+  });
+  assert.equal(hard.rateMaxUsd, 12);
+  assert.equal(hard.hoursPerWeekMin ?? null, null);
+
+  // The proof it matters: with the old wholesale return, everyone carrying a
+  // single committed hour was eliminated from a routine 40h brief.
+  const r = applyHardFilters([cand("committed", { committedHours: 1 }), cand("free")], hard);
+  assert.deepEqual(r.passed.map((c) => c.id), ["committed", "free"]);
+  assert.deepEqual(r.eliminated, []);
+});
+
+test("no stored JSON derives the ceiling from budgetMax", () => {
+  const hard = jdHardRequirements({ budgetMax: 20, hardRequirements: null });
+  assert.equal(hard.rateMaxUsd, 20);
+});
+
+test("a stored ceiling wins over budgetMax", () => {
+  const hard = jdHardRequirements({ budgetMax: 20, hardRequirements: { rateMaxUsd: 12 } });
+  assert.equal(hard.rateMaxUsd, 12);
+});
+
+test("a JD stating no budget at all yields no ceiling", () => {
+  const hard = jdHardRequirements({ budgetMax: null });
+  assert.equal(hard.rateMaxUsd, null);
+  const r = applyHardFilters([cand("pricey", { rateUsd: 400 })], hard);
+  assert.deepEqual(r.passed.map((c) => c.id), ["pricey"]);
 });

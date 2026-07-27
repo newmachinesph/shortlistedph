@@ -326,6 +326,21 @@ export function OnboardingWizard({ hasResume, gaps, profile, skills, engagements
             PDF, DOC, DOCX or TXT · up to 5MB
           </span>
         </button>
+        {/* A scanned PDF, a legacy .doc, or an extraction that simply fails
+            leaves nothing to build a profile from. Without a way past this
+            screen that person can never have a profile at all — so the manual
+            path is always here, not only after a failure. */}
+        <button
+          type="button"
+          onClick={() => setStage("steps")}
+          className="mt-5 inline-flex min-h-[44px] w-full items-center justify-center rounded-2xl px-6 text-sm font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:text-ink sm:w-auto"
+        >
+          No resume handy? Type it in instead
+        </button>
+        <p className="mt-3 text-sm leading-relaxed text-ink-faint">
+          Typing takes longer and asks you every question the resume would have answered. You can
+          upload one later from your profile and we&rsquo;ll fill in the rest.
+        </p>
         <p className="mt-6 text-sm leading-relaxed text-ink-faint">
           Free forever for talent. Verification is optional, and your ID or NBI clearance never
           touches our servers. You show them directly to an employer once you&rsquo;re hired.

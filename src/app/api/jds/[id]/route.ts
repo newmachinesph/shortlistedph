@@ -28,10 +28,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     // Edit: absent means "unchanged". Prisma ignores undefined, so the scalars
     // take care of themselves — the two derived writes below must not.
     //
-    // hardRequirements is composed from the ceiling AND the JD's hours, so it
-    // can only be rebuilt from the stored values of whichever half the caller
-    // left out; recomputing from `undefined` cleared the ceiling on every
-    // partial edit.
+    // hardRequirements holds the ceiling only, and it is still rebuilt (not
+    // merged) on every write — so a partial edit that omits rateMaxUsd has to
+    // read the stored one back, or it silently clears the ceiling.
     const stored = jd.hardRequirements as { rateMaxUsd?: number | null } | null;
     const updated = await db.jobDescription.update({
       where: { id: jd.id },
@@ -39,7 +38,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         ...body,
         hardRequirements: hardRequirementsJson(
           rateMaxUsd !== undefined ? rateMaxUsd : (stored?.rateMaxUsd ?? null),
-          body.hoursPerWeek !== undefined ? body.hoursPerWeek : jd.hoursPerWeek,
         ),
         // Re-derived, never carried over: the tool IDs describe the CURRENT
         // must/nice-to-haves, exactly as POST derives them. Only when the edit

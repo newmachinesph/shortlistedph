@@ -82,9 +82,13 @@ export function LoginForm({ showGoogle }: { showGoogle: boolean }) {
       </button>
 
       {showGoogle && (
+        // /register, not /talent: Google creates the account but never a role,
+        // and /register is the only surface that writes one. It bounces an
+        // already-onboarded user straight to their own home, so this is right
+        // for a returning Google user too.
         <button
           type="button"
-          onClick={() => signIn.social({ provider: "google", callbackURL: "/talent" })}
+          onClick={() => signIn.social({ provider: "google", callbackURL: "/register" })}
           className="mt-3 w-full rounded-xl px-4 py-3 text-sm font-medium text-ink-soft ring-1 ring-inset ring-line transition-colors hover:bg-paper"
         >
           Continue with Google

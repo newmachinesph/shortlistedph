@@ -2,10 +2,11 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
 import { HttpError, requireAdmin } from "@/lib/session";
+import { PAYOUT_METHODS, claimUnpaidInterviews, hasPayoutDetails } from "@/app/interviewer/queries";
 
 const Body = z.object({
   interviewerId: z.string().min(1),
-  method: z.enum(["gcash", "bank"]),
+  method: z.enum(PAYOUT_METHODS),
   note: z.string().max(500).optional(),
 });
 
@@ -21,41 +22,28 @@ export async function POST(req: Request) {
     const admin = await requireAdmin();
     const { interviewerId, method, note } = await parseBody(req, Body);
 
-    const interviews = await db.interview.findMany({
-      where: { interviewerId, status: "reported", payoutId: null },
-      select: { id: true, interviewerPayoutUsd: true },
+    // A payout with no destination is money the operator cannot actually send.
+    // The interviewer supplies theirs on their own profile; refusing here is
+    // what makes that field load-bearing instead of decorative.
+    const interviewer = await db.interviewer.findUnique({
+      where: { id: interviewerId },
+      select: { payoutMethod: true, payoutAccountName: true, payoutAccountNumber: true },
     });
-    if (interviews.length === 0) throw new HttpError(409, "No unpaid reported interviews for this interviewer");
+    if (!interviewer) throw new HttpError(404, "Interviewer not found");
+    if (!hasPayoutDetails(interviewer)) {
+      throw new HttpError(409, "This interviewer has not added payout details yet");
+    }
 
-    const amount =
-      Math.round(interviews.reduce((n, i) => n + Number(i.interviewerPayoutUsd), 0) * 100) / 100;
-    const ids = interviews.map((i) => i.id);
-
-    const payout = await db.$transaction(async (tx) => {
-      const p = await tx.interviewerPayout.create({
-        data: { interviewerId, amount, currency: "USD", method, note, status: "pending" },
-      });
-      // `payoutId: null` in the WHERE is the claim, exactly as the affiliate
-      // side does it. Without it, two operators (or one double-click) both read
-      // the same unpaid set, both create a payout for the full amount, and the
-      // second silently steals the rows off the first — leaving two settleable
-      // payouts for one batch of work.
-      const claimed = await tx.interview.updateMany({
-        where: { id: { in: ids }, payoutId: null },
-        data: { payoutId: p.id },
-      });
-      if (claimed.count !== ids.length) {
-        throw new HttpError(409, "Another payout claimed these interviews — reload and try again");
-      }
-      return p;
-    });
+    // The claim (and its race safety) is shared with the interviewer's own
+    // request route — one definition of "what a payout covers".
+    const { payout, amount, count } = await claimUnpaidInterviews(interviewerId, method, note);
 
     await db.auditLog.create({
       data: {
         actorId: admin.id,
         action: "interviewer_payout_created",
         target: payout.id,
-        meta: { interviewerId, amount, currency: "USD", method, interviews: ids.length },
+        meta: { interviewerId, amount, currency: "USD", method, interviews: count },
       },
     });
 

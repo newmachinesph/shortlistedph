@@ -9,7 +9,6 @@ const ALLOWED: Record<string, string> = {
   "image/webp": "webp",
 };
 
-// Advisory only — a presigned PUT can't enforce length.
 const MAX_BYTES = 2 * 1024 * 1024;
 
 const Body = z.object({
@@ -31,7 +30,9 @@ export async function POST(req: Request) {
     // would let one account overwrite another's file. Timestamped so each
     // upload is a distinct object the confirm step can swap and clean up.
     const key = `avatars/${user.id}/${Date.now()}.${ext}`;
-    const uploadUrl = await presignUpload(key, contentType);
+    // sizeBytes stops being a claim here: it goes into the signature, so a body
+    // of any other length fails to verify at R2.
+    const uploadUrl = await presignUpload(key, contentType, sizeBytes);
 
     return ok({ uploadUrl, key });
   } catch (e) {

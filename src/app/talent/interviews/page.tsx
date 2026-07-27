@@ -13,6 +13,7 @@ type Row = {
   id: string;
   status: string;
   scheduledAt: Date | null;
+  meetingUrl: string | null;
   company: string;
 };
 
@@ -24,6 +25,7 @@ async function load(userId: string): Promise<Row[]> {
       id: true,
       status: true,
       scheduledAt: true,
+      meetingUrl: true,
       employer: { select: { companyName: true } },
     },
   });
@@ -31,6 +33,7 @@ async function load(userId: string): Promise<Row[]> {
     id: i.id,
     status: i.status,
     scheduledAt: i.scheduledAt,
+    meetingUrl: i.meetingUrl,
     company: i.employer.companyName,
   }));
 }
@@ -41,7 +44,7 @@ function settledLabel(row: Row): string {
     case "consented":
       return "You agreed. Waiting for the employer to confirm.";
     case "paid":
-      return "Confirmed. You'll be contacted to schedule.";
+      return "Confirmed. The interviewer will set a time and post the join link here.";
     case "scheduled":
       return row.scheduledAt ? `Scheduled for ${stamp(row.scheduledAt)}.` : "Scheduled.";
     case "recorded":
@@ -161,6 +164,19 @@ export default async function TalentInterviewsPage() {
                     {row.status}
                   </span>
                 </div>
+                {/* The whole point of a booked interview. Shown for "paid" too:
+                    the interviewer can post the link before the time is set,
+                    and the candidate should never have to ask for it. */}
+                {row.meetingUrl && (row.status === "paid" || row.status === "scheduled") && (
+                  <a
+                    href={row.meetingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft"
+                  >
+                    <Video className="h-4 w-4" strokeWidth={1.75} /> Join the interview
+                  </a>
+                )}
               </div>
             ))}
           </div>

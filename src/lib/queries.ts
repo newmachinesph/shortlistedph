@@ -12,6 +12,11 @@ import { maskEntry, type MaskedEntry } from "./slate";
 export async function requirePageUser(role: "talent" | "employer") {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  // Matches requireUser(): a suspended or banned account gets a 403 on every
+  // write, but this checked only the role — so the whole app rendered for
+  // someone who could not use any of it. Masked today only because suspending
+  // also deletes the sessions; any status write that does not reopens it.
+  if (user.status !== "active") redirect("/login");
   if (user.role !== role) {
     // Admins land on their own console — these pages query the viewer's own
     // employer/talent rows, which an admin does not have. Admin review of a

@@ -1,5 +1,11 @@
 import "server-only";
-import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { requireEnv } from "./api";
 
@@ -31,12 +37,55 @@ export function publicOrigin(): string {
   return requireEnv("R2_PUBLIC_URL").replace(/\/$/, "");
 }
 
-export async function presignUpload(key: string, contentType: string, expiresIn = 300) {
+/**
+ * Presigns a PUT whose length is fixed by the signature, not by trust.
+ *
+ * `contentLength` is mandatory because it is the only thing standing between a
+ * signed-in account and a 10 GB body on a CDN-public prefix: every caller used
+ * to validate a client-declared size in application code and then sign a bare
+ * PutObjectCommand, which carries no length condition at all. SigV4 signs the
+ * content-length header, so the body must be exactly this many bytes or the
+ * signature does not verify and R2 rejects the request.
+ *
+ * ContentType deliberately gets no such promise — the S3 presigner adds
+ * content-type to its unsignable set, so it labels the object without
+ * constraining it. The confirm step is where the stored object is checked.
+ */
+export async function presignUpload(
+  key: string,
+  contentType: string,
+  contentLength: number,
+  expiresIn = 300,
+) {
   return getSignedUrl(
     r2(),
-    new PutObjectCommand({ Bucket: bucket(), Key: key, ContentType: contentType }),
+    new PutObjectCommand({
+      Bucket: bucket(),
+      Key: key,
+      ContentType: contentType,
+      ContentLength: contentLength,
+    }),
     { expiresIn },
   );
+}
+
+/**
+ * What was actually stored, or null when nothing was. Confirm steps must not
+ * point a URL at an object they never looked at: a presigned URL that is never
+ * used leaves `User.image` aimed at a 404, and content-type is client-supplied.
+ */
+export async function headObject(key: string): Promise<{ size: number; contentType: string | null } | null> {
+  try {
+    const res = await r2().send(new HeadObjectCommand({ Bucket: bucket(), Key: key }));
+    return { size: res.ContentLength ?? 0, contentType: res.ContentType ?? null };
+  } catch (e) {
+    // Only "it isn't there" is an answer. Credentials or network trouble must
+    // surface as a 500, never as a silent "the upload didn't happen".
+    if ((e as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 404) {
+      return null;
+    }
+    throw e;
+  }
 }
 
 export async function presignDownload(key: string, expiresIn = 300) {

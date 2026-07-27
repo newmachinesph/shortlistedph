@@ -204,14 +204,33 @@ export async function confirmInterview(args: {
   return { status: "paid" };
 }
 
-/** Statuses whose work is already delivered — cancelling can't undo them, so
- * the credit stays spent and the interviewer still gets paid. */
-const DELIVERED: InterviewStatus[] = ["recorded", "reported"];
+/**
+ * Fully delivered: the assessment is in, so the interviewer is owed and the
+ * credit bought exactly what it was for. Cancelling can undo neither.
+ *
+ * "recorded" is deliberately NOT here. It used to be, and that made it a
+ * permanent trap: the call ran but the report — the thing the employer actually
+ * bought — never arrived, nobody could cancel it, no cron swept it, and
+ * revoking the interviewer stranded it forever. Cancelling one takes nothing
+ * from the interviewer: PAYABLE_TO_INTERVIEWER is "reported", so a
+ * recorded-only interview was never in the owed query to begin with. Paying for
+ * the call anyway is an ad-hoc decision, not a reason to bury the employer's
+ * credit inside a dead row.
+ */
+const DELIVERED: InterviewStatus[] = ["reported"];
+/**
+ * Half-delivered: the call ran, the assessment did not arrive. An operator — or
+ * the interview-expiry cron, which passes no employerId — may cancel it. The
+ * employer may not: they got a real interview, and undoing it unilaterally is
+ * not theirs to do.
+ */
+const HALF_DELIVERED: InterviewStatus[] = ["recorded"];
 /** Already over. Exported so the admin UI decides whether to offer a cancel
  * from the same list the API enforces, rather than a second copy of it. */
 export const CLOSED: InterviewStatus[] = ["declined", "cancelled"];
-/** A credit was spent to reach these, so cancelling returns it. */
-const CREDIT_SPENT: InterviewStatus[] = ["paid", "scheduled"];
+/** A credit was spent to reach these, so cancelling returns it — "recorded"
+ * included, where the credit bought a report that never came. */
+const CREDIT_SPENT: InterviewStatus[] = ["paid", "scheduled", "recorded"];
 
 /**
  * Whether the interview credit spent on this interview was bought with money
@@ -289,6 +308,15 @@ export async function cancelInterview(args: {
     throw new HttpError(
       409,
       "This interview has already been carried out — cancelling it would erase the interviewer's earnings. Handle it as a refund instead.",
+    );
+  }
+  // The call ran. An operator can still close this out (and the credit comes
+  // back, because the assessment never arrived); the employer cannot do it on
+  // their own. args.employerId is set only on the employer-initiated path.
+  if (args.employerId && HALF_DELIVERED.includes(status)) {
+    throw new HttpError(
+      409,
+      "This interview has already been carried out. Contact support if the assessment hasn't arrived.",
     );
   }
 

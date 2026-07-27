@@ -134,6 +134,72 @@ export function AvailabilityPrompt({ name }: { name: string }) {
   );
 }
 
+export function InterviewRequested({ name, company }: { name: string; company: string }) {
+  return (
+    <Shell
+      preview={`${company} wants to interview you`}
+      footnote="You choose whether to be interviewed. Declining costs you nothing and the employer is simply told no."
+    >
+      <Text style={s.heading}>{company} asked to interview you</Text>
+      <Text style={s.text}>
+        Hi {name} — an employer who shortlisted you would like a recorded
+        interview with an independent interviewer, not with them. You agree
+        first, and you can say no. Nothing is scheduled until you do.
+      </Text>
+      <Button href={`${SITE_URL}/talent/interviews`}>Review the request</Button>
+    </Shell>
+  );
+}
+
+export function InterviewScheduled({ name, when }: { name: string; when: string }) {
+  return (
+    <Shell
+      preview="Your interview has a time and a join link"
+      footnote="Add it to your calendar. The link is on your interviews page."
+    >
+      <Text style={s.heading}>Your interview is set for {when}</Text>
+      <Text style={s.text}>
+        Hi {name} — your interviewer has picked a time and shared a join link.
+        Open your interviews page for the link and what to expect.
+      </Text>
+      <Button href={`${SITE_URL}/talent/interviews`}>See the details</Button>
+    </Shell>
+  );
+}
+
+export function InterviewerApproved({ name }: { name: string }) {
+  return (
+    <Shell
+      preview="You're approved to run interviews"
+      footnote="Assignments arrive in your portal. You are paid per completed interview."
+    >
+      <Text style={s.heading}>You&rsquo;re approved, {name}</Text>
+      <Text style={s.text}>
+        Your interviewer application has been accepted. Assignments will appear
+        in your portal as employers book them — add your payout details now so
+        there is no delay when the first one completes.
+      </Text>
+      <Button href={`${SITE_URL}/interviewer/profile`}>Add payout details</Button>
+    </Shell>
+  );
+}
+
+export function InterviewerRejected({ name }: { name: string }) {
+  return (
+    <Shell
+      preview="About your interviewer application"
+      footnote="This is not a judgement of your work — we keep the panel small and matched to current demand."
+    >
+      <Text style={s.heading}>We can&rsquo;t take your application further</Text>
+      <Text style={s.text}>
+        Hi {name} — thanks for applying to interview on shortlisted.ph. We are
+        not able to add you to the panel right now. You are welcome to apply
+        again as the roles we hire for change.
+      </Text>
+    </Shell>
+  );
+}
+
 export function ConnectionRequested({
   name,
   company,

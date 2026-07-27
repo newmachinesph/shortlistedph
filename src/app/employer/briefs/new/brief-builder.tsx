@@ -62,6 +62,9 @@ export function BriefBuilder({
     rateMaxUsd: existing?.rateMaxUsd ?? null,
   });
   const [newMustHave, setNewMustHave] = useState("");
+  // Whether the fields under review came from the model, so the header does not
+  // claim an AI draft over something the employer typed by hand.
+  const [fromAi, setFromAi] = useState(Boolean(initialDraft));
   // The JD row this builder owns: an existing draft being edited, or the row a
   // publish attempt created. Either way publishing updates THAT row instead of
   // POSTing /api/jds again and leaving an orphan duplicate draft behind.
@@ -84,6 +87,7 @@ export function BriefBuilder({
       // The ceiling is the employer's own knob, never AI-derived — a re-draft
       // replaces what the model produces and leaves it alone.
       setDraft({ ...drafted, rateMaxUsd: draft.rateMaxUsd });
+      setFromAi(true);
       // A fresh draft is a new JD — don't reuse a row a failed publish created.
       // Editing a saved draft is the exception: that row is the one being edited.
       if (!existing) setCreatedJdId(null);
@@ -121,6 +125,12 @@ export function BriefBuilder({
       setStage("review");
     }
   }
+
+  const blocker = !draft.title.trim()
+    ? "Add a title before posting."
+    : draft.mustHaves.length === 0
+      ? "Add at least one must-have. They are the hard filters the ranking runs on — without one there is nothing to match against."
+      : null;
 
   const removeMustHave = (m: string) =>
     setDraft((d) => ({ ...d, mustHaves: d.mustHaves.filter((x) => x !== m) }));
@@ -210,22 +220,44 @@ export function BriefBuilder({
             }
             className="mt-3 w-full resize-none rounded-xl border border-line bg-paper px-4 py-3 text-base leading-relaxed text-ink placeholder:text-ink-faint focus:outline-2 focus:outline-brand sm:text-sm"
           />
-          <button
-            type="button"
-            onClick={handleDraft}
-            disabled={stage === "drafting" || text.trim().length < 20}
-            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {stage === "drafting" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {stage === "drafting" ? "Structuring…" : "Draft with AI"}
-          </button>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleDraft}
+              disabled={stage === "drafting" || text.trim().length < 20}
+              className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {stage === "drafting" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {stage === "drafting" ? "Structuring…" : "Draft with AI"}
+            </button>
+            {/* The AI draft is a shortcut, never the gate. It used to be the only
+                way out of this step, so an OpenAI outage stopped every employer
+                on the platform from posting anything at all. */}
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                setStage("review");
+              }}
+              disabled={stage === "drafting"}
+              className="rounded-xl px-4 py-2.5 text-sm font-medium text-ink-soft transition-colors hover:text-ink disabled:opacity-60"
+            >
+              Fill in the fields myself
+            </button>
+          </div>
         </div>
       ) : (
         <div className="mt-6 space-y-5">
           <div className="rounded-2xl border border-line bg-white p-6">
-            <p className="flex items-center gap-1.5 text-xs font-medium text-brand">
-              <Sparkles className="h-3.5 w-3.5" /> Drafted from your description — edit anything
-            </p>
+            {fromAi ? (
+              <p className="flex items-center gap-1.5 text-xs font-medium text-brand">
+                <Sparkles className="h-3.5 w-3.5" /> Drafted from your description — edit anything
+              </p>
+            ) : (
+              <p className="text-xs font-medium text-ink-faint">
+                Fill in what the role actually needs. A title and one must-have are the minimum.
+              </p>
+            )}
             <div className="mt-4 space-y-4">
               <div>
                 <label htmlFor="title" className="text-xs text-ink-faint">Title</label>
@@ -345,23 +377,29 @@ export function BriefBuilder({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={handlePublish}
-              disabled={stage === "publishing" || !draft.title || draft.mustHaves.length === 0}
-              className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-colors hover:bg-brand-dark disabled:opacity-60"
-            >
-              {stage === "publishing" && <Loader2 className="h-4 w-4 animate-spin" />}
-              {stage === "publishing" ? "Matching the market…" : "Post and match"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setStage("compose")}
-              className="rounded-2xl px-5 py-3 text-sm font-medium text-ink-soft transition-colors hover:text-ink"
-            >
-              Back to editing
-            </button>
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handlePublish}
+                disabled={stage === "publishing" || Boolean(blocker)}
+                className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition-colors hover:bg-brand-dark disabled:opacity-60"
+              >
+                {stage === "publishing" && <Loader2 className="h-4 w-4 animate-spin" />}
+                {stage === "publishing" ? "Matching the market…" : "Post and match"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setStage("compose")}
+                className="rounded-2xl px-5 py-3 text-sm font-medium text-ink-soft transition-colors hover:text-ink"
+              >
+                Back to editing
+              </button>
+            </div>
+            {/* A greyed-out button with no reason next to it reads as broken —
+                and the publish endpoint rejects an empty must-have list anyway,
+                so say which one is missing. */}
+            {blocker && <p className="mt-2.5 text-sm text-ink-faint">{blocker}</p>}
           </div>
         </div>
       )}

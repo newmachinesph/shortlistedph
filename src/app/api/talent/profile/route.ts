@@ -4,8 +4,9 @@ import { fail, ok, parseBody } from "@/lib/api";
 import { refreshProfileEmbeddings } from "@/lib/profile-embedding";
 import { syncProfileTools } from "@/lib/profile-tools";
 import { rateLimit } from "@/lib/rate-limit";
+import { INJECTION_FLAG, scanResumeText } from "@/lib/resume-guard";
 import { isHttpUrl, normalizeSkill } from "@/lib/resume";
-import { requireRole, requireTalentProfile } from "@/lib/session";
+import { HttpError, requireRole, requireTalentProfile } from "@/lib/session";
 
 export async function GET() {
   try {
@@ -73,6 +74,23 @@ const Patch = z.object({
     .optional(),
 });
 
+/**
+ * Every free-text field on this route lands on the same profile the resume
+ * path guards. Only the resume path was guarded, so typing the instruction in
+ * by hand — the cheapest attack there is — reached employers untouched and
+ * never raised INJECTION_FLAG, which is what made that flag unreliable as an
+ * admin review signal rather than merely incomplete.
+ */
+function injectedText(body: z.infer<typeof Patch>): boolean {
+  return [
+    body.headline,
+    body.summary,
+    body.tools,
+    body.certifications,
+    ...(body.engagements ?? []).flatMap((e) => [e.role, e.company]),
+  ].some((t) => typeof t === "string" && scanResumeText(t));
+}
+
 /** Only these change what gets embedded — see profileEmbedText + buildFacetTexts. */
 const EMBEDDED_SCALARS = [
   "headline",
@@ -97,6 +115,19 @@ export async function PATCH(req: Request) {
     rateLimit("profileWrite", user.id);
     const profile = await requireTalentProfile(user.id);
     const body = await parseBody(req, Patch);
+
+    // Rejected rather than scrubbed: the resume path strips because a candidate
+    // cannot re-edit a document we parsed for them, but here the author is
+    // sitting in the form and can fix the line. The flag is recorded either
+    // way — the attempt is the thing admin review needs to see.
+    if (injectedText(body)) {
+      await db.talentProfile.update({
+        where: { id: profile.id },
+        data: { flags: { set: [...new Set([...profile.flags, INJECTION_FLAG])] } },
+      });
+      throw new HttpError(422, "That text reads as an instruction to our system — please rewrite it");
+    }
+
     const { skills, engagements, ...scalars } = body;
 
     // lastEditedAt is the anti-tailoring clock, and re-embedding is four API

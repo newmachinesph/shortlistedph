@@ -41,6 +41,41 @@ export type FilterResult<C extends FilterCandidate> = {
   eliminated: { profileId: string; reason: EliminationReason }[];
 };
 
+/**
+ * The JD's Stage 0 requirements — the single owner of the precedence rule.
+ *
+ * The stored `hardRequirements` JSON is read for the CEILING ONLY, and its
+ * `hoursPerWeekMin` is deliberately dropped.
+ *
+ * That drop is the fix for a mass elimination that survived two rounds. The JD
+ * write path composes the JSON as `{ rateMaxUsd, hoursPerWeekMin:
+ * jd.hoursPerWeek }` and this ran before the corrected derivation, returning it
+ * wholesale. So on any brief where the employer set a rate ceiling,
+ * `hoursPerWeekMin` arrived equal to the hours the employer wants COVERED,
+ * while applyHardFilters below reads it as a floor on the candidate's SPARE
+ * capacity: a routine 40h brief eliminated every candidate with a single
+ * committed hour. Resume parsing writes a non-zero committedHours for most
+ * imported profiles, so turning Stage 0 on emptied the pool.
+ *
+ * hoursPerWeek is a load, never a floor. Short hours already cost overlap
+ * score. A real floor has to be STATED by the employer, and nothing in the
+ * product asks for one — when a field exists, read it here under its own key,
+ * never derived from hoursPerWeek.
+ */
+export function jdHardRequirements(jd: {
+  budgetMax: number | null;
+  hardRequirements?: unknown;
+}): HardRequirements {
+  const stored = (jd.hardRequirements ?? null) as HardRequirements | null;
+  return {
+    // Only the ceiling is derived, and only when none was stored. This is what
+    // makes the flag meaningful on existing JDs: flipping it on turns every
+    // stated budget ceiling into a real ceiling.
+    rateMaxUsd: stored?.rateMaxUsd ?? jd.budgetMax,
+    startWithinDays: stored?.startWithinDays ?? null,
+  };
+}
+
 export function applyHardFilters<C extends FilterCandidate>(
   candidates: C[],
   hard: HardRequirements | null,

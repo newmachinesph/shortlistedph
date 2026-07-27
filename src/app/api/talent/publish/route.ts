@@ -1,13 +1,24 @@
 import { db } from "@/lib/db";
 import { fail, ok } from "@/lib/api";
 import { refreshProfileEmbeddings } from "@/lib/profile-embedding";
+import { rateLimit } from "@/lib/rate-limit";
 import { HttpError, requireRole, requireTalentProfile } from "@/lib/session";
 
 /** Publishing = embedding. An unembedded profile can never appear in a slate. */
 export async function POST() {
   try {
     const user = await requireRole("talent");
+    // Four embedding calls per hit, and the bucket for exactly this existed
+    // unused — a stuck client looping on the publish button was an unmetered
+    // bill.
+    rateLimit("publish", user.id);
     const base = await requireTalentProfile(user.id);
+
+    // Publishing twice is not publishing twice as hard. publishedAt is set on
+    // the first publish and never moves, and every later edit of a published
+    // profile re-embeds itself (/api/talent/profile), so re-running the whole
+    // embed block here bought nothing and cost four calls.
+    if (base.publishedAt) return ok({ published: true });
 
     const profile = await db.talentProfile.findUniqueOrThrow({
       where: { id: base.id },

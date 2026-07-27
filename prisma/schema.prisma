@@ -244,6 +244,10 @@ model EmployerAccount {
   location    String?
   contactName String?
   logoKey     String?
+  // Both are floored at 0 by a CHECK constraint (employer_credits_nonneg), not
+  // only by the conditional decrements in app code. Five separate guards had to
+  // stay correct for the invariant to hold; now a sixth path that forgets one
+  // fails its write instead of quietly minting a negative balance.
   credits     Int      @default(0) // shortlist credits — unlock a slate
   interviewCredits Int @default(0) // interview credits — book one interview each
   createdAt   DateTime @default(now())
@@ -351,11 +355,14 @@ model MatchConsent {
   status      String    @default("pending") // pending | accepted | declined | expired
   token       String    @unique
   // Delivery attempts that did NOT result in a send. An undeliverable address
-  // used to be retried every hour forever, holding a slate slot and counting
-  // against the JD's consent cap until it logged "pool exhausted" having
-  // delivered nothing. Parked above a threshold — never on the first failure,
-  // because a suppressed send (outreach kill switch) looks identical to a
-  // transport outage and would otherwise park the whole pool at once.
+  // was retried every hour forever, holding a slate slot and counting against
+  // the JD's consent cap until it logged "pool exhausted" having delivered
+  // nothing. At CONSENT_MAX_SEND_ATTEMPTS (lib/consent.ts) the row is parked:
+  // flipped to "expired" with no dormancy strike, because a candidate who was
+  // never reached cannot have ignored anything. Never on the first failure —
+  // one transport blip must not burn a real invitation. The kill switch is
+  // checked before the loop rather than counted here: a suppressed send looks
+  // identical to an outage and would otherwise park the whole pool at once.
   sendAttempts Int      @default(0)
   sentAt      DateTime?
   respondedAt DateTime?
@@ -386,8 +393,15 @@ model ProfileSnapshot {
   frozenJson Json
   createdAt  DateTime @default(now())
 
-  profile  TalentProfile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  jd       JobDescription @relation(fields: [jdId], references: [id], onDelete: Cascade)
+  // Restrict on BOTH parents, not Cascade. The snapshot is the product: this
+  // row is the head of the chain that carries the employer's paid shortlist,
+  // the agreements signed off it, the ratings, and the interviews an
+  // interviewer is still owed for. Cascading meant one profile deletion — or
+  // one JD deletion — silently destroyed all of it, which contradicts the
+  // first principle at the top of this file. Any delete path must now deal
+  // with the delivered product explicitly instead of quietly winning the race.
+  profile  TalentProfile  @relation(fields: [profileId], references: [id], onDelete: Restrict)
+  jd       JobDescription @relation(fields: [jdId], references: [id], onDelete: Restrict)
   entries  SlateEntry[]
   consents MatchConsent[]
 
@@ -401,9 +415,15 @@ model Slate {
   unlockedAt  DateTime?
   deliveredAt DateTime  @default(now())
 
-  jd       JobDescription @relation(fields: [jdId], references: [id], onDelete: Cascade)
+  // Restrict for the same reason as ProfileSnapshot: this is what the employer
+  // paid to unlock, and interviews hang off its entries. Closing a role is
+  // already a soft close (status "closed"), so a hard JD delete was never a
+  // path the product wanted.
+  jd       JobDescription @relation(fields: [jdId], references: [id], onDelete: Restrict)
   entries  SlateEntry[]
   consents MatchConsent[]
+  // Credits spent unlocking this slate. The FK is the point — see Entitlement.
+  creditsSpent Entitlement[]
 
   @@index([jdId])
   @@index([status]) // admin dashboard counts filter by status alone
@@ -506,7 +526,10 @@ model Message {
 model Entitlement {
   id                 String    @id @default(cuid())
   employerId         String
-  kind               String    @default("credit") // credit | interview_credit
+  // credit | interview_credit, enforced by entitlement_kind_check. Reconciliation
+  // groups by this column, so an unknown value did not surface as drift — it
+  // dropped out of every group and out of the report with it.
+  kind               String    @default("credit")
   source             String // provider ref, or admin_grant
   spentOnSlateId     String?
   spentOnInterviewId String?
@@ -516,11 +539,25 @@ model Entitlement {
   revokedReason      String?
   createdAt          DateTime  @default(now())
 
-  employer EmployerAccount @relation(fields: [employerId], references: [id], onDelete: Cascade)
+  // Restrict: this table IS the credit ledger. Cascading it off the employer
+  // meant deleting an account erased every record of what was sold and spent
+  // while the Payment rows that bought it survived.
+  employer EmployerAccount @relation(fields: [employerId], references: [id], onDelete: Restrict)
+  // spentOn* carried no foreign key at all, so a credit could stay marked
+  // spent while pointing at a slate or interview that no longer existed —
+  // reconciliation then reported drift 0 on a ledger nobody could audit.
+  // Restrict, because a spent credit is the receipt for the thing it points
+  // at: destroying one and keeping the other is the drift.
+  spentOnSlate     Slate?     @relation(fields: [spentOnSlateId], references: [id], onDelete: Restrict)
+  spentOnInterview Interview? @relation(fields: [spentOnInterviewId], references: [id], onDelete: Restrict)
 
   @@index([employerId])
   @@index([employerId, kind, revokedAt])
   @@index([source])
+  // Both are looked up by target when a cancel or refund has to free the exact
+  // row that was spent (lib/interviews.ts, lib/fulfillment.ts).
+  @@index([spentOnSlateId])
+  @@index([spentOnInterviewId])
 }
 
 model Payment {
@@ -537,7 +574,11 @@ model Payment {
   refundedAt  DateTime?
   createdAt   DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Restrict, not Cascade: a payment is the record that money changed hands.
+  // Deleting the payer erased the revenue trail — and, worse, the entitlements
+  // it bought are matched back to it by `providerRef`, so refund and
+  // reconciliation logic would silently read "no such payment".
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([userId])
   @@index([status])
@@ -665,7 +706,10 @@ model ReferralCommission {
   voidedAt     DateTime?
   voidedReason String?
 
-  referral   Referral           @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  // Restrict on this edge too. Guarding only the conversion edge left the
+  // shorter route open: deleting the AFFILIATE cascaded user → Referral →
+  // commission and destroyed the same money history from the other side.
+  referral   Referral           @relation(fields: [referralId], references: [id], onDelete: Restrict)
   // Restrict, not Cascade: deleting a referred user used to cascade
   // user → conversion → commission and silently destroy money history,
   // including commissions already inside a PAID payout — leaving "earned"
@@ -736,7 +780,11 @@ model ReferralPayout {
   createdAt DateTime  @default(now())
   paidAt    DateTime?
 
-  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Restrict. protect_commission_history fixed the conversion edge and missed
+  // this one: deleting an affiliate destroyed their PAID payouts, and the
+  // SetNull on ReferralCommission.payoutId / ReferralConversion.payoutId then
+  // made every commission those payouts had settled read as owed again.
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
   conversions ReferralConversion[]
   commissions ReferralCommission[]
 
@@ -785,6 +833,13 @@ model Interviewer {
   // their real account (no talent routes, no employer credits).
   status          String   @default("pending")
   avatarKey       String?
+  // Where to send their earnings. The payout flow existed end to end EXCEPT
+  // for this: an admin picked a method for an account number the database had
+  // never held. Mirrors Referral's fields, including the rule that the number
+  // is never logged and is masked to the last 4 in admin.
+  payoutMethod        String? // gcash | bank | paypal
+  payoutAccountName   String?
+  payoutAccountNumber String?
   createdAt       DateTime @default(now())
 
   user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -814,19 +869,31 @@ model Interview {
   suggestedQuestions String[]
   employerNotes      String?
   scheduledAt  DateTime?
+  // Where the call actually happens. Without it a booked interview could not
+  // take place at all: the schema carried a time and a recording but no way
+  // for the three parties to meet, and nobody holds anybody else's contact
+  // details. The interviewer supplies it with the schedule.
+  meetingUrl   String?
   recordingKey String? // R2 object key, uploaded by the interviewer
   paymentRef   String? // Payment.providerRef once the employer pays
   payoutId     String?
   createdAt    DateTime @default(now())
 
   slateEntry  SlateEntry           @relation(fields: [slateEntryId], references: [id], onDelete: Cascade)
-  employer    EmployerAccount      @relation(fields: [employerId], references: [id], onDelete: Cascade)
+  // Restrict on employer AND talent for the same reason the interviewer edge
+  // already had it: a reported interview is work someone is owed for, and
+  // either party's deletion used to erase it out from under the interviewer.
+  // (slateEntry stays Cascade only because ProfileSnapshot — its grandparent —
+  // is now Restrict, so nothing can reach it to cascade from.)
+  employer    EmployerAccount      @relation(fields: [employerId], references: [id], onDelete: Restrict)
   // Restrict, not Cascade: historical interviews must survive an interviewer
   // ever being deleted — delete paths must handle this explicitly.
   interviewer Interviewer          @relation(fields: [interviewerId], references: [id], onDelete: Restrict)
-  talent      User                 @relation("InterviewTalent", fields: [talentUserId], references: [id], onDelete: Cascade)
+  talent      User                 @relation("InterviewTalent", fields: [talentUserId], references: [id], onDelete: Restrict)
   assessment  InterviewAssessment?
   payout      InterviewerPayout?   @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+  // Credits spent confirming this interview. See Entitlement.
+  creditsSpent Entitlement[]
 
   @@index([employerId, status])
   @@index([interviewerId, status])

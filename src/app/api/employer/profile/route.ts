@@ -1,8 +1,12 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, parseBody } from "@/lib/api";
-import { deleteObject } from "@/lib/r2";
+import { deleteObject, headObject } from "@/lib/r2";
 import { HttpError, requireEmployer, requireRole } from "@/lib/session";
+
+/** Mirrors the limits the upload-url route signs. */
+const LOGO_MAX_BYTES = 2 * 1024 * 1024;
+const LOGO_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 const optionalText = (max: number) =>
   z
@@ -27,6 +31,20 @@ export async function PATCH(req: Request) {
     // A foreign key here would let one employer point their logo at another's file.
     if (body.logoKey && !body.logoKey.startsWith(`employer-logos/${employer.id}/`)) {
       throw new HttpError(403, "Logo key does not belong to this account");
+    }
+
+    // Confirm the object is really there and really an image before the profile
+    // points at it. The presigned PUT signs the length but deliberately leaves
+    // content-type unsigned, and nothing else verifies the upload actually
+    // happened — so without this an employer could register a key for a file
+    // they never uploaded, or one whose declared type was a lie.
+    if (body.logoKey) {
+      const head = await headObject(body.logoKey);
+      if (!head) throw new HttpError(422, "That logo upload did not complete — try again");
+      if (head.size > LOGO_MAX_BYTES) throw new HttpError(422, "That logo is too large");
+      if (!head.contentType || !LOGO_TYPES.includes(head.contentType)) {
+        throw new HttpError(422, "A logo must be a JPEG, PNG or WebP image");
+      }
     }
 
     await db.employerAccount.update({ where: { id: employer.id }, data: body });

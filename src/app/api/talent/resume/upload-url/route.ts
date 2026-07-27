@@ -10,8 +10,8 @@ const ALLOWED: Record<string, string> = {
   "text/plain": "txt",
 };
 
-// Advisory only — a presigned PUT can't enforce length. The real check happens
-// server-side in extractText() once we have the bytes.
+// Mirrored by MAX_RESUME_BYTES in lib/resume.ts, which re-checks the bytes we
+// actually fetched back — this bounds the upload, that bounds the parse.
 const MAX_BYTES = 5 * 1024 * 1024;
 
 const Body = z.object({
@@ -31,7 +31,9 @@ export async function POST(req: Request) {
 
     // Key is server-derived — a client-supplied key would let one user overwrite another's file.
     const key = `resumes/${profile.id}/${Date.now()}.${ext}`;
-    const uploadUrl = await presignUpload(key, contentType);
+    // sizeBytes stops being a claim here: it goes into the signature, so a body
+    // of any other length fails to verify at R2.
+    const uploadUrl = await presignUpload(key, contentType, sizeBytes);
 
     return ok({ uploadUrl, key });
   } catch (e) {

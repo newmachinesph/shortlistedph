@@ -3,6 +3,13 @@ import { getSessionUser } from "@/lib/session";
 import { getInterviewer, INTERVIEWER_RATE_MAX, INTERVIEWER_RATE_MIN } from "@/lib/interviews";
 import { AvatarUpload } from "@/components/avatar-upload";
 import { InterviewerProfileForm } from "@/components/interviewer-profile-form";
+import { PAYOUT_METHODS, isPayoutMethod } from "../queries";
+import { PayoutForm } from "./payout-form";
+
+const METHOD_LABEL: Record<(typeof PAYOUT_METHODS)[number], string> = {
+  gcash: "GCash",
+  bank: "Bank transfer",
+};
 
 export default async function InterviewerProfilePage() {
   const user = await getSessionUser();
@@ -36,6 +43,19 @@ export default async function InterviewerProfilePage() {
         }}
         rateMin={INTERVIEWER_RATE_MIN}
         rateMax={INTERVIEWER_RATE_MAX}
+      />
+
+      <PayoutForm
+        methods={PAYOUT_METHODS.map((m) => ({ value: m, label: METHOD_LABEL[m] }))}
+        initial={{
+          // A legacy or unknown method reads as none at all, so the form reopens
+          // on a real option instead of labelling the stored value.
+          method: isPayoutMethod(interviewer.payoutMethod) ? interviewer.payoutMethod : null,
+          accountName: interviewer.payoutAccountName,
+          // Only the tail crosses to the client. The number itself is written
+          // here and never read back out.
+          accountTail: interviewer.payoutAccountNumber?.slice(-4) ?? null,
+        }}
       />
     </>
   );

@@ -2,7 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { db } from "./db";
 import { blendSimilarity, jdFacetTexts } from "./facets";
-import { applyHardFilters, type HardRequirements } from "./filters";
+import { applyHardFilters, jdHardRequirements } from "./filters";
 import { embedMany, toVectorLiteral } from "./openai";
 import { hardFiltersEnabled } from "./settings";
 import {
@@ -76,26 +76,9 @@ export type Jd = {
   hardRequirements?: unknown;
 };
 
-/**
- * The JD's Stage 0 requirements: the explicit hardRequirements JSON when the
- * employer set one, else derived from the fields they already filled in. The
- * derivation is what makes the flag meaningful on existing JDs — flipping it
- * on turns every stated budget ceiling into a real ceiling.
- */
-export function jdHardRequirements(jd: Jd): HardRequirements {
-  const h = (jd.hardRequirements ?? null) as HardRequirements | null;
-  if (h && (h.rateMaxUsd != null || h.hoursPerWeekMin != null || h.startWithinDays != null)) {
-    return h;
-  }
-  // Only the ceiling is derived. hoursPerWeek is the load the employer wants
-  // covered, NOT a floor on the candidate's spare capacity: deriving
-  // hoursPerWeekMin from it meant a routine 40h brief eliminated everyone with
-  // any prior commitment at all (freeHours = 40 − committed), and resume parse
-  // writes a non-zero committedHours for most imported profiles — flipping the
-  // flag on would have emptied the pool. Short hours already cost overlap
-  // score; a hard floor has to be stated by the employer, never guessed.
-  return { rateMaxUsd: jd.budgetMax };
-}
+// Owned by filters.ts, where the pure Stage 0 logic (and its tests) live —
+// re-exported here because this module is the door every caller already uses.
+export { jdHardRequirements };
 
 // Single owner is facets.ts — the eval harness and backfill embed this exact text.
 export function jdEmbedText(jd: Jd): string {
@@ -215,6 +198,12 @@ export async function rankQualifiedForJd(jd: Jd): Promise<{
 
   const stage0On = await hardFiltersEnabled();
   const cut = stage0On ? CANDIDATE_POOL * STAGE0_POOL_MULTIPLIER : CANDIDATE_POOL;
+  // ef_search is the HNSW candidate list; it must be at least the LIMIT for the
+  // scan to be able to return that many rows at all, and comfortably above it
+  // for the rows it returns to be the right ones. 2× is the usual recall/latency
+  // trade; pgvector's own ceiling is 1000.
+  // ponytail: fixed 2× multiplier — tune only if a recall measurement asks for it.
+  const efSearch = Math.min(1000, cut * 2);
 
   // openToOffers and booked are filtered HERE, not in Stage 0, because neither
   // is an operator preference: someone who unticked "open to new offers" said
@@ -222,7 +211,23 @@ export async function rankQualifiedForJd(jd: Jd): Promise<{
   // employer — 15% overlap weight could never stop skills 90 / rate 100 from
   // leading a slate with them. Both belong to the same class as visibility and
   // dormancy: not matchable, so never fetched, whatever the flag says.
-  const rawPool = await db.$queryRawUnsafe<Candidate[]>(
+  const rawPool = await db.$transaction(
+    async (tx) => {
+      // hnsw.ef_search caps how many candidates the index will even consider,
+      // and its default of 40 was silently the real pool size: an ANN scan
+      // cannot return more rows than it examined, so `LIMIT 150` returned ~40
+      // and Stage 0's "3× deeper pool" was a no-op — it shrank the delivered
+      // pool while claiming to deepen it. Even the flag-off path was quietly
+      // capped at 40 of its 50.
+      //
+      // SET LOCAL only holds for the current transaction on the current
+      // connection, and Prisma hands out a fresh pooled connection per
+      // top-level call — so the setting must be issued inside the SAME
+      // interactive transaction as the SELECT. It reverts on commit, so nothing
+      // leaks back into the pool. Interpolated, not bound: SET takes no
+      // parameters, and the value is arithmetic on module constants.
+      await tx.$executeRawUnsafe(`SET LOCAL hnsw.ef_search = ${efSearch}`);
+      return tx.$queryRawUnsafe<Candidate[]>(
     `SELECT p.id, p."userId", p.headline, p.summary, p.city, p."yearsExperience",
             p."rateUsd", p.availability, p."committedHours", p."verifiedTier", p."lastEditedAt",
             p."shortlistCount", p."lastShownAt", p."availabilityConfirmedAt",
@@ -245,8 +250,15 @@ export async function rankQualifiedForJd(jd: Jd): Promise<{
         AND u.status = 'active'
       ORDER BY p.embedding <=> $1::vector
       LIMIT ${cut}`,
-    toVectorLiteral(roleVec),
-    toVectorLiteral(skillsVec),
+        toVectorLiteral(roleVec),
+        toVectorLiteral(skillsVec),
+      );
+    },
+    // The scan itself is milliseconds; Neon waking up is not. Both defaults are
+    // too tight for a serverless cold start — maxWait (2s) is the one that
+    // actually fires, throwing P2028 "unable to start a transaction in the given
+    // time" and failing a whole matching run before a single row was read.
+    { maxWait: 10_000, timeout: 20_000 },
   );
 
   // Stage 0 — hard filters (spec §3), behind the operator flag. Off means the

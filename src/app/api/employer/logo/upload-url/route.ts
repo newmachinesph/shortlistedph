@@ -9,7 +9,6 @@ const ALLOWED: Record<string, string> = {
   "image/webp": "webp",
 };
 
-// Advisory only — a presigned PUT can't enforce length.
 const MAX_BYTES = 2 * 1024 * 1024;
 
 const Body = z.object({
@@ -29,7 +28,9 @@ export async function POST(req: Request) {
 
     // Key is server-derived — a client-supplied key would let one employer overwrite another's file.
     const key = `employer-logos/${employer.id}/${Date.now()}.${ext}`;
-    const uploadUrl = await presignUpload(key, contentType);
+    // sizeBytes stops being a claim here: it goes into the signature, so a body
+    // of any other length fails to verify at R2.
+    const uploadUrl = await presignUpload(key, contentType, sizeBytes);
 
     return ok({ uploadUrl, key });
   } catch (e) {
