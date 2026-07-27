@@ -38,7 +38,11 @@ export default async function OnboardingPage() {
             city: profile.city,
             rateUsd: profile.rateUsd,
             availability: profile.availability,
-            committedHours: profile.committedHours,
+            // The SELF-reported figure, not the derived total. Prefilling the
+            // total would fold hours this platform confirmed back into the
+            // talent's own answer on the next save, and every save after that
+            // would add them again.
+            committedHours: profile.selfCommittedHours,
             preferredOverlap: profile.preferredOverlap,
             portfolioUrl: profile.portfolioUrl,
             linkedinUrl: profile.linkedinUrl,

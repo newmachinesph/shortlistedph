@@ -110,7 +110,16 @@ model TalentProfile {
   rateUsd         Float?
   rateLockedUntil DateTime? // 30-day standing-rate lock
   availability    String    @default("open") // open | partial | booked
+  // What the week actually holds: the talent's own figure PLUS the hours of
+  // every engagement this platform has confirmed. Every reader — scoreOverlap,
+  // the Stage 0 hours filter, the preferences facet — uses this one number, so
+  // it stays the derived total and nothing downstream had to change.
   committedHours  Int       @default(0)
+  // The talent's own answer to "how many hours a week are already committed",
+  // kept apart so recomputing the derived total above cannot erase it. They may
+  // well be working somewhere this platform will never hear about; deriving
+  // committedHours from confirmed agreements alone would quietly delete that.
+  selfCommittedHours Int    @default(0)
   visibility      Boolean   @default(true)
   verifiedTier    String    @default("none") // none | id_verified
   resumeKey       String? // R2 object key

@@ -94,8 +94,14 @@ export async function POST(req: Request) {
         preferredOverlap: profile.preferredOverlap ?? parsed.preferences.timezoneOverlap,
         noticePeriodDays: profile.noticePeriodDays ?? parsed.preferences.noticePeriodDays,
         // Non-nullable with a 0 default, so 0 is the only "unanswered" value.
+        // Both columns: this is the candidate's own account of their week, read
+        // off their CV, so it is the self-reported baseline — and the derived
+        // total starts equal to it until an engagement is confirmed on top.
         committedHours:
           profile.committedHours || (committedFromAvailable(parsed.preferences.hoursPerWeek) ?? 0),
+        selfCommittedHours:
+          profile.selfCommittedHours ||
+          (committedFromAvailable(parsed.preferences.hoursPerWeek) ?? 0),
         resumeKey: key,
         lastEditedAt: new Date(),
         // Flags persist across re-uploads: a stripped injection attempt stays on

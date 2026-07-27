@@ -67,3 +67,17 @@
   reader and its runtime writer in the same phase, or a dated TODO naming the phase.
 - **Backfills are not sync** — a backfill script covers the pool once; without a
   runtime writer the table drifts stale immediately.
+- **A running dev server keeps the OLD Prisma client.** After `migrate deploy` +
+  `prisma generate`, `next dev` still holds the previously generated client, so
+  writing a brand-new column throws and the route 500s. The smoke test failed at
+  "fill the profile" with the code entirely correct — restarting the server was
+  the whole fix. Restart `next dev` after every schema change before believing a
+  runtime failure.
+- **Deriving a column silently destroys what a user typed into it.** Making
+  `committedHours` a derived total would have erased the hours a talent reported
+  for work done off this platform. The fix was a second column
+  (`selfCommittedHours`) holding their own answer, with the derived total built
+  on top — and prefill switched to the baseline, or the next save folds the
+  platform's hours into the talent's own figure and every save after that adds
+  them again. Before deriving an existing column, ask who else writes it and
+  what happens to their value.

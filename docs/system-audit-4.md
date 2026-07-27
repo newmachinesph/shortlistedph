@@ -131,10 +131,19 @@ session handling and `role`/`status` being server-set; secrets.
   **Still open:** the assessment feeds nothing downstream — not the dossier, not
   `maskEntry`, not scoring. A "strong yes" from a paid interviewer changes
   nothing about how that candidate ranks next time.
-- **A confirmed hire changes nothing about capacity or rotation.** A candidate
-  working 40h/week for someone else still scores as fully free and keeps
-  receiving invitations they must decline — which round 3's rotation change now
-  charges them for.
+- ~~**A confirmed hire changes nothing about capacity or rotation.**~~
+  **Fixed and executed.** `committedHours` is now a derived total: the talent's
+  own figure plus the hours of every engagement confirmed for the current or
+  previous period. Derived rather than incremented, so it is idempotent by
+  construction and self-correcting — there is no "engagement ended" event, an
+  engagement ends by the monthly confirmations simply stopping, so the daily
+  sweep in the availability cron gives the week back on its own. Every existing
+  reader (`scoreOverlap`, the Stage 0 hours filter, the preferences facet) was
+  already consuming this column and needed no change.
+  A second column, `selfCommittedHours`, holds what the talent reported
+  themselves — deriving the total from agreements alone would have deleted the
+  hours they work somewhere this platform never hears about. Ten tests in
+  `agreements.dbtest.ts`.
 - **`ProfileTool` and `requiredTools`/`preferredTools`** are written on every
   save and read by nothing. The exact-tool matching they exist for does not
   happen.

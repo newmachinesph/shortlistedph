@@ -176,14 +176,161 @@ export async function applyConfirmedOutcome(snap: OutcomeSnapshot, period: strin
     }
   });
 
+  // Confirming a period is also the platform learning this person is actually
+  // working. Capacity follows from that, and until now it did not: they stayed
+  // "fully free" and kept collecting invitations they had to decline.
+  // syncCommittedHours re-derives and re-embeds on its own when the number
+  // moves, so it runs before the embed below decides whether it still needs to.
+  let hoursChanged = false;
+  try {
+    const before = await db.talentProfile.findUnique({
+      where: { id: snap.profileId },
+      select: { committedHours: true },
+    });
+    const after = await syncCommittedHours(snap.profileId);
+    hoursChanged = before?.committedHours !== after;
+  } catch (e) {
+    console.error("[agreements] committed-hours sync after confirmed outcome failed", snap.profileId, e);
+  }
+
   // Both writes above change text the profile embeds ("Confirmed skills:", the
   // engagement line), so the platform's core trust signal has to reach the
   // vector now — not whenever the talent next saves something unrelated.
   // Best-effort: a confirmation is DB truth, an embedding is derived and
   // rebuildable, so an OpenAI hiccup must not undo the confirmation.
+  //
+  // Skipped when the hours sync already re-embedded — that is four API calls,
+  // and running them twice for one confirmation buys nothing.
+  if (hoursChanged) return;
   try {
     await refreshProfileEmbeddings(snap.profileId);
   } catch (e) {
     console.error("[agreements] re-embed after confirmed outcome failed", snap.profileId, e);
   }
+}
+
+/** The period before `currentPeriod()` — "2026-01" rolls back to "2025-12". */
+export function previousPeriod(now: Date = new Date()): string {
+  const [year, month] = currentPeriod(now).split("-").map(Number);
+  return month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, "0")}`;
+}
+
+/** Nobody can commit more than a week holds. Matches the profile form's own cap. */
+const MAX_COMMITTED_HOURS = 80;
+
+/**
+ * Recompute how much of a talent's week is already spoken for, from the work
+ * they are actually confirmed to be doing.
+ *
+ * A confirmed hire changed nothing about capacity: someone working 40h/week for
+ * one employer still scored as fully free, kept being ranked for full-time
+ * roles, and kept receiving invitations they had to decline — which rotation
+ * now charges them for. `committedHours` already feeds scoreOverlap, the facet
+ * text and the Stage 0 hours filter; nothing had ever written it except the
+ * talent by hand.
+ *
+ * DERIVED, never incremented. The monthly OutcomeConfirmation is the only
+ * liveness signal this platform has — there is no "engagement ended" event — so
+ * hours are summed over agreements confirmed for the current or previous
+ * period. That makes this idempotent by construction, and self-correcting: when
+ * an engagement quietly ends the confirmations stop, and within a month the
+ * hours fall away on their own instead of stranding someone at full capacity
+ * forever. Previous period counts too, or every talent would drop to zero on
+ * the 1st and climb back as the month's confirmations landed.
+ *
+ * Returns the value now stored.
+ */
+export async function syncCommittedHours(profileId: string, now: Date = new Date()): Promise<number> {
+  const live = await db.agreement.findMany({
+    where: {
+      connection: { slateEntry: { snapshot: { profileId } } },
+      outcomes: {
+        some: {
+          period: { in: [currentPeriod(now), previousPeriod(now)] },
+          talentConfirmedAt: { not: null },
+          employerConfirmedAt: { not: null },
+        },
+      },
+    },
+    select: { terms: true },
+  });
+
+  const profile = await db.talentProfile.findUnique({
+    where: { id: profileId },
+    select: { committedHours: true, selfCommittedHours: true, publishedAt: true },
+  });
+  if (!profile) return 0;
+
+  // Self-reported hours are ADDED, not replaced. Someone can be working
+  // somewhere this platform will never hear about, and deriving the total from
+  // confirmed agreements alone would silently delete that.
+  const hours = Math.min(
+    MAX_COMMITTED_HOURS,
+    profile.selfCommittedHours +
+      live.reduce((total, a) => total + (readTerms(a.terms).hoursPerWeek ?? 0), 0),
+  );
+
+  if (profile.committedHours === hours) return hours;
+
+  // lastEditedAt is deliberately NOT touched: it is the anti-tailoring clock,
+  // measuring when the CANDIDATE last changed their own story. This is the
+  // platform recording a fact about them.
+  await db.talentProfile.update({ where: { id: profileId }, data: { committedHours: hours } });
+
+  // Committed hours appear in the preferences facet text, so a published
+  // profile's vectors have to follow. Best-effort — the number is the truth,
+  // the embedding is derived from it.
+  if (profile.publishedAt) {
+    try {
+      await refreshProfileEmbeddings(profileId);
+    } catch (e) {
+      console.error("[agreements] re-embed after committed-hours change failed", profileId, e);
+    }
+  }
+
+  return hours;
+}
+
+/** Cap per sweep, so one cron invocation can never fan out to the whole table. */
+const HOURS_SWEEP_BATCH = 500;
+
+/**
+ * Re-derive committed hours for everyone the number could have moved for.
+ *
+ * The upward direction has an event to hang off — a period being confirmed.
+ * The downward one does not: an engagement ends by the confirmations simply
+ * stopping, and nothing fires when something fails to happen. Without a sweep,
+ * a talent whose contract quietly ended would sit at full capacity forever,
+ * ranked as unavailable for work they are free to take.
+ *
+ * Scoped to profiles that either carry committed hours now or have an agreement
+ * that could add some — the rest have nothing to recompute.
+ */
+export async function syncAllCommittedHours(now: Date = new Date()): Promise<number> {
+  const candidates = await db.talentProfile.findMany({
+    where: {
+      OR: [
+        { committedHours: { gt: 0 } },
+        { snapshots: { some: { entries: { some: { connection: { agreement: { isNot: null } } } } } } },
+      ],
+    },
+    select: { id: true },
+    take: HOURS_SWEEP_BATCH,
+  });
+
+  let changed = 0;
+  for (const p of candidates) {
+    try {
+      const before = await db.talentProfile.findUnique({
+        where: { id: p.id },
+        select: { committedHours: true },
+      });
+      const after = await syncCommittedHours(p.id, now);
+      if (before?.committedHours !== after) changed++;
+    } catch (e) {
+      // One bad profile must not stop the sweep for everyone else.
+      console.error("[agreements] committed-hours sweep failed for", p.id, e);
+    }
+  }
+  return changed;
 }

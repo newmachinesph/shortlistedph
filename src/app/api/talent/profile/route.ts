@@ -130,6 +130,14 @@ export async function PATCH(req: Request) {
 
     const { skills, engagements, ...scalars } = body;
 
+    // committedHours is now a DERIVED total — the talent's own figure plus every
+    // engagement this platform has confirmed — so what arrives here is the
+    // self-reported part. It is written to both: to selfCommittedHours as the
+    // baseline that survives every recompute, and to committedHours so the form
+    // reflects the answer immediately. syncCommittedHours puts the confirmed
+    // hours back on top the next time it runs.
+    const selfHours = scalars.committedHours;
+
     // lastEditedAt is the anti-tailoring clock, and re-embedding is four API
     // calls. Neither belongs to an edit that changes no embedded text — a bare
     // `{visibility:false}` was resetting a talent's stability figure and
@@ -214,6 +222,7 @@ export async function PATCH(req: Request) {
         where: { id: profile.id },
         data: {
           ...scalars,
+          ...(selfHours !== undefined ? { selfCommittedHours: selfHours } : {}),
           // Answering the availability question IS confirming it. The dedicated
           // route always stamped this; this one did not, so a profile published
           // through the wizard was born stale and got nudged about something it

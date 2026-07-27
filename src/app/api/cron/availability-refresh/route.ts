@@ -5,6 +5,7 @@ import { mail } from "@/lib/email";
 import { notify } from "@/lib/notify";
 import { HttpError } from "@/lib/session";
 import { STALE_DAYS } from "@/lib/availability";
+import { syncAllCommittedHours } from "@/lib/agreements";
 
 // Skip anyone prompted within this many days — the anti-spam cooldown.
 const COOLDOWN_DAYS = 3;
@@ -51,6 +52,14 @@ async function handle(req: Request) {
     const staleBefore = new Date(now - STALE_DAYS * 86_400_000);
     const cooldownAfter = new Date(now - COOLDOWN_DAYS * 86_400_000);
 
+    // Capacity, before the nudges. Committed hours are derived from confirmed
+    // agreements, and the interesting direction is DOWNWARD: when an engagement
+    // quietly ends nothing fires — the monthly confirmations simply stop — so
+    // only a sweep like this one can give the person their week back. Without
+    // it they would sit at full capacity forever, ranked as unavailable for
+    // work they are free to take.
+    const committedSynced = await syncAllCommittedHours();
+
     const due = await db.talentProfile.findMany({
       where: {
         publishedAt: { not: null },
@@ -79,9 +88,9 @@ async function handle(req: Request) {
     }
 
     console.info(
-      `[cron:availability-refresh] prompted ${prompted} of ${due.length} due (batch cap ${BATCH})`,
+      `[cron:availability-refresh] prompted ${prompted} of ${due.length} due (batch cap ${BATCH}); committed hours moved for ${committedSynced}`,
     );
-    return ok({ prompted, due: due.length, capped: due.length === BATCH });
+    return ok({ prompted, due: due.length, capped: due.length === BATCH, committedSynced });
   } catch (e) {
     return fail(e);
   }
