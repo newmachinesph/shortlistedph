@@ -57,6 +57,25 @@ npm run seed:admin
 Remove-Item Env:DATABASE_URL
 ```
 
+## Where things stand (2026-07-28)
+
+The audit-4 backlog is **closed** — all seventeen BLOCKER / SECURITY / DATA
+INTEGRITY items verified against the source, not the doc. Two entries in it had
+already been fixed while still reading as open, so every remaining one was
+re-checked rather than trusted.
+
+Fixed and executed this round, each under tests written to fail first:
+partial refunds and the PayMongo refund id; opt-out emptying the outbox rather
+than only stopping new ranking; the candidate's access to the assessment and
+recording made of them; a ban reaching every role the person holds; and a
+confirmed hire actually consuming the week.
+
+Deliberately left open, with reasons in DECISIONS.md: the assessment stays
+human-only, and the ratings/ProfileTool consumers wait for real usage.
+
+Test surface: 25 unit, 34 dbtest against a real Postgres, 43 smoke checks
+against a running app. `npm run test:unit`, `npm run test:money`, `npm run smoke`.
+
 ## State of the code
 
 Four audit rounds and five fix waves; `docs/system-audit-4.md` is the live open
