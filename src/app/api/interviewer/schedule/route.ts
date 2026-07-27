@@ -32,10 +32,15 @@ export async function POST(req: Request) {
     });
     if (!interview) throw new HttpError(404, "Interview not found");
 
-    await db.interview.update({
-      where: { id: interview.id },
+    // Conditional write, not a bare update: between the read above and here an
+    // admin or employer can cancel. An unconditional update resurrected the
+    // cancelled interview, which then re-entered the credit-return path and
+    // handed back a SECOND credit.
+    const { count } = await db.interview.updateMany({
+      where: { id: interview.id, status: { in: ["paid", "scheduled"] } },
       data: { scheduledAt: when, status: "scheduled" },
     });
+    if (count === 0) throw new HttpError(409, "This interview was cancelled — nothing to schedule");
 
     await notify({
       userId: interview.talentUserId,

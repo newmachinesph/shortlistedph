@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { NOINDEX } from "@/lib/site";
 import { requireAdminPage } from "@/lib/admin";
 import {
-  CLOSED,
+  CANCELLABLE,
   INTERVIEW_STATUSES,
   RECOMMENDATION_LABEL,
   type InterviewStatus,
@@ -21,11 +21,10 @@ export const metadata: Metadata = { title: "Admin · Interviews", ...NOINDEX };
 const usd = (n: number) => `$${n.toFixed(2)}`;
 
 /**
- * Statuses cancelInterview refuses — everything else is still live and can be
- * unwound. Imported from the lib rather than restated, so the button can never
- * disagree with what the API will accept.
+ * Imported rather than restated, so the button appears exactly where the API
+ * will accept it — delivered work is not cancellable by anyone.
  */
-const CLOSED_STATUSES: readonly string[] = CLOSED;
+const CANCELLABLE_STATUSES: readonly string[] = CANCELLABLE;
 
 function isStatus(value: string | undefined): value is InterviewStatus {
   return !!value && (INTERVIEW_STATUSES as readonly string[]).includes(value);
@@ -320,10 +319,10 @@ export default async function AdminInterviews({
                         )}
                       </td>
                       <td className="px-6 py-3.5 text-right">
-                        {CLOSED_STATUSES.includes(iv.status) ? (
-                          <span className="text-xs text-ink-faint">—</span>
-                        ) : (
+                        {CANCELLABLE_STATUSES.includes(iv.status) ? (
                           <CancelInterview interviewId={iv.id} />
+                        ) : (
+                          <span className="text-xs text-ink-faint">—</span>
                         )}
                       </td>
                     </tr>

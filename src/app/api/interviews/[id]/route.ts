@@ -1,43 +1,39 @@
 import { z } from "zod";
 import { fail, ok, parseBody } from "@/lib/api";
-import { db } from "@/lib/db";
-import { HttpError, requireEmployer, requireRole } from "@/lib/session";
+import { cancelInterview } from "@/lib/interviews";
+import { requireEmployer, requireRole } from "@/lib/session";
 
-const Body = z.object({ action: z.literal("cancel") });
+const Body = z.object({ action: z.literal("cancel"), reason: z.string().max(500).optional() });
 
 /**
- * Employer cancels an interview — allowed only before money changes hands.
- * Once paid, undoing it would need a refund rail the platform does not have,
- * so a paid-or-later interview can't be cancelled here.
+ * Employer cancels an interview.
+ *
+ * This used to be a second, weaker implementation: it read the status, then
+ * wrote "cancelled" UNCONDITIONALLY. A confirm committing in that window left
+ * a spent credit and a stamped entitlement attached to a dead interview, with
+ * nothing returned and nobody notified. It also refused every state past
+ * "consented", which is what made an abandoned paid interview unfixable.
+ *
+ * cancelInterview owns the rules now — conditional status write, credit and
+ * entitlement returned together, all three parties told. Passing employerId
+ * keeps the employer's narrower window: they cannot cancel work already
+ * delivered.
  */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireRole("employer");
     const employer = await requireEmployer(user.id);
     const { id } = await params;
-    await parseBody(req, Body);
+    const { reason } = await parseBody(req, Body);
 
-    const interview = await db.interview.findUnique({
-      where: { id },
-      select: { id: true, employerId: true, status: true },
-    });
-    if (!interview || interview.employerId !== employer.id) {
-      throw new HttpError(404, "Interview not found");
-    }
-
-    if (interview.status !== "requested" && interview.status !== "consented") {
-      throw new HttpError(
-        409,
-        "This interview can no longer be cancelled — it is already paid or further along",
-      );
-    }
-
-    await db.interview.update({ where: { id }, data: { status: "cancelled" } });
-    await db.auditLog.create({
-      data: { actorId: user.id, action: "interview.cancel", target: id },
-    });
-
-    return ok({ status: "cancelled" });
+    return ok(
+      await cancelInterview({
+        actorId: user.id,
+        interviewId: id,
+        employerId: employer.id,
+        reason,
+      }),
+    );
   } catch (e) {
     return fail(e);
   }

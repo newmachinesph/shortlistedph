@@ -236,20 +236,37 @@ export async function markPaymentRefunded(providerRef: string): Promise<{
 
       const employer = await tx.employerAccount.findFirst({
         where: { userId: payment.userId },
-        select: { id: true, credits: true, interviewCredits: true },
+        select: { id: true },
       });
-      if (employer) {
+      if (!employer) {
+        // Entitlements are revoked but no balance moved. Loud, because the
+        // silent version of this reported a clean clawback that never happened.
+        console.error(
+          `[fulfillment] refund ${providerRef}: revoked ${spendable.length} entitlement(s) but user ${payment.userId} has no employer account — balance NOT adjusted`,
+        );
+      } else {
         const credits = spendable.filter((e) => e.kind === "credit").length;
         const interview = spendable.filter((e) => e.kind === "interview_credit").length;
-        await tx.employerAccount.update({
-          where: { id: employer.id },
-          data: {
-            // Clamped: a balance already drained by admin adjustment must not
-            // be pushed negative by the clawback.
-            credits: Math.max(0, employer.credits - credits),
-            interviewCredits: Math.max(0, employer.interviewCredits - interview),
-          },
-        });
+        // Atomic decrement, NOT read-then-write. Reading the balance and
+        // writing back `read - n` loses any concurrent unlock or interview
+        // confirm that commits in between: the refund would restore a credit
+        // the employer had already spent. Every other writer in the codebase
+        // uses increment/decrement; this one has to as well.
+        //
+        // The clamp that used to guard against a negative balance moves into
+        // the WHERE: decrement only what is actually there.
+        if (credits > 0) {
+          await tx.employerAccount.updateMany({
+            where: { id: employer.id, credits: { gte: credits } },
+            data: { credits: { decrement: credits } },
+          });
+        }
+        if (interview > 0) {
+          await tx.employerAccount.updateMany({
+            where: { id: employer.id, interviewCredits: { gte: interview } },
+            data: { interviewCredits: { decrement: interview } },
+          });
+        }
       }
     }
 

@@ -35,7 +35,18 @@ export async function POST(req: Request) {
       const p = await tx.interviewerPayout.create({
         data: { interviewerId, amount, currency: "USD", method, note, status: "pending" },
       });
-      await tx.interview.updateMany({ where: { id: { in: ids } }, data: { payoutId: p.id } });
+      // `payoutId: null` in the WHERE is the claim, exactly as the affiliate
+      // side does it. Without it, two operators (or one double-click) both read
+      // the same unpaid set, both create a payout for the full amount, and the
+      // second silently steals the rows off the first — leaving two settleable
+      // payouts for one batch of work.
+      const claimed = await tx.interview.updateMany({
+        where: { id: { in: ids }, payoutId: null },
+        data: { payoutId: p.id },
+      });
+      if (claimed.count !== ids.length) {
+        throw new HttpError(409, "Another payout claimed these interviews — reload and try again");
+      }
       return p;
     });
 

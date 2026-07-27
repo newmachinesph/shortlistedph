@@ -34,9 +34,21 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     if (claimed === 0) throw new HttpError(409, "Already published");
 
     // Small pool for now — run inline. Move to a queue when this outgrows the request timeout.
-    const result = await buildSlate(jd.id);
-
-    return ok(result);
+    //
+    // The status flip above is a lock, and a lock has to be released. Without
+    // this catch a throw inside buildSlate (an embedding timeout, a DB blip)
+    // left the JD stuck at "matching" forever: PATCH refuses a non-draft,
+    // re-publish refuses a non-draft, and the employer's page said "ranking
+    // the market" indefinitely. Handing it to "failed" reaches the terminal
+    // branch the brief page already renders, with a route back through admin.
+    try {
+      return ok(await buildSlate(jd.id));
+    } catch (e) {
+      await db.jobDescription
+        .updateMany({ where: { id: jd.id, status: "matching" }, data: { status: "failed" } })
+        .catch(() => {});
+      throw e;
+    }
   } catch (e) {
     return fail(e);
   }

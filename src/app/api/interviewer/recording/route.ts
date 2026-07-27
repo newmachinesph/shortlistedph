@@ -40,7 +40,7 @@ const ConfirmBody = z.object({
 async function scopedInterview(interviewId: string, interviewerId: string) {
   const interview = await db.interview.findFirst({
     where: { id: interviewId, interviewerId, status: { in: ["paid", "scheduled"] } },
-    select: { id: true },
+    select: { id: true, status: true },
   });
   if (!interview) throw new HttpError(404, "Interview not found");
   return interview;
@@ -77,12 +77,16 @@ export async function PATCH(req: Request) {
       throw new HttpError(400, "Recording key does not match this interview");
     }
 
-    await scopedInterview(interviewId, interviewer.id);
+    const scoped = await scopedInterview(interviewId, interviewer.id);
 
-    await db.interview.update({
-      where: { id: interviewId },
+    // Conditional, for the same reason as the schedule route: an unconditional
+    // write here could revive an interview an admin had just cancelled, taking
+    // it on to "reported" and into a payout for work the employer was refunded.
+    const { count } = await db.interview.updateMany({
+      where: { id: interviewId, status: scoped.status },
       data: { recordingKey: key, status: "recorded" },
     });
+    if (count === 0) throw new HttpError(409, "This interview changed state — reload and try again");
 
     return ok({ status: "recorded" });
   } catch (e) {

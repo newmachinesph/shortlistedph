@@ -4,9 +4,9 @@
  *
  *   node --experimental-strip-types scripts/seed-interviewers.ts
  *
- * Creates real accounts through BetterAuth (so they can actually sign in),
- * gives each the "interviewer" role and an ACTIVE Interviewer row — skipping
- * the normal apply-then-admin-approve path on purpose, because the point is a
+ * Creates real accounts through BetterAuth (so they can actually sign in) and
+ * gives each an ACTIVE Interviewer row — skipping the normal
+ * apply-then-admin-approve path on purpose, because the point is a
  * ready-to-use pool. Idempotent: an interviewer whose email already exists is
  * left alone.
  *
@@ -115,9 +115,14 @@ async function main() {
     }
 
     await auth.api.signUpEmail({ body: { email, password, name: person.name } });
+    // Role stays "talent". Interviewing is a capability carried by the
+    // Interviewer row below, never a User.role — writing "interviewer" here
+    // bricked the account: requirePageUser sends an unknown role to /talent,
+    // whose layout re-runs the same check, so the person hit an infinite
+    // redirect and every requireRole("talent") route 403'd.
     const user = await db.user.update({
       where: { email },
-      data: { role: "interviewer", status: "active", emailVerified: true },
+      data: { status: "active", emailVerified: true },
       select: { id: true },
     });
 

@@ -40,8 +40,21 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       // Mark exactly ONE unspent entitlement as spent on this slate — the old
       // updateMany marked every credit the employer had, corrupting the
       // "which purchase paid which unlock" trail after the first unlock.
+      // kind MUST be filtered. Without it this picked whichever row Postgres
+      // returned first — often an interview_credit — and stamped it as paying
+      // for a shortlist. That silently swapped the two ledgers, left the real
+      // shortlist entitlement looking unspent (so a refund clawed it back
+      // while the slate stayed unlocked), and could re-mark a row already
+      // spent on an interview. Mirrors the interview spend in lib/interviews.ts.
       const ent = await tx.entitlement.findFirst({
-        where: { employerId: employer.id, spentOnSlateId: null, revokedAt: null },
+        where: {
+          employerId: employer.id,
+          kind: "credit",
+          spentOnSlateId: null,
+          spentOnInterviewId: null,
+          revokedAt: null,
+        },
+        orderBy: { createdAt: "asc" },
         select: { id: true },
       });
       if (ent) {

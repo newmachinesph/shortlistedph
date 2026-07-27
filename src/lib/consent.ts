@@ -100,6 +100,9 @@ export async function getConsentByToken(token: string) {
           hoursPerWeek: true,
           overlap: true,
           mustHaves: true,
+          // Not shown to the candidate — decides whether an expired invite
+          // deserves a dormancy strike, and whether an accept is still legal.
+          status: true,
         },
       },
     },
@@ -113,17 +116,28 @@ export function isConsentExpired(c: { status: string; expiresAt: Date | null }):
   );
 }
 
-/** Expiry ⇒ one strike, wherever it is detected (POST route or cron). */
-async function markExpired(consentId: string, profileId: string) {
+/**
+ * Expiry ⇒ one strike, wherever it is detected (POST route or cron).
+ *
+ * `penalise` is false when the strike would be unfair: the role was closed
+ * before the window ran out (nobody could have accepted it), or the candidate
+ * turned up late but did answer — an answer is participation, which is the
+ * only thing dormancy is meant to measure.
+ */
+async function markExpired(consentId: string, profileId: string, penalise = true) {
   await db.$transaction([
     db.matchConsent.updateMany({
       where: { id: consentId, status: "pending" },
       data: { status: "expired" },
     }),
-    db.talentProfile.updateMany({
-      where: { id: profileId, dormantAt: null },
-      data: { dormantAt: new Date() },
-    }),
+    ...(penalise
+      ? [
+          db.talentProfile.updateMany({
+            where: { id: profileId, dormantAt: null },
+            data: { dormantAt: new Date() },
+          }),
+        ]
+      : []),
   ]);
 }
 
@@ -153,7 +167,10 @@ export async function respondToConsent(token: string, action: "accept" | "declin
   }
 
   if (isConsentExpired(consent)) {
-    await markExpired(consent.id, consent.profileId);
+    // Someone who opens the link late to say no is answering, not ignoring —
+    // and a closed role was never answerable. Neither earns a strike.
+    const penalise = action !== "decline" && consent.jd.status !== "closed";
+    await markExpired(consent.id, consent.profileId, penalise);
     throw new HttpError(410, "This request expired before it was answered");
   }
 

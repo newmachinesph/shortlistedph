@@ -214,6 +214,15 @@ export const CLOSED: InterviewStatus[] = ["declined", "cancelled"];
 const CREDIT_SPENT: InterviewStatus[] = ["paid", "scheduled"];
 
 /**
+ * States cancelInterview will accept. Exported so the admin UI offers the
+ * action exactly where the API allows it, instead of restating the rule and
+ * drifting from it.
+ */
+export const CANCELLABLE: readonly InterviewStatus[] = INTERVIEW_STATUSES.filter(
+  (s) => !CLOSED.includes(s) && !DELIVERED.includes(s),
+);
+
+/**
  * Cancel an interview and return the credit if one was spent.
  *
  * The only cancel path used to be the employer's, and it refused once the
@@ -243,8 +252,17 @@ export async function cancelInterview(args: {
 
   const status = interview.status as InterviewStatus;
   if (CLOSED.includes(status)) throw new HttpError(409, "This interview is already closed");
-  if (DELIVERED.includes(status) && args.employerId) {
-    throw new HttpError(409, "This interview has already been carried out");
+  // Delivered work is nobody's to cancel — not even an operator's. The
+  // interviewer ran the call and uploaded the recording; cancelling drops the
+  // row out of the owed query and their earnings simply vanish, with the
+  // employer getting nothing back either (no credit was returnable at this
+  // stage). Reversing delivered work needs a decision about who eats the cost,
+  // which is a refund conversation, not a status flip.
+  if (DELIVERED.includes(status)) {
+    throw new HttpError(
+      409,
+      "This interview has already been carried out — cancelling it would erase the interviewer's earnings. Handle it as a refund instead.",
+    );
   }
 
   const creditReturned = CREDIT_SPENT.includes(status);

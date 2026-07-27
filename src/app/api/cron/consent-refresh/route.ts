@@ -54,16 +54,22 @@ async function handle(req: Request) {
     // ── 1. Expire + one-strike dormancy ─────────────────────────────────
     const lapsed = await db.matchConsent.findMany({
       where: { status: "pending", sentAt: { not: null }, expiresAt: { lt: now } },
-      select: { id: true, profileId: true },
+      select: { id: true, profileId: true, jd: { select: { status: true } } },
     });
     if (lapsed.length > 0) {
+      // Everyone's invite expires, but the dormancy strike only applies to
+      // invites that were still answerable. A candidate cannot accept a role
+      // the employer closed (respondToConsent refuses it), so penalising them
+      // for not answering it meant the only way to avoid exclusion from ALL
+      // matching was to decline a job they could never have taken.
+      const penalised = lapsed.filter((c) => c.jd.status !== "closed").map((c) => c.profileId);
       await db.$transaction([
         db.matchConsent.updateMany({
           where: { id: { in: lapsed.map((c) => c.id) } },
           data: { status: "expired" },
         }),
         db.talentProfile.updateMany({
-          where: { id: { in: lapsed.map((c) => c.profileId) }, dormantAt: null },
+          where: { id: { in: penalised }, dormantAt: null },
           data: { dormantAt: now },
         }),
       ]);

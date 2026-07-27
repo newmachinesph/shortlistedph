@@ -469,14 +469,46 @@ export async function adjustEmployerCredits(args: {
     if (updated.count === 0) {
       throw new HttpError(409, "Balance changed while adjusting — reload and retry");
     }
+    const kind = isInterview ? "interview_credit" : "credit";
     if (granted > 0) {
       await tx.entitlement.createMany({
         data: Array.from({ length: granted }, () => ({
           employerId: employer.id,
-          kind: isInterview ? "interview_credit" : "credit",
+          kind,
           source: "admin_grant",
         })),
       });
+    } else if (granted < 0) {
+      // A deduction has to revoke rows, not just move the counter. Without
+      // this the entitlement ledger stayed at the old count forever, so every
+      // deduction added permanent positive drift to the reconciliation view
+      // built to detect exactly that — and the operator had no way to clear
+      // the alarm they had just created.
+      const revokable = await tx.entitlement.findMany({
+        where: {
+          employerId: employer.id,
+          kind,
+          spentOnSlateId: null,
+          spentOnInterviewId: null,
+          revokedAt: null,
+        },
+        orderBy: { createdAt: "desc" },
+        take: -granted,
+        select: { id: true },
+      });
+      if (revokable.length > 0) {
+        await tx.entitlement.updateMany({
+          where: { id: { in: revokable.map((e) => e.id) } },
+          data: { revokedAt: new Date(), revokedReason: `admin_adjust:${args.reason}` },
+        });
+      }
+      if (revokable.length < -granted) {
+        // Balance was higher than the ledger could back — pre-existing drift,
+        // now visible instead of compounding silently.
+        console.warn(
+          `[admin] credit deduction for ${employer.id} removed ${-granted} from the balance but only ${revokable.length} entitlement(s) were revokable`,
+        );
+      }
     }
     await tx.auditLog.create({
       data: {
