@@ -122,14 +122,21 @@ export function UserStatusActions({
  */
 export function TalentLevers({
   userId,
-  dormantAt,
+  dormantSince,
   flags,
   rateLockedUntil,
 }: {
   userId: string;
-  dormantAt: Date | null;
+  /**
+   * Already formatted, and already compared against "now", by the page. Both
+   * used to happen here: `toLocaleDateString` picks up the browser's locale
+   * and timezone, and `> new Date()` re-evaluates at hydration — so the same
+   * row could render two different strings, or a lever that was there on the
+   * server and gone on the client.
+   */
+  dormantSince: string | null;
   flags: string[];
-  rateLockedUntil: Date | null;
+  rateLockedUntil: string | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -159,21 +166,21 @@ export function TalentLevers({
   }
 
   const levers: { lever: "dormancy" | "flags" | "rate_lock"; label: string; detail: string }[] = [];
-  if (dormantAt) {
+  if (dormantSince) {
     levers.push({
       lever: "dormancy",
       label: "Clear dormancy",
-      detail: `dormant since ${dormantAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })} — excluded from matching`,
+      detail: `dormant since ${dormantSince} — excluded from matching`,
     });
   }
   if (flags.length > 0) {
     levers.push({ lever: "flags", label: "Clear flags", detail: `⚠ ${flags.join(", ")} — reviewed?` });
   }
-  if (rateLockedUntil && rateLockedUntil > new Date()) {
+  if (rateLockedUntil) {
     levers.push({
       lever: "rate_lock",
       label: "Release rate lock",
-      detail: `rate locked until ${rateLockedUntil.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
+      detail: `rate locked until ${rateLockedUntil}`,
     });
   }
   if (levers.length === 0) return null;

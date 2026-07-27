@@ -1,9 +1,13 @@
 # System audit — round 2 (2026-07-27)
 
+> **SUPERSEDED — see `docs/system-audit-3.md` for the live list.** Everything in
+> the "NOT fixed" section below was worked in round 3, and the fifth audit that
+> died here was re-commissioned and completed there.
+
 Four fresh auditors re-checked the round-1 rebuild (`32e8fce`) adversarially:
 money/ledger, matching engine, employer+talent surfaces, admin+auth. A fifth
-(cross-cutting: security, dead code, integration seams) **died on a session
-limit and never ran** — that audit is still owed.
+(cross-cutting: security, dead code, integration seams) died on a session limit
+and never ran in this round.
 
 Their verdicts on round 1 were mixed, and several of the worst findings were
 bugs round 1 *introduced*. That is the value of the exercise; it is also why

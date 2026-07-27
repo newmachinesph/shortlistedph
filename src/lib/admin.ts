@@ -60,6 +60,19 @@ export function money(amount: number, currency: string): string {
   return `${symbol}${amount.toLocaleString("en-US", { maximumFractionDigits: 2 })}${symbol ? "" : ` ${currency}`}`;
 }
 
+/**
+ * Payout destinations — PayPal addresses, wallet numbers — rendered to an
+ * operator who needs to recognise the account, not read it out. Last 4 only.
+ *
+ * Short values are masked WHOLE rather than left mostly intact: revealing 4 of
+ * 5 characters is not a mask.
+ */
+export function maskAccount(value: string | null | undefined): string | null {
+  const v = value?.trim();
+  if (!v) return null;
+  return v.length <= 8 ? "•".repeat(v.length) : `${"•".repeat(4)}${v.slice(-4)}`;
+}
+
 export type RevenueLine = { currency: string; total: number };
 
 export type AdminOverview = {

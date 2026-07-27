@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "./db";
+import { FULL_WEEK_HOURS } from "./scoring";
 
 /**
  * How many published, active, matchable profiles roughly fit a role — shown to
@@ -56,6 +57,12 @@ export async function prospectCount(q: ProspectQuery): Promise<number> {
       `p."dormantAt" is null`,
       `p.embedding is not null`,
       `u.status = 'active'`,
+      // Both became real pool filters when openToOffers stopped being a mere
+      // rotation nudge and "booked" stopped depending on the Stage 0 flag.
+      // Omitting them here would put people in the funnel number that the
+      // engine can no longer return.
+      `p."openToOffers" = true`,
+      `p.availability <> 'booked'`,
     ];
 
     if (q.budgetMax && q.budgetMax > 0) {
@@ -65,11 +72,12 @@ export async function prospectCount(q: ProspectQuery): Promise<number> {
     }
 
     if (q.hoursPerWeek && q.hoursPerWeek > 0) {
-      // Same capacity arithmetic as the hours_short hard filter (lib/filters.ts):
-      // 40 hours a week, less whatever is already committed. Applied even though
-      // that filter sits behind a flag — erring toward the smaller number is the
-      // only safe direction for a figure shown before signup.
-      conditions.push(`greatest(0, 40 - p."committedHours") >= ${Number(q.hoursPerWeek)}`);
+      // Same capacity arithmetic as freeHours (lib/scoring.ts), sharing its
+      // constant rather than restating 40 — the raw SQL cannot call the
+      // function, so the number at least comes from one place.
+      conditions.push(
+        `greatest(0, ${FULL_WEEK_HOURS} - p."committedHours") >= ${Number(q.hoursPerWeek)}`,
+      );
     }
 
     let joinFilter = "";
@@ -94,9 +102,14 @@ export async function prospectCount(q: ProspectQuery): Promise<number> {
         where ${conditions.join(" and ")}${joinFilter}`,
     );
     return rows[0]?.n ?? 0;
-  } catch {
+  } catch (e) {
     // The count is a nice-to-have on a marketing page — never 500 the funnel
     // over it. The caller decides how to show "we're still counting".
+    //
+    // But it MUST be logged. A silent 0 is indistinguishable from "nobody in
+    // the pool matches", and this is the number the entire pre-signup employer
+    // funnel is sold on — a broken query would have read as an empty market.
+    console.error("[prospect-count] query failed, reporting 0", e);
     return 0;
   }
 }

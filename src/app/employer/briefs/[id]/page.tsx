@@ -7,6 +7,7 @@ import {
   Camera,
   CircleAlert,
   EyeOff,
+  FileEdit,
   Lock,
   Radar,
   ScanSearch,
@@ -41,7 +42,6 @@ function eliminationLines(counts: Record<string, number>, rateCeiling: number | 
   const lines: string[] = [];
   const above = counts.rate_above_ceiling ?? 0;
   const short = counts.hours_short ?? 0;
-  const booked = counts.booked ?? 0;
   if (above > 0) {
     const ceiling = rateCeiling != null ? `$${rateCeiling}/hr ` : "";
     lines.push(`${above} ${above === 1 ? "match was" : "matches were"} above your ${ceiling}ceiling`);
@@ -49,9 +49,10 @@ function eliminationLines(counts: Record<string, number>, rateCeiling: number | 
   if (short > 0) {
     lines.push(`${short} did not have enough free hours a week for this load`);
   }
-  if (booked > 0) {
-    lines.push(`${booked} ${booked === 1 ? "was" : "were"} already at capacity`);
-  }
+  // No "already at capacity" line: a booked candidate is filtered out of the
+  // pool query itself now (lib/matching.ts), so Stage 0 never sees one and the
+  // count is permanently 0. Rows written before that change stay in the table
+  // and are deliberately not surfaced.
   return lines;
 }
 
@@ -136,9 +137,11 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
       }))
     : [];
   // Stage 0 eliminations are only worth reading when there is a thin or empty
-  // slate to explain — a full shortlist needs no excuse.
+  // slate to explain — a full shortlist needs no excuse, and a draft has never
+  // been ranked, so there is nothing to count.
   const elimLines =
-    jd.status === "no_matches" || (slate?.entries.length ?? 0) < SLATE_SIZE
+    jd.status !== "draft" &&
+    (jd.status === "no_matches" || (slate?.entries.length ?? 0) < SLATE_SIZE)
       ? eliminationLines(await eliminationCounts(jd.id), jdHardRequirements(jd).rateMaxUsd ?? null)
       : [];
 
@@ -204,7 +207,25 @@ export default async function SlatePage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
-      {jd.status === "no_matches" ? (
+      {jd.status === "draft" ? (
+        // Never posted, so nothing is in progress and nobody has been ranked —
+        // without this branch a draft fell through to "matching and review in
+        // progress" and waited on work that was never started.
+        <div className="mt-6 rounded-2xl border border-line bg-white p-6 text-center sm:p-10">
+          <FileEdit className="mx-auto h-8 w-8 text-ink-faint" strokeWidth={1.5} />
+          <h2 className="font-display mt-4 text-lg font-semibold text-ink">Still a draft</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-ink-soft">
+            Nothing has been matched against this yet — posting it is what starts the ranking.
+            Nobody sees it until then, and posting costs nothing.
+          </p>
+          <Link
+            href={`/employer/briefs/${jd.id}/edit`}
+            className="mt-6 inline-block rounded-xl bg-brand px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
+          >
+            Finish and post it
+          </Link>
+        </div>
+      ) : jd.status === "no_matches" ? (
         <div className="mt-6 rounded-2xl border border-line bg-white p-6 text-center sm:p-10">
           <SearchX className="mx-auto h-8 w-8 text-ember" strokeWidth={1.5} />
           <h2 className="font-display mt-4 text-lg font-semibold text-ink">

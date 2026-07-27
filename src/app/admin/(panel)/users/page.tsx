@@ -28,6 +28,16 @@ const STATUS_CHIPS: { label: string; value: string }[] = [
   { label: "Banned", value: "banned" },
 ];
 
+/** Formatted on the server — the client strip must not re-derive it. */
+function shortDate(d: Date | null): string | null {
+  return d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : null;
+}
+
+/** Null once the lock has expired: "is it still live" is the server's clock to answer. */
+function rateLockLabel(until: Date | null): string | null {
+  return until && until.getTime() > Date.now() ? shortDate(until) : null;
+}
+
 function subtitle(u: Awaited<ReturnType<typeof listUsers>>["users"][number]): string {
   if (u.employer) {
     const bits = [u.employer.companyName];
@@ -246,9 +256,9 @@ export default async function AdminUsers({
               {u.talentProfile && (
                 <TalentLevers
                   userId={u.id}
-                  dormantAt={u.talentProfile.dormantAt}
+                  dormantSince={shortDate(u.talentProfile.dormantAt)}
                   flags={u.talentProfile.flags}
-                  rateLockedUntil={u.talentProfile.rateLockedUntil}
+                  rateLockedUntil={rateLockLabel(u.talentProfile.rateLockedUntil)}
                 />
               )}
             </div>

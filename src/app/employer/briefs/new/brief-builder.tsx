@@ -141,21 +141,30 @@ export function BriefBuilder({
         <h1 className="font-display mt-5 text-2xl font-semibold tracking-tight text-ink">
           Posted — and hidden.
         </h1>
-        {/* Consent-first: at this moment the slate is EMPTY and behind admin
-            review. Say exactly that — the old copy claimed ranked candidates
-            were already waiting. */}
+        {/* Three genuinely different outcomes, and the copy used to collapse
+            them into two. At this moment publish has only CREATED consent
+            rows — the emails go out at admin approval, so "are asking" was a
+            step ahead of itself. And scanned === 0 is not a failed bar: there
+            was nobody to rank, which widening the must-haves cannot fix. */}
         <p className="mt-3 leading-relaxed text-ink-soft">
-          No candidate will ever see it. We ranked {result.scanned}{" "}
-          {result.scanned === 1 ? "profile" : "profiles"} against it
-          {result.invited > 0 ? (
+          No candidate will ever see it.{" "}
+          {result.scanned === 0 ? (
             <>
-              {" "}
-              and are asking the top {result.invited} whether they&rsquo;re available and
-              interested. Your shortlist stays empty until they say yes — and it goes through our
-              review before it reaches you.
+              There was nobody in the pool to rank against it yet, so nothing was matched and
+              nothing was charged. Talk to us — this one needs sourcing, not a wider brief.
+            </>
+          ) : result.invited === 0 ? (
+            <>
+              We ranked {result.scanned} {result.scanned === 1 ? "profile" : "profiles"} against it
+              and nobody cleared the bar. Widening the must-haves or the budget usually fixes it.
             </>
           ) : (
-            <> and nobody cleared the bar. Widening the must-haves or the budget usually fixes it.</>
+            <>
+              We ranked {result.scanned} {result.scanned === 1 ? "profile" : "profiles"} against it
+              and picked the top {result.invited} to ask whether they&rsquo;re available and
+              interested. Nobody has been contacted yet — those requests go out once this clears
+              our review, and your shortlist stays empty until they say yes.
+            </>
           )}
         </p>
         <Link

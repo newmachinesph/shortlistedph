@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { mail } from "./email";
+import { candidateRoleLabel } from "./openings-shape";
 import { notify } from "./notify";
 import { HttpError } from "./session";
 
@@ -23,23 +24,45 @@ export const CONSENT_CAP_MULTIPLIER = 3;
  * email actually went out. mail.matchConsentRequest rides the outreach kill
  * switch — when suppressed it returns false, the consent stays unsent, and the
  * cron retries once outreach is back on. Nothing unsent can ever expire anyone.
+ *
+ * `limit` counts DELIVERIES, not attempts — see the loop.
  */
 export async function sendConsentRequests(jdId: string, limit?: number): Promise<{ sent: number }> {
   const pending = await db.matchConsent.findMany({
-    // A closed role must stop recruiting. Nothing unsent goes out for one, so
-    // an employer who fills the job never has more candidates asked on its
-    // behalf — the cron's own filter covers the backfill path, this covers
-    // consents created before the close.
-    where: { jdId, status: "pending", sentAt: null, jd: { status: { not: "closed" } } },
+    where: {
+      jdId,
+      status: "pending",
+      sentAt: null,
+      // A closed role must stop recruiting. Nothing unsent goes out for one, so
+      // an employer who fills the job never has more candidates asked on its
+      // behalf — the cron's own filter covers the backfill path, this covers
+      // consents created before the close.
+      jd: { status: { not: "closed" } },
+      // Same shape of promise on the candidate's side. "Take me out of
+      // matching" says no new invitations are sent, and the consents queued
+      // before the toggle was flipped are exactly the ones that would break it:
+      // the JD-status filter above never sees them. Withheld, not cancelled —
+      // an unsent row keeps its place and goes out if they opt back in.
+      //
+      // Invitations already SENT stay answerable, deliberately. The email is in
+      // their inbox with a live 48h clock; opting out of future matching is not
+      // a decision to abandon the one offer they are already holding, and
+      // killing the link silently would leave the expiry cron free to stamp a
+      // dormancy strike for an invite we had barred them from answering. The
+      // toggle's own copy scopes itself the same way ("no NEW invitations").
+      profile: { visibility: true },
+    },
     orderBy: { createdAt: "asc" },
-    ...(limit ? { take: limit } : {}),
     select: {
       id: true,
       token: true,
       profile: { select: { user: { select: { email: true } } } },
       jd: {
         select: {
-          title: true,
+          // NEVER the raw `title` — that is the employer's own wording and can
+          // name the client. candidateRoleLabel is the only door.
+          publicTitle: true,
+          roleFamily: true,
           budgetMin: true,
           budgetMax: true,
           hoursPerWeek: true,
@@ -48,13 +71,23 @@ export async function sendConsentRequests(jdId: string, limit?: number): Promise
         },
       },
     },
+    // Deliberately unbounded: a JD can hold at most SLATE_SIZE *
+    // CONSENT_CAP_MULTIPLIER consents, so this set is small, and taking exactly
+    // `limit` rows is what let one undeliverable address hold the slot forever.
   });
 
   let sent = 0;
   for (const c of pending) {
+    // A failed send must not consume the caller's budget. The old code took
+    // exactly `limit` rows oldest-first and counted attempts, so a permanently
+    // undeliverable address was re-picked every hour, blocked the slot, and
+    // still counted against the JD's consent cap — the JD reached "pool
+    // exhausted" having delivered nothing. Counting deliveries means the bad
+    // row costs one wasted attempt per run and nothing else.
+    if (limit != null && sent >= limit) break;
     const delivered = await mail.matchConsentRequest(c.profile.user.email, {
       token: c.token,
-      title: c.jd.title,
+      roleLabel: candidateRoleLabel(c.jd),
       budgetMin: c.jd.budgetMin,
       budgetMax: c.jd.budgetMax,
       hoursPerWeek: c.jd.hoursPerWeek,
@@ -91,10 +124,14 @@ export async function getConsentByToken(token: string) {
       dims: true,
       reasons: true,
       // GENERIC JD data only — the employer/company name never rides a consent
-      // (hidden-JD principle), so it is not even selected here.
+      // (hidden-JD principle), so it is not even selected here. That includes
+      // the raw `title`: it is the employer's own wording and the openings
+      // board already treats it as capable of naming the client. Callers render
+      // candidateRoleLabel(jd) instead.
       jd: {
         select: {
-          title: true,
+          publicTitle: true,
+          roleFamily: true,
           budgetMin: true,
           budgetMax: true,
           hoursPerWeek: true,

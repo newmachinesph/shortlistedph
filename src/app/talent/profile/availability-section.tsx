@@ -95,6 +95,17 @@ export function AvailabilitySection({ initial, label, note, stale }: Props) {
         </p>
       )}
 
+      {/* Reads `initial`, not the form state: this reports what is SAVED and
+          therefore what the matcher is doing right now, not what an unsaved
+          tick would do. Being excluded is the one thing a candidate must not
+          have to infer from a heading. */}
+      {(!initial.openToOffers || initial.availability === "booked") && (
+        <p className="mt-3 rounded-xl bg-ember-soft p-3.5 text-xs leading-relaxed text-ember">
+          You are out of matching right now — no job is being ranked against your profile and no
+          new invitation will reach you. Change it below whenever you want back in.
+        </p>
+      )}
+
       <form onSubmit={handleSubmit} className="mt-5 space-y-4">
         <div>
           <label className="flex min-h-[44px] items-center gap-3">
@@ -106,11 +117,14 @@ export function AvailabilitySection({ initial, label, note, stale }: Props) {
             />
             <span className="text-sm text-ink">I&rsquo;m open to new offers</span>
           </label>
+          {/* This IS a switch now — the pool query filters on openToOffers
+              (lib/matching.ts), it is no longer a rotation nudge. The old copy
+              promised the opposite and would have cost people invitations
+              they were told they would keep. */}
           <p className="mt-1 pl-8 text-xs leading-relaxed text-ink-faint">
-            This is a signal, not a switch — it does not take you out of matching. Unchecked,
-            employers read &ldquo;not open to offers&rdquo; on your availability and you drop the
-            small rotation nudge recently-confirmed profiles get. To leave the pool entirely, use
-            the matching control above.
+            Unchecked, you leave matching entirely: no job is ranked against your profile and no
+            new invitation is sent, until you check it again. Anything you already accepted is
+            unaffected.
           </p>
         </div>
 
@@ -130,6 +144,13 @@ export function AvailabilitySection({ initial, label, note, stale }: Props) {
               </option>
             ))}
           </select>
+          {/* Same filter, second door: `availability <> 'booked'` sits in the
+              same WHERE clause as openToOffers. */}
+          <p className="mt-1.5 text-xs leading-relaxed text-ink-faint">
+            &ldquo;Fully booked&rdquo; takes you out of matching too, for as long as it is set.
+            &ldquo;Partially committed&rdquo; keeps you in — set your committed hours and we only
+            offer employers what is left of your week.
+          </p>
         </div>
 
         <div>

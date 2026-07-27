@@ -350,6 +350,13 @@ model MatchConsent {
   reasons     String[] @default([])
   status      String    @default("pending") // pending | accepted | declined | expired
   token       String    @unique
+  // Delivery attempts that did NOT result in a send. An undeliverable address
+  // used to be retried every hour forever, holding a slate slot and counting
+  // against the JD's consent cap until it logged "pool exhausted" having
+  // delivered nothing. Parked above a threshold — never on the first failure,
+  // because a suppressed send (outreach kill switch) looks identical to a
+  // transport outage and would otherwise park the whole pool at once.
+  sendAttempts Int      @default(0)
   sentAt      DateTime?
   respondedAt DateTime?
   expiresAt   DateTime?
@@ -363,6 +370,9 @@ model MatchConsent {
   @@unique([jdId, profileId])
   @@index([status, expiresAt])
   @@index([slateId, status])
+  // Rotation reads invite counts per profile on every ranking run. The unique
+  // above leads on jdId and cannot serve that.
+  @@index([profileId])
 }
 
 // ─── Slates (the product) ────────────────────────────────────────────────

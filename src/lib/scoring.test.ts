@@ -8,12 +8,15 @@ import {
   QUALIFY_SCORE,
   SKILL_COVERAGE_DENOM,
   VERIFIED_BONUS,
+  compareRotation,
   composite,
   freeHours,
+  rotationCost,
   scoreOverlap,
   scoreRate,
   scoreSkills,
   type Dims,
+  type RotationEntry,
 } from "./scoring.ts";
 // blendSimilarity is tested here rather than beside facets.ts because it exists
 // only to feed scoreSkills — its weighting is a ranking decision.
@@ -127,6 +130,96 @@ assert.ok(QUALIFY_SCORE < MIN_SLATE_SCORE, "eligibility bar must sit below the s
 // Verification is a tiebreaker: it must never be able to lift a merely-eligible
 // candidate into the strong tier on identity alone.
 assert.ok(VERIFIED_BONUS < MIN_SLATE_SCORE - QUALIFY_SCORE, "verified bonus cannot buy a tier");
+
+// ── rotation: a turn costs a turn ─────────────────────────────────────────
+const at = (ms: number | null) => (ms == null ? null : new Date(ms));
+const rot = (
+  invites: number,
+  placements: number,
+  over: Partial<RotationEntry> & { invitedAt?: number | null; shownAt?: number | null } = {},
+): RotationEntry => ({
+  c: {
+    inviteCount: invites,
+    shortlistCount: placements,
+    lastInvitedAt: at(over.invitedAt ?? null),
+    lastShownAt: at(over.shownAt ?? null),
+  },
+  fresh: over.fresh ?? false,
+  score: over.score ?? 70,
+});
+
+const order = (entries: [string, RotationEntry][]): string[] =>
+  [...entries].sort((a, b) => compareRotation(a[1], b[1])).map(([name]) => name);
+
+// The bug this replaced: shortlistCount stamps only on accept, so a candidate
+// who declines everything stayed at 0 forever and led EVERY slate.
+assert.deepEqual(
+  order([
+    ["decliner", rot(3, 0, { invitedAt: 3 })],
+    ["placed-once", rot(1, 1, { invitedAt: 1, shownAt: 2 })],
+  ]),
+  ["placed-once", "decliner"],
+  "three declines cost more rotation priority than one placement",
+);
+
+// …but declining is still cheaper than accepting the same invitation, so saying
+// no is never punished the way silence is (dormancy) or acceptance is.
+assert.deepEqual(
+  order([
+    ["accepted", rot(1, 1, { invitedAt: 1, shownAt: 1 })],
+    ["declined", rot(1, 0, { invitedAt: 1 })],
+  ]),
+  ["declined", "accepted"],
+  "declining costs strictly less than accepting the same invite",
+);
+assert.ok(rotationCost({ inviteCount: 1, shortlistCount: 0 }) < rotationCost({ inviteCount: 1, shortlistCount: 1 }));
+
+// Never asked = front of the queue, which is the whole point of rotating.
+assert.deepEqual(
+  order([
+    ["veteran", rot(2, 1, { invitedAt: 5 })],
+    ["newcomer", rot(0, 0)],
+  ]),
+  ["newcomer", "veteran"],
+  "a candidate nobody has invited leads the rotation",
+);
+
+// Equal cost falls to who has waited longest, and the stamp is the LATER of the
+// two — consent rows die with their JD, so neither alone is the whole story.
+assert.deepEqual(
+  order([
+    ["recent", rot(1, 0, { invitedAt: 900 })],
+    ["waiting", rot(1, 0, { invitedAt: 100 })],
+  ]),
+  ["waiting", "recent"],
+  "equal turns -> longest-waiting first",
+);
+assert.deepEqual(
+  order([
+    ["stale-invite-recent-placement", rot(1, 1, { invitedAt: 10, shownAt: 900 })],
+    ["both-old", rot(1, 1, { invitedAt: 100, shownAt: 100 })],
+  ]),
+  ["both-old", "stale-invite-recent-placement"],
+  "last turn is the later of the invite and placement stamps",
+);
+
+// Freshness is a nudge and score is the last word — neither can jump the queue.
+assert.deepEqual(
+  order([
+    ["stale", rot(1, 0, { invitedAt: 100, score: 99 })],
+    ["fresh", rot(1, 0, { invitedAt: 100, fresh: true, score: 60 })],
+  ]),
+  ["fresh", "stale"],
+  "freshness nudges ahead of a higher score at equal standing",
+);
+assert.deepEqual(
+  order([
+    ["weaker", rot(1, 0, { invitedAt: 100, score: 60 })],
+    ["stronger", rot(1, 0, { invitedAt: 100, score: 90 })],
+  ]),
+  ["stronger", "weaker"],
+  "score is the final tiebreaker only",
+);
 
 // ── initials edge cases ───────────────────────────────────────────────────
 assert.equal(initials("Kristine Bautista"), "KB", "two words");

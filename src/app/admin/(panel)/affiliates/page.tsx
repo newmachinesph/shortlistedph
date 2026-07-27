@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { NOINDEX } from "@/lib/site";
-import { requireAdminPage } from "@/lib/admin";
+import { maskAccount, requireAdminPage } from "@/lib/admin";
 import { ReferralSettle, ReferralVoid } from "@/components/referral-admin-actions";
 import {
   EARNED,
@@ -103,9 +103,11 @@ async function load() {
   const signals = await getSelfReferralSignals();
 
   // Payout destination per affiliate, keyed by userId so a pending payout can
-  // show where the money is going — the PayPal email on file.
+  // show where the money is going. Masked at the read, not at the render: the
+  // full account number has no job on this screen, and never leaving the
+  // server with it is cheaper than remembering to mask every place it lands.
   const details = new Map(
-    referrals.map((r) => [r.userId, { email: r.payoutAccountNumber }]),
+    referrals.map((r) => [r.userId, { email: maskAccount(r.payoutAccountNumber) }]),
   );
 
   // Only conversions belonging to a flagged affiliate: the chips said "worth a

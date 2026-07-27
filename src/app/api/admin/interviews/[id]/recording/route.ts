@@ -10,7 +10,7 @@ import { HttpError, requireAdmin } from "@/lib/session";
  */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAdmin();
+    const admin = await requireAdmin();
     const { id } = await params;
 
     const interview = await db.interview.findUnique({
@@ -18,6 +18,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       select: { recordingKey: true },
     });
     if (!interview?.recordingKey) throw new HttpError(404, "No recording for this interview");
+
+    // A candidate's recorded interview leaving the platform is a disclosure,
+    // not a page view — log it BEFORE handing over the URL, so a link that
+    // was issued is on the record even if the download itself never happens.
+    await db.auditLog.create({
+      data: { actorId: admin.id, action: "admin.recording.download", target: id },
+    });
 
     const url = await presignDownload(interview.recordingKey);
     return NextResponse.redirect(url);

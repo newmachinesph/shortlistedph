@@ -102,7 +102,12 @@ export default async function TalentProfilePage() {
         )}
         <p className="mt-4 flex items-center gap-1.5 text-xs text-ink-faint">
           <Camera className="h-3.5 w-3.5" />
-          <span>Stable for {stableDays} days — stability strengthens your ranking.</span>
+          {/* NOT a ranking input — composite() never sees this number. It is
+              anti-tailoring evidence, and that is all it is. */}
+          <span>
+            Unchanged for {stableDays} days. Employers see how long your profile stood still
+            before their job was posted — evidence you didn&rsquo;t tailor it to them.
+          </span>
         </p>
       </div>
 
@@ -110,6 +115,9 @@ export default async function TalentProfilePage() {
         profile={profile}
         skills={profile.skills}
         engagements={profile.engagements.map((e) => ({
+          // The id is what makes a correction an edit of THIS row rather than
+          // a fuzzy match on its text — see the diff in /api/talent/profile.
+          id: e.id,
           role: e.role,
           company: e.company,
           span: e.span,

@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     resource?: {
       id?: string;
       amount?: { value?: string; currency_code?: string };
-      supplementary_data?: { related_ids?: { order_id?: string } };
+      supplementary_data?: { related_ids?: { order_id?: string; capture_id?: string } };
       custom_id?: string;
       invoice_id?: string;
       purchase_units?: { reference_id?: string }[];
@@ -39,16 +39,16 @@ export async function POST(req: Request) {
   const type = event.event_type;
   const captureId = event.resource?.id;
 
+  // reference_id was set at order creation as "<employerId>:<productId>".
+  const reference =
+    event.resource?.purchase_units?.[0]?.reference_id ??
+    event.resource?.custom_id ??
+    event.resource?.invoice_id ??
+    "";
+  const [employerId, productId] = reference.split(":");
+
   try {
     if (type === "PAYMENT.CAPTURE.COMPLETED" && captureId) {
-      // reference_id was set at order creation as "<employerId>:<productId>".
-      const reference =
-        event.resource?.purchase_units?.[0]?.reference_id ??
-        event.resource?.custom_id ??
-        event.resource?.invoice_id ??
-        "";
-      const [employerId, productId] = reference.split(":");
-
       if (!employerId || !productId || !isEmployerCreditProduct(productId)) {
         console.error("[paypal] capture without a usable reference_id", { captureId, reference });
         return NextResponse.json({ received: true, ignored: "unresolvable reference" });
@@ -75,7 +75,37 @@ export async function POST(req: Request) {
     }
 
     if ((type === "PAYMENT.CAPTURE.REFUNDED" || type === "PAYMENT.CAPTURE.REVERSED") && captureId) {
-      await markPaymentRefunded(captureId);
+      // On a REFUNDED delivery resource.id is the REFUND's id, not the
+      // capture's — matching Payment.providerRef on it found nothing and the
+      // refund was dropped on the floor. The capture is in related_ids; a
+      // REVERSED resource IS the capture, so it falls back to resource.id.
+      const refundedCapture =
+        event.resource?.supplementary_data?.related_ids?.capture_id ?? captureId;
+
+      // Only needed when the capture has not been fulfilled yet — PayPal
+      // delivers in no fixed order — and only possible when the event carried
+      // a reference we can resolve a payer from.
+      const product = productId && isEmployerCreditProduct(productId) ? productId : null;
+      const employer =
+        employerId && product
+          ? await db.employerAccount.findUnique({
+              where: { id: employerId },
+              select: { userId: true },
+            })
+          : null;
+
+      await markPaymentRefunded(
+        refundedCapture,
+        employer && product
+          ? {
+              userId: employer.userId,
+              provider: "paypal",
+              productId: product,
+              amount: Number(event.resource?.amount?.value ?? 0),
+              currency: event.resource?.amount?.currency_code ?? "USD",
+            }
+          : undefined,
+      );
       return NextResponse.json({ received: true, refunded: true });
     }
 

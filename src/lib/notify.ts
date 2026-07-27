@@ -153,8 +153,10 @@ export function renderNotification(
       const amount = field(payload, "amount");
       const currency = field(payload, "currency") || "USD";
       const money = amount ? `${currency} ${amount}` : "Your payment";
+      // "returned" read as returned TO THEM. Unspent credits are revoked —
+      // the money went back, so the goods come back too.
       return {
-        text: `${money} was refunded — any unspent credits from it were returned.`,
+        text: `${money} was refunded. Any credits from it that you had not spent were removed.`,
         href: side === "employer" ? "/employer/billing" : null,
       };
     }
@@ -225,8 +227,21 @@ export function renderNotification(
       return { text: `You have a confirmed interview to run for ${company}.`, href: "/interviewer" };
     case "interview_booked":
       return { text: `Your interview with ${company} is booked.`, href: "/talent/interviews" };
-    case "interview_scheduled":
-      return { text: `Your interview is scheduled.`, href: `/${side}/interviews` };
+    case "interview_scheduled": {
+      const when = field(payload, "when");
+      const at = when ? new Date(when) : null;
+      const time =
+        at && !Number.isNaN(at.getTime())
+          ? ` for ${at.toLocaleString("en-PH", {
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+              timeZone: "Asia/Manila",
+            })}`
+          : "";
+      return { text: `Your interview is scheduled${time}.`, href: `/${side}/interviews` };
+    }
     case "interview_reported":
       return { text: `The interview assessment is ready.`, href: "/employer/interviews" };
     case "availability_check":

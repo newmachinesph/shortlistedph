@@ -28,6 +28,14 @@ export async function POST(req: Request) {
     if (existing?.talentProfile || existing?.employer) {
       throw new HttpError(409, "Role already set");
     }
+    // The profile rows above are not the whole gate. An admin is seeded with
+    // neither row, so this endpoint would happily write role:"employer" over
+    // "admin" — and NOTHING in the application ever writes "admin" back, so
+    // that is a one-way trip out of the back office. `role` defaults to
+    // "talent" at signup, which is the only state a role may be chosen from.
+    if (existing && existing.role !== "talent") {
+      throw new HttpError(409, "Role already set");
+    }
 
     if (body.role === "talent") {
       await db.$transaction([

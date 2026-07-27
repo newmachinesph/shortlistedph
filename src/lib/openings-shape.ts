@@ -9,6 +9,7 @@
  * because the shape it receives has no such field. See docs/redesign-plan.md §3.
  */
 import { rateBand } from "./format.ts";
+import { roleFamilyLabel } from "./openings-taxonomy.ts";
 
 export type PublicOpening = {
   id: string;
@@ -58,4 +59,22 @@ export function toPublicOpening(row: OpeningRow): PublicOpening | null {
     isMatching: row.status === "matching" || row.status === "slate_ready",
     listedAt: row.listedAt,
   };
+}
+
+/**
+ * The only role name a CANDIDATE may ever be shown — consent email, consent
+ * page, invitations list. Same reasoning as the board above: the raw employer
+ * `title` can name the client, so it is never a source here. An admin-approved
+ * `publicTitle` wins; otherwise the controlled role-family label, which comes
+ * from a fixed vocabulary and cannot carry an employer name.
+ *
+ * Unlike the board this cannot fail closed — the candidate was already invited
+ * and has to be told *something* — so the last resort is a generic label that
+ * is honest about how little it says.
+ */
+export function candidateRoleLabel(row: {
+  publicTitle: string | null;
+  roleFamily: string | null;
+}): string {
+  return row.publicTitle?.trim() || roleFamilyLabel(row.roleFamily) || "Remote role";
 }

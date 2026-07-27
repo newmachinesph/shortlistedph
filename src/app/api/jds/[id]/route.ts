@@ -25,15 +25,28 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (jd.status !== "draft") throw new HttpError(409, "Published job descriptions can't be edited");
 
     const { rateMaxUsd, ...body } = await parseBody(req, JdBody);
+    // Edit: absent means "unchanged". Prisma ignores undefined, so the scalars
+    // take care of themselves — the two derived writes below must not.
+    //
+    // hardRequirements is composed from the ceiling AND the JD's hours, so it
+    // can only be rebuilt from the stored values of whichever half the caller
+    // left out; recomputing from `undefined` cleared the ceiling on every
+    // partial edit.
+    const stored = jd.hardRequirements as { rateMaxUsd?: number | null } | null;
     const updated = await db.jobDescription.update({
       where: { id: jd.id },
       data: {
         ...body,
-        hardRequirements: hardRequirementsJson(rateMaxUsd, body.hoursPerWeek),
+        hardRequirements: hardRequirementsJson(
+          rateMaxUsd !== undefined ? rateMaxUsd : (stored?.rateMaxUsd ?? null),
+          body.hoursPerWeek !== undefined ? body.hoursPerWeek : jd.hoursPerWeek,
+        ),
         // Re-derived, never carried over: the tool IDs describe the CURRENT
-        // must/nice-to-haves, exactly as POST derives them.
-        requiredTools: extractCanonicalTools(body.mustHaves),
-        preferredTools: extractCanonicalTools(body.niceToHaves),
+        // must/nice-to-haves, exactly as POST derives them. Only when the edit
+        // actually carries them — deriving from an omitted list emptied the
+        // hard filters and the tools with them.
+        ...(body.mustHaves ? { requiredTools: extractCanonicalTools(body.mustHaves) } : {}),
+        ...(body.niceToHaves ? { preferredTools: extractCanonicalTools(body.niceToHaves) } : {}),
       },
     });
     return ok({ jd: updated });

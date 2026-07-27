@@ -6,9 +6,11 @@
  * rewriting the logic. Persistence of eliminations lives with the caller.
  *
  * Rate gets the spec's ×1.15 tolerance band: within the band the candidate
- * passes through TAGGED (the near-miss is a judgment call the employer should
- * see), above it they are eliminated — "$50/hr" and "$5/hr" embed almost
- * identically, which is exactly why rate must be a filter, not a similarity.
+ * passes through (the near-miss is a judgment call the employer should make,
+ * and explainMatch already tells them "$14/hr, above your $12 ceiling" on that
+ * candidate's own card), above it they are eliminated — "$50/hr" and "$5/hr"
+ * embed almost identically, which is exactly why rate must be a filter, not a
+ * similarity.
  *
  * start_within_days is accepted in the shape for forward-compat with the spec
  * but never eliminates yet: profiles carry no start-date signal to test it
@@ -36,22 +38,27 @@ export type FilterCandidate = {
 
 export type FilterResult<C extends FilterCandidate> = {
   passed: C[];
-  /** Candidates inside the rate tolerance band — passed, but flagged. */
-  aboveBudget: Set<string>;
   eliminated: { profileId: string; reason: EliminationReason }[];
 };
 
 export function applyHardFilters<C extends FilterCandidate>(
   candidates: C[],
   hard: HardRequirements | null,
+  /**
+   * Stop once this many candidates have passed. Callers hand in a DEEPER slice
+   * than they need so that filtering reaches past their own cut instead of
+   * hollowing it out; stopping here means the eliminations reported are exactly
+   * the ones met on the way to a full pool, not everyone in the oversized slice.
+   */
+  limit = Number.POSITIVE_INFINITY,
 ): FilterResult<C> {
   const passed: C[] = [];
-  const aboveBudget = new Set<string>();
   const eliminated: { profileId: string; reason: EliminationReason }[] = [];
 
-  if (!hard) return { passed: candidates, aboveBudget, eliminated };
+  if (!hard) return { passed: candidates.slice(0, limit), eliminated };
 
   for (const c of candidates) {
+    if (passed.length >= limit) break;
     if (c.availability === "booked") {
       eliminated.push({ profileId: c.id, reason: "booked" });
       continue;
@@ -67,15 +74,17 @@ export function applyHardFilters<C extends FilterCandidate>(
     // A candidate with no stated rate is never eliminated on rate — the rate
     // dimension already scores the missing number down; a hard filter would
     // punish honesty about "negotiable" harder than an inflated lowball.
-    if (hard.rateMaxUsd != null && hard.rateMaxUsd > 0 && c.rateUsd != null) {
-      if (c.rateUsd > hard.rateMaxUsd * RATE_TOLERANCE) {
-        eliminated.push({ profileId: c.id, reason: "rate_above_ceiling" });
-        continue;
-      }
-      if (c.rateUsd > hard.rateMaxUsd) aboveBudget.add(c.id);
+    if (
+      hard.rateMaxUsd != null &&
+      hard.rateMaxUsd > 0 &&
+      c.rateUsd != null &&
+      c.rateUsd > hard.rateMaxUsd * RATE_TOLERANCE
+    ) {
+      eliminated.push({ profileId: c.id, reason: "rate_above_ceiling" });
+      continue;
     }
     passed.push(c);
   }
 
-  return { passed, aboveBudget, eliminated };
+  return { passed, eliminated };
 }

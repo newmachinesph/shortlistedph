@@ -23,7 +23,7 @@ const Body = z.object({
  */
 export async function POST(req: Request) {
   try {
-    await requireAdmin();
+    const admin = await requireAdmin();
     const body = await parseBody(req, Body);
 
     const jd = await db.jobDescription.findUnique({
@@ -46,6 +46,18 @@ export async function POST(req: Request) {
         clientRegion: body.clientRegion ?? null,
         // Keep the original listing date on edits; only stamp on first publish.
         listedAt: body.listed ? (jd.listedAt ?? new Date()) : null,
+      },
+    });
+
+    // This is the one step that can put a client's role in front of the
+    // public, so the sanitised title that went out is part of the record —
+    // "who listed it" is useless without "as what".
+    await db.auditLog.create({
+      data: {
+        actorId: admin.id,
+        action: body.listed ? "admin.opening.list" : "admin.opening.unlist",
+        target: jd.id,
+        meta: { publicTitle },
       },
     });
 

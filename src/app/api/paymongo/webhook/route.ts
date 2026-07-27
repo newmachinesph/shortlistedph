@@ -65,8 +65,11 @@ export async function POST(req: Request) {
         provider: "paymongo",
         providerRef: ref,
         productId: "verification",
-        // PayMongo reports centavos.
-        amount: (attrs?.amount ?? 6000) / 100,
+        // PayMongo reports centavos. No default: it used to be 6000, which is
+        // the catalog price to the centavo, so a payload without an amount
+        // fabricated a perfect match for fulfilment to check against. Zero
+        // fails the check and is recorded for a human instead.
+        amount: (attrs?.amount ?? 0) / 100,
         currency: attrs?.currency ?? "PHP",
       });
       return NextResponse.json({ received: true, ...result });
@@ -78,7 +81,22 @@ export async function POST(req: Request) {
     }
 
     if ((type === "payment.refunded" || type === "payment.refund.updated") && ref) {
-      await markPaymentRefunded(ref);
+      // The payer is passed through so a refund arriving before the paid event
+      // still leaves a refunded row behind — without one, the paid event that
+      // follows opens a verification attempt for money already returned.
+      const userId = attrs?.metadata?.userId;
+      await markPaymentRefunded(
+        ref,
+        userId
+          ? {
+              userId,
+              provider: "paymongo",
+              productId: "verification",
+              amount: (attrs?.amount ?? 0) / 100,
+              currency: attrs?.currency ?? "PHP",
+            }
+          : undefined,
+      );
       return NextResponse.json({ received: true, refunded: true });
     }
 

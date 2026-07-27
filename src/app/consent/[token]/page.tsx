@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { CalendarClock, CheckCircle2, Clock3, MailX, XCircle } from "lucide-react";
 import { NOINDEX } from "@/lib/site";
 import { getConsentByToken, isConsentExpired } from "@/lib/consent";
+import { candidateRoleLabel } from "@/lib/openings-shape";
 import { rateBand } from "@/lib/format";
 import { RespondButtons } from "@/components/consent-respond-buttons";
 
@@ -64,7 +65,7 @@ export default async function ConsentPage({ params }: { params: Promise<{ token:
             </p>
 
             <div className="mt-5 rounded-xl border border-line bg-paper p-5">
-              <h2 className="font-medium text-ink">{consent.jd.title}</h2>
+              <h2 className="font-medium text-ink">{candidateRoleLabel(consent.jd)}</h2>
               <p className="mt-1 text-sm text-ink-soft">
                 {rateBand(consent.jd.budgetMin, consent.jd.budgetMax)
                   ? `${rateBand(consent.jd.budgetMin, consent.jd.budgetMax)} · `

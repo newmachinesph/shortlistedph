@@ -69,7 +69,11 @@ export async function getOrCreateReferral(userId: string, name: string) {
     const code = attempt === 0 ? seed : `${seed.slice(0, 24)}-${suffix()}`;
     try {
       return await db.referral.create({ data: { userId, code } });
-    } catch {
+    } catch (e) {
+      // Only a collision is retryable. Swallowing everything meant a genuine
+      // DB fault burned all five attempts and surfaced as a bare 500 with no
+      // cause ever recorded.
+      if (!isUniqueViolation(e)) throw e;
       // Another request may have created this user's referral in the meantime.
       const raced = await db.referral.findUnique({ where: { userId } });
       if (raced) return raced;

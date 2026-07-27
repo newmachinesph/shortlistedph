@@ -4,6 +4,8 @@ import { PRODUCTS } from "@/lib/payments";
 import { BuyButton } from "./buy-button";
 import { CaptureOnReturn } from "./capture-on-return";
 
+const symbol = (currency: string) => (currency === "USD" ? "$" : "₱");
+
 export default async function BillingPage({
   searchParams,
 }: {
@@ -19,9 +21,12 @@ export default async function BillingPage({
     take: 20,
   });
 
-  const spent = payments
-    .filter((p) => p.status === "paid")
-    .reduce((sum, p) => sum + Number(p.amount), 0);
+  // Per currency, never one number: dollars and pesos were being added together
+  // and printed with a "$" in front, so a ₱60 verification read as $60 of spend.
+  const spent = new Map<string, number>();
+  for (const p of payments.filter((p) => p.status === "paid")) {
+    spent.set(p.currency, (spent.get(p.currency) ?? 0) + Number(p.amount));
+  }
 
   return (
     <>
@@ -103,7 +108,7 @@ export default async function BillingPage({
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-sm text-ink">
-                  {p.currency === "USD" ? "$" : "₱"}
+                  {symbol(p.currency)}
                   {p.amount.toFixed(2)}
                 </span>
                 <span
@@ -124,8 +129,13 @@ export default async function BillingPage({
       )}
 
       <p className="mt-6 text-xs leading-relaxed text-ink-faint">
-        Total spent: ${spent.toFixed(2)}. shortlisted.ph never holds or takes a cut of wages — you
-        pay your hires directly.
+        Total spent:{" "}
+        {spent.size === 0
+          ? "$0.00"
+          : [...spent.entries()]
+              .map(([currency, amount]) => `${symbol(currency)}${amount.toFixed(2)}`)
+              .join(" · ")}
+        . shortlisted.ph never holds or takes a cut of wages — you pay your hires directly.
       </p>
     </>
   );

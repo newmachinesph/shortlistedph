@@ -87,5 +87,9 @@ export const isEmployerCreditProduct = (
 ): id is "single" | "three_pack" | "interview_single" | "interview_five" =>
   isCreditProduct(id) || isInterviewCreditProduct(id);
 
-/** Amount in the smallest currency unit — PayMongo wants centavos. */
-export const toMinorUnits = (amount: string) => Math.round(Number(amount) * 100);
+/**
+ * Amount in the smallest currency unit — PayMongo wants centavos, and it is
+ * also how fulfilment compares a delivered amount to the listed one without
+ * floating-point cents deciding whether a purchase is honoured.
+ */
+export const toMinorUnits = (amount: string | number) => Math.round(Number(amount) * 100);

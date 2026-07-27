@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { fail, ok, parseBody } from "@/lib/api";
 import { fulfillPurchase } from "@/lib/fulfillment";
-import { PRODUCTS, isEmployerCreditProduct } from "@/lib/payments";
+import { isEmployerCreditProduct } from "@/lib/payments";
 import { captureOrder } from "@/lib/paypal";
 import { HttpError, requireEmployer, requireRole } from "@/lib/session";
 
@@ -50,14 +50,16 @@ export async function POST(req: Request) {
       throw new HttpError(403, "That order belongs to another account");
     }
 
-    const product = PRODUCTS[productId];
     const result = await fulfillPurchase({
       userId: user.id,
       provider: "paypal",
       providerRef: capture.captureId,
       productId,
-      amount: Number(capture.amount ?? product.amount),
-      currency: capture.currency ?? product.currency,
+      // What PayPal says was captured, never what we hoped it would be:
+      // defaulting to the catalog price here made fulfilment's amount check
+      // compare the listed price against itself and always pass.
+      amount: Number(capture.amount ?? 0),
+      currency: capture.currency ?? "",
     });
 
     return ok({ credited: result.granted, alreadyProcessed: result.alreadyProcessed });

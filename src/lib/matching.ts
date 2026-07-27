@@ -9,6 +9,7 @@ import {
   MIN_SLATE_SCORE,
   QUALIFY_SCORE,
   QUALIFY_SKILLS,
+  compareRotation,
   composite,
   explainMatch,
   scoreExperience,
@@ -22,6 +23,16 @@ export type { Dims };
 
 export const SLATE_SIZE = 5;
 const CANDIDATE_POOL = 50;
+
+/**
+ * How much deeper the ANN cut reaches when Stage 0 is on.
+ *
+ * Hard filters must only ever ADD candidates the shallow cut missed. Filtering
+ * a fixed 50 could eliminate 45 and then rank the surviving 5, while 51–95 —
+ * who would have passed — were never fetched at all. So the cut goes deep and
+ * the filter stops at CANDIDATE_POOL survivors: same pool size, better pool.
+ */
+const STAGE0_POOL_MULTIPLIER = 3;
 
 // A candidate whose availability was confirmed within this window is treated as
 // "fresh" and gets a light nudge up the rotation — never a hard filter.
@@ -41,7 +52,9 @@ type Candidate = {
   lastEditedAt: Date;
   shortlistCount: number;
   lastShownAt: Date | null;
-  openToOffers: boolean;
+  /** Invitations received across all JDs — the rotation turn counter. */
+  inviteCount: number;
+  lastInvitedAt: Date | null;
   availabilityConfirmedAt: Date | null;
   // Facet cosine distances; each COALESCEs to the whole-profile distance when
   // the facet column is NULL, so un-backfilled profiles rank as before.
@@ -74,7 +87,14 @@ export function jdHardRequirements(jd: Jd): HardRequirements {
   if (h && (h.rateMaxUsd != null || h.hoursPerWeekMin != null || h.startWithinDays != null)) {
     return h;
   }
-  return { rateMaxUsd: jd.budgetMax, hoursPerWeekMin: jd.hoursPerWeek };
+  // Only the ceiling is derived. hoursPerWeek is the load the employer wants
+  // covered, NOT a floor on the candidate's spare capacity: deriving
+  // hoursPerWeekMin from it meant a routine 40h brief eliminated everyone with
+  // any prior commitment at all (freeHours = 40 − committed), and resume parse
+  // writes a non-zero committedHours for most imported profiles — flipping the
+  // flag on would have emptied the pool. Short hours already cost overlap
+  // score; a hard floor has to be stated by the employer, never guessed.
+  return { rateMaxUsd: jd.budgetMax };
 }
 
 // Single owner is facets.ts — the eval harness and backfill embed this exact text.
@@ -181,43 +201,66 @@ export async function rankQualifiedForJd(jd: Jd): Promise<{
    * bar is exactly what the thresholds in scoring.ts were reasoned from.
    */
   rejected: RankedCandidate[];
-  /** Stage 0 eliminations from this run — empty when the flag is off. */
-  eliminated: { profileId: string; reason: string }[];
+  /**
+   * Stage 0 eliminations from this run, or null when the flag is off — "no
+   * verdict", which is not the same as "eliminated nobody". recordEliminations
+   * relies on the difference.
+   */
+  eliminated: { profileId: string; reason: string }[] | null;
 }> {
   // Two query vectors, one batch call: the whole-JD role text (also the hnsw
   // pool cut) and the skills-facet text.
   const q = jdFacetTexts(jd);
   const [roleVec, skillsVec] = await embedMany([q.role, q.skills]);
 
+  const stage0On = await hardFiltersEnabled();
+  const cut = stage0On ? CANDIDATE_POOL * STAGE0_POOL_MULTIPLIER : CANDIDATE_POOL;
+
+  // openToOffers and booked are filtered HERE, not in Stage 0, because neither
+  // is an operator preference: someone who unticked "open to new offers" said
+  // no to the whole question, and someone fully booked has nothing to sell this
+  // employer — 15% overlap weight could never stop skills 90 / rate 100 from
+  // leading a slate with them. Both belong to the same class as visibility and
+  // dormancy: not matchable, so never fetched, whatever the flag says.
   const rawPool = await db.$queryRawUnsafe<Candidate[]>(
     `SELECT p.id, p."userId", p.headline, p.summary, p.city, p."yearsExperience",
             p."rateUsd", p.availability, p."committedHours", p."verifiedTier", p."lastEditedAt",
-            p."shortlistCount", p."lastShownAt", p."openToOffers", p."availabilityConfirmedAt",
+            p."shortlistCount", p."lastShownAt", p."availabilityConfirmedAt",
+            COALESCE(mc.invites, 0)::int AS "inviteCount", mc."lastInvitedAt",
             COALESCE(p."embeddingSkills" <=> $2::vector, p.embedding <=> $1::vector) AS dskills,
             COALESCE(p."embeddingExperience" <=> $1::vector, p.embedding <=> $1::vector) AS dexp,
             COALESCE(p."embeddingPrefs" <=> $1::vector, p.embedding <=> $1::vector) AS dprefs
        FROM "TalentProfile" p
        JOIN "user" u ON u.id = p."userId"
+       LEFT JOIN (
+         SELECT "profileId", count(*) AS invites, max("createdAt") AS "lastInvitedAt"
+           FROM "MatchConsent" GROUP BY "profileId"
+       ) mc ON mc."profileId" = p.id
       WHERE p."publishedAt" IS NOT NULL
         AND p.visibility = true
         AND p."dormantAt" IS NULL
+        AND p."openToOffers" = true
+        AND p.availability <> 'booked'
         AND p.embedding IS NOT NULL
         AND u.status = 'active'
       ORDER BY p.embedding <=> $1::vector
-      LIMIT ${CANDIDATE_POOL}`,
+      LIMIT ${cut}`,
     toVectorLiteral(roleVec),
     toVectorLiteral(skillsVec),
   );
 
   // Stage 0 — hard filters (spec §3), behind the operator flag. Off means the
-  // raw pool passes through untouched: today's behaviour exactly.
-  const stage0 = (await hardFiltersEnabled())
-    ? applyHardFilters(rawPool, jdHardRequirements(jd))
-    : { passed: rawPool, aboveBudget: new Set<string>(), eliminated: [] };
-  const pool = stage0.passed;
+  // raw pool passes through untouched: today's behaviour exactly. On, it walks
+  // the deeper cut and stops at CANDIDATE_POOL survivors, so turning the flag
+  // on can only change WHO is in the pool, never how many.
+  const stage0 = stage0On
+    ? applyHardFilters(rawPool, jdHardRequirements(jd), CANDIDATE_POOL)
+    : null;
+  const pool = stage0?.passed ?? rawPool;
+  const eliminated = stage0?.eliminated ?? null;
 
   if (pool.length === 0) {
-    return { scanned: rawPool.length, eligible: [], rejected: [], eliminated: stage0.eliminated };
+    return { scanned: rawPool.length, eligible: [], rejected: [], eliminated };
   }
 
   const ids = pool.map((c) => c.id);
@@ -247,7 +290,7 @@ export async function rankQualifiedForJd(jd: Jd): Promise<{
       const cEng = engBy.get(c.id) ?? [];
       const sim = blendSimilarity(c.dskills, c.dexp, c.dprefs);
       const dims = candidateDims(jd, c, cSkills, cEng, sim);
-      const fresh = c.openToOffers && (c.availabilityConfirmedAt?.getTime() ?? 0) >= freshCutoff;
+      const fresh = (c.availabilityConfirmedAt?.getTime() ?? 0) >= freshCutoff;
       return {
         c,
         dims,
@@ -265,24 +308,11 @@ export async function rankQualifiedForJd(jd: Jd): Promise<{
     r.score >= QUALIFY_SCORE && r.dims.skills >= QUALIFY_SKILLS;
   const rejected = scored.filter((r) => !qualifies(r)).sort((a, b) => b.score - a.score);
 
-  const eligible = scored
-    .filter(qualifies)
-    // Rotate among the qualified. Fewer prior placements first (shown least),
-    // then longest-waiting (older/null lastShownAt), then a light nudge for
-    // freshly-confirmed availability, and finally score as the tiebreaker.
-    // Because shortlistCount leads, once everyone qualified has been shown they
-    // all sit at higher counts and the least-shown return to the front — the
-    // cycle resets itself, and anyone placed (or hired) drifts back each turn.
-    .sort((a, b) => {
-      if (a.c.shortlistCount !== b.c.shortlistCount) return a.c.shortlistCount - b.c.shortlistCount;
-      const at = a.c.lastShownAt?.getTime() ?? 0;
-      const bt = b.c.lastShownAt?.getTime() ?? 0;
-      if (at !== bt) return at - bt;
-      if (a.fresh !== b.fresh) return Number(b.fresh) - Number(a.fresh);
-      return b.score - a.score;
-    });
+  // Rotate among the qualified — see compareRotation in scoring.ts for why the
+  // turn counter is invitations and not placements.
+  const eligible = scored.filter(qualifies).sort(compareRotation);
 
-  return { scanned: rawPool.length, eligible, rejected, eliminated: stage0.eliminated };
+  return { scanned: rawPool.length, eligible, rejected, eliminated };
 }
 
 /**
@@ -347,11 +377,18 @@ export async function buildSlate(jdId: string) {
  * above your budget ceiling" instead of the pool just looking thin. Replaced
  * wholesale on every ranking run — a snapshot of the latest pass, not history.
  * Called by every path that ranks: buildSlate and the consent-refresh cron.
+ *
+ * null means Stage 0 did not run, and a pass that never filtered has no verdict
+ * to store — it must leave the last real pass's evidence alone. Deleting on it
+ * meant switching the flag off silently wiped every JD's stored explanation on
+ * the next rematch. An empty array IS a verdict ("this pass eliminated nobody")
+ * and does clear.
  */
 export async function recordEliminations(
   jdId: string,
-  eliminated: { profileId: string; reason: string }[],
+  eliminated: { profileId: string; reason: string }[] | null,
 ): Promise<void> {
+  if (eliminated === null) return;
   await db.$transaction([
     db.matchElimination.deleteMany({ where: { jdId } }),
     ...(eliminated.length

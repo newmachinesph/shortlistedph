@@ -34,6 +34,10 @@ const engagementKey = (e: { role: string; company: string }) =>
 export async function POST(req: Request) {
   try {
     const user = await requireRole("talent");
+    // An LLM extraction over a whole resume, repeatable at will. The bucket
+    // and the import were both here; the call itself had gone missing, so the
+    // limit existed only on paper.
+    rateLimit("resumeParse", user.id);
     const profile = await requireTalentProfile(user.id);
     const { key } = await parseBody(req, Body);
 

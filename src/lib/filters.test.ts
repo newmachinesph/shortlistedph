@@ -16,14 +16,12 @@ test("null hardRequirements eliminates nobody", () => {
   assert.equal(r.eliminated.length, 0);
 });
 
-test("rate: 1.10x ceiling passes tagged, 1.50x is eliminated", () => {
+test("rate: 1.10x ceiling passes on the tolerance band, 1.50x is eliminated", () => {
   const r = applyHardFilters(
     [cand("near", { rateUsd: 11 }), cand("far", { rateUsd: 15 }), cand("in", { rateUsd: 9 })],
     { rateMaxUsd: 10 },
   );
   assert.deepEqual(r.passed.map((c) => c.id), ["near", "in"]);
-  assert.ok(r.aboveBudget.has("near"));
-  assert.ok(!r.aboveBudget.has("in"));
   assert.deepEqual(r.eliminated, [{ profileId: "far", reason: "rate_above_ceiling" }]);
 });
 
@@ -62,4 +60,27 @@ test("a JD with no stated budget or hours still eliminates booked", () => {
 test("startWithinDays never eliminates yet — no profile signal to test", () => {
   const r = applyHardFilters([cand("a")], { startWithinDays: 7 });
   assert.equal(r.passed.length, 1);
+});
+
+// The limit is what lets the caller hand in a deeper ANN slice than it needs:
+// filtering must reach PAST the shallow cut, never hollow it out.
+test("limit stops at N survivors and reports only the eliminations met on the way", () => {
+  const r = applyHardFilters(
+    [
+      cand("over", { rateUsd: 99 }),
+      cand("a"),
+      cand("b"),
+      cand("later-over", { rateUsd: 99 }),
+      cand("c"),
+    ],
+    { rateMaxUsd: 10 },
+    2,
+  );
+  assert.deepEqual(r.passed.map((c) => c.id), ["a", "b"]);
+  assert.deepEqual(r.eliminated, [{ profileId: "over", reason: "rate_above_ceiling" }]);
+});
+
+test("limit applies with no requirements too", () => {
+  const r = applyHardFilters([cand("a"), cand("b"), cand("c")], null, 2);
+  assert.deepEqual(r.passed.map((c) => c.id), ["a", "b"]);
 });

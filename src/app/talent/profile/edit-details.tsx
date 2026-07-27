@@ -6,7 +6,14 @@ import { Check, Loader2, Pencil, Plus } from "lucide-react";
 import { api } from "@/lib/auth-client";
 import { ChipList, Field, Select, TextArea, TextInput } from "@/components/onboarding-fields";
 
-type Engagement = { role: string; company: string; span: string; confirmed?: boolean };
+type Engagement = {
+  /** Absent on a row just added here; the API reads that as "create". */
+  id?: string;
+  role: string;
+  company: string;
+  span: string;
+  confirmed?: boolean;
+};
 
 export type EditableProfile = {
   headline: string | null;
@@ -93,7 +100,7 @@ export function EditDetails({
           summary: summary.trim(),
           city: city.trim(),
           skills: skillList,
-          engagements: jobs.map(({ role, company, span }) => ({ role, company, span })),
+          engagements: jobs.map(({ id, role, company, span }) => ({ id, role, company, span })),
           education: education.trim(),
           englishLevel: englishLevel || null,
           tools: tools.trim(),

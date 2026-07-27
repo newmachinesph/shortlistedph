@@ -59,10 +59,34 @@ const Patch = z.object({
   preferredOverlap: optionalText(80),
   skills: z.array(z.string().min(1).max(60)).max(20).optional(),
   engagements: z
-    .array(z.object({ role: z.string().max(120), company: z.string().max(120), span: z.string().max(60) }))
+    .array(
+      z.object({
+        // Present for a row that already exists, so an edit is an UPDATE of
+        // that row rather than a guess at which one the caller meant.
+        id: z.string().max(40).optional(),
+        role: z.string().max(120),
+        company: z.string().max(120),
+        span: z.string().max(60),
+      }),
+    )
     .max(12)
     .optional(),
 });
+
+/** Only these change what gets embedded — see profileEmbedText + buildFacetTexts. */
+const EMBEDDED_SCALARS = [
+  "headline",
+  "summary",
+  "city",
+  "yearsExperience",
+  "availability",
+  "committedHours",
+  "education",
+  "englishLevel",
+  "tools",
+  "certifications",
+  "preferredOverlap",
+] as const;
 
 /** Rate is deliberately NOT editable here — see /api/talent/rate for the 30-day lock. */
 export async function PATCH(req: Request) {
@@ -74,6 +98,15 @@ export async function PATCH(req: Request) {
     const profile = await requireTalentProfile(user.id);
     const body = await parseBody(req, Patch);
     const { skills, engagements, ...scalars } = body;
+
+    // lastEditedAt is the anti-tailoring clock, and re-embedding is four API
+    // calls. Neither belongs to an edit that changes no embedded text — a bare
+    // `{visibility:false}` was resetting a talent's stability figure and
+    // spending four embeddings to write back the same vectors.
+    const touchesEmbeddedText =
+      skills !== undefined ||
+      engagements !== undefined ||
+      EMBEDDED_SCALARS.some((k) => scalars[k] !== undefined);
 
     await db.$transaction(async (tx) => {
       if (skills) {
@@ -100,22 +133,49 @@ export async function PATCH(req: Request) {
         }
       }
       if (engagements) {
-        const key = (e: { role: string; company: string }) =>
-          `${normalizeSkill(e.role)}|${normalizeSkill(e.company)}`;
-        const kept = new Map(engagements.map((e) => [key(e), e]));
+        // Identity is the row id, not `role|company`. That key discarded every
+        // span correction (same key in and out, so nothing was written while
+        // the UI said "saved") and collapsed two real engagements at the same
+        // company into one on the next save.
+        //
+        // Clients that don't round-trip ids (the onboarding wizard) fall back
+        // to matching the whole triple, so resending an unchanged list still
+        // matches its rows instead of duplicating them.
+        const triple = (e: { role: string; company: string; span: string }) =>
+          `${normalizeSkill(e.role)}|${normalizeSkill(e.company)}|${normalizeSkill(e.span)}`;
         const current = await tx.engagement.findMany({ where: { profileId: profile.id } });
-        // A confirmed engagement is mutual evidence — the talent alone cannot delete it.
-        const removed = current.filter(
-          (e) => !kept.has(key(e)) && e.outcome !== "confirmed",
-        );
+        const byId = new Map(current.map((e) => [e.id, e]));
+        const claimed = new Set<string>();
+        const created: { role: string; company: string; span: string }[] = [];
+
+        for (const e of engagements) {
+          const row = e.id ? byId.get(e.id) : undefined;
+          if (row && !claimed.has(row.id)) {
+            claimed.add(row.id);
+            // A confirmed engagement is mutual evidence — its text is not the
+            // talent's alone to rewrite, so the claim holds the row but
+            // changes nothing.
+            if (row.outcome !== "confirmed") {
+              await tx.engagement.update({
+                where: { id: row.id },
+                data: { role: e.role, company: e.company, span: e.span },
+              });
+            }
+            continue;
+          }
+          const match = current.find((c) => !claimed.has(c.id) && triple(c) === triple(e));
+          if (match) claimed.add(match.id);
+          else created.push({ role: e.role, company: e.company, span: e.span });
+        }
+
+        // Same rule on the way out: confirmed rows survive a save that omits them.
+        const removed = current.filter((e) => !claimed.has(e.id) && e.outcome !== "confirmed");
         if (removed.length) {
           await tx.engagement.deleteMany({ where: { id: { in: removed.map((e) => e.id) } } });
         }
-        const have = new Set(current.map(key));
-        const added = [...kept].filter(([k]) => !have.has(k));
-        if (added.length) {
+        if (created.length) {
           await tx.engagement.createMany({
-            data: added.map(([, e]) => ({ ...e, profileId: profile.id })),
+            data: created.map((e) => ({ ...e, profileId: profile.id })),
           });
         }
       }
@@ -128,7 +188,7 @@ export async function PATCH(req: Request) {
           // through the wizard was born stale and got nudged about something it
           // had just been told.
           ...(scalars.availability ? { availabilityConfirmedAt: new Date() } : {}),
-          lastEditedAt: new Date(),
+          ...(touchesEmbeddedText ? { lastEditedAt: new Date() } : {}),
         },
       });
     });
@@ -141,7 +201,7 @@ export async function PATCH(req: Request) {
       where: { id: profile.id },
       select: { publishedAt: true },
     });
-    if (publishedAt) {
+    if (publishedAt && touchesEmbeddedText) {
       try {
         await refreshProfileEmbeddings(profile.id);
       } catch (e) {

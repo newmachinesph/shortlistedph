@@ -27,15 +27,21 @@ export async function GET() {
   }
 }
 
-/** Shared with PATCH on [id] — an edit replaces the whole draft, same shape. */
+/**
+ * Shared with PATCH on [id]. Every field is optional-means-absent, NOT
+ * optional-means-empty: `mustHaves`/`niceToHaves` used to carry `.default([])`,
+ * so a PATCH that omitted them wiped the hard filters — and `requiredTools`
+ * with them — while every other omitted field was left alone. POST reads
+ * absent as "none"; PATCH reads absent as "unchanged". Both say so explicitly.
+ */
 export const JdBody = z.object({
   title: z.string().min(3).max(160),
   budgetMin: z.number().min(0).max(500).nullable().optional(),
   budgetMax: z.number().min(0).max(500).nullable().optional(),
   hoursPerWeek: z.number().int().min(1).max(80).nullable().optional(),
   overlap: z.string().max(120).nullable().optional(),
-  mustHaves: z.array(z.string().min(1).max(120)).max(10).default([]),
-  niceToHaves: z.array(z.string().min(1).max(120)).max(10).default([]),
+  mustHaves: z.array(z.string().min(1).max(120)).max(10).optional(),
+  niceToHaves: z.array(z.string().min(1).max(120)).max(10).optional(),
   screeningQuestions: z
     .array(
       z.object({
@@ -75,15 +81,21 @@ export async function POST(req: Request) {
     const user = await requireRole("employer");
     const employer = await requireEmployer(user.id);
     const { rateMaxUsd, ...body } = await parseBody(req, JdBody);
+    // Create: absent means "none". Named here rather than left to Prisma's
+    // implicit empty list, so the create/edit split is visible at both ends.
+    const mustHaves = body.mustHaves ?? [];
+    const niceToHaves = body.niceToHaves ?? [];
 
     const jd = await db.jobDescription.create({
       data: {
         ...body,
+        mustHaves,
+        niceToHaves,
         hardRequirements: hardRequirementsJson(rateMaxUsd, body.hoursPerWeek),
         // Canonical tool IDs for Phase 3 — alias-table hits only, unmapped
         // requirements stay prose in mustHaves/niceToHaves (engine-plan 2a).
-        requiredTools: extractCanonicalTools(body.mustHaves),
-        preferredTools: extractCanonicalTools(body.niceToHaves),
+        requiredTools: extractCanonicalTools(mustHaves),
+        preferredTools: extractCanonicalTools(niceToHaves),
         employerId: employer.id,
         status: "draft",
       },

@@ -301,7 +301,7 @@ export function RatingReceived({
 
 export function MatchConsentRequest({
   token,
-  title,
+  roleLabel,
   budgetMin,
   budgetMax,
   hoursPerWeek,
@@ -309,15 +309,16 @@ export function MatchConsentRequest({
   mustHaves,
 }: {
   token: string;
-  title: string;
+  roleLabel: string;
   budgetMin: number | null;
   budgetMax: number | null;
   hoursPerWeek: number | null;
   overlap: string | null;
   mustHaves: string[];
 }) {
-  // GENERIC role facts only — never the employer or company name. The JD stays
-  // hidden; the candidate decides on the role, not the brand.
+  // GENERIC role facts only — never the employer or company name, and never the
+  // employer-authored JD title, which can carry one. The JD stays hidden; the
+  // candidate decides on the role, not the brand.
   const rate =
     budgetMin != null && budgetMax != null
       ? budgetMin === budgetMax
@@ -339,7 +340,7 @@ export function MatchConsentRequest({
       </Text>
       <Section style={s.card}>
         <Text style={s.label}>Role</Text>
-        <Text style={{ ...s.value, marginBottom: "14px" }}>{title}</Text>
+        <Text style={{ ...s.value, marginBottom: "14px" }}>{roleLabel}</Text>
         {rate && (
           <>
             <Text style={s.label}>Pays within</Text>

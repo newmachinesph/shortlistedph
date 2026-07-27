@@ -3,6 +3,7 @@ import { CalendarClock, Check, Clock3, Inbox, X } from "lucide-react";
 import { NOINDEX } from "@/lib/site";
 import { db } from "@/lib/db";
 import { isConsentExpired } from "@/lib/consent";
+import { candidateRoleLabel } from "@/lib/openings-shape";
 import { rateBand } from "@/lib/format";
 import { stamp } from "@/lib/notify";
 import { requirePageUser, talentOrOnboard } from "@/lib/queries";
@@ -39,7 +40,10 @@ export default async function TalentMatchesPage() {
       expiresAt: true,
       jd: {
         select: {
-          title: true,
+          // The employer-authored `title` can name the client, so it is not
+          // selected — same door the public board uses (candidateRoleLabel).
+          publicTitle: true,
+          roleFamily: true,
           budgetMin: true,
           budgetMax: true,
           hoursPerWeek: true,
@@ -85,7 +89,7 @@ export default async function TalentMatchesPage() {
       {open.map((c) => (
         <div key={c.id} className="mt-7 rounded-2xl border border-line bg-white p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <h2 className="font-medium text-ink">{c.jd.title}</h2>
+            <h2 className="font-medium text-ink">{candidateRoleLabel(c.jd)}</h2>
             <span className="inline-flex items-center gap-1 rounded-full bg-ember-soft px-2.5 py-1 text-[11px] font-medium text-ember">
               <Clock3 className="h-3 w-3" /> Awaiting your answer
             </span>
@@ -137,7 +141,7 @@ export default async function TalentMatchesPage() {
                 className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-white px-6 py-5"
               >
                 <div className="min-w-0">
-                  <p className="truncate font-medium text-ink">{c.jd.title}</p>
+                  <p className="truncate font-medium text-ink">{candidateRoleLabel(c.jd)}</p>
                   <p className="mt-0.5 text-xs text-ink-faint">
                     {c.state === "accepted"
                       ? "You're on this shortlist as your profile stood when you accepted."

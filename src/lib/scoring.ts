@@ -284,6 +284,67 @@ export const QUALIFY_SCORE = 55;
 export const QUALIFY_SKILLS = 40;
 
 /**
+ * Rotation counters for one candidate. Structural, so a ranked row from
+ * matching.ts sorts with `.sort(compareRotation)` and no shaping in between.
+ */
+export type RotationEntry = {
+  c: {
+    /** Consent invitations received, all JDs — answered, declined or lapsed. */
+    inviteCount: number;
+    /** Slate placements — invitations that were accepted. */
+    shortlistCount: number;
+    lastInvitedAt: Date | null;
+    lastShownAt: Date | null;
+  };
+  fresh: boolean;
+  score: number;
+};
+
+/**
+ * What a candidate has already taken out of the rotation.
+ *
+ * The scarce thing being rotated is the INVITATION, not the placement. Counting
+ * placements alone — shortlistCount, stamped only on accept — did not make
+ * declining free, it made it invisible: a candidate who declines everything
+ * stays at count 0 with no stamp, so they lead the rotation on EVERY brief and
+ * take the first invite on every one of them, forever, ahead of everyone who
+ * has taken a single turn. Non-responders self-remove via dormancy; decliners
+ * never do.
+ *
+ * So a turn costs a turn, and accepting costs one more on top — the placement
+ * is the thing the queue exists for. Declining stays safe and honest: no
+ * strike, no exclusion, no dormancy, and always strictly cheaper than
+ * accepting. It simply stops being free at the expense of the people behind.
+ */
+export function rotationCost(c: { inviteCount: number; shortlistCount: number }): number {
+  return c.inviteCount + c.shortlistCount;
+}
+
+/**
+ * The later of the two stamps. Consent rows are deleted with their JD, so the
+ * placement stamp is the durable half and neither one alone is the whole story.
+ */
+function lastTurnAt(c: RotationEntry["c"]): number {
+  return Math.max(c.lastInvitedAt?.getTime() ?? 0, c.lastShownAt?.getTime() ?? 0);
+}
+
+/**
+ * Rotation order among candidates who already cleared the quality bar: fewest
+ * turns taken first, then longest-waiting, then a light nudge for freshly
+ * confirmed availability, and score only as the final tiebreaker. Because cost
+ * leads, once everyone qualified has had a turn they all sit at higher counts
+ * and the least-served return to the front — the cycle resets itself.
+ */
+export function compareRotation(a: RotationEntry, b: RotationEntry): number {
+  const cost = rotationCost(a.c) - rotationCost(b.c);
+  if (cost !== 0) return cost;
+  const turn = lastTurnAt(a.c) - lastTurnAt(b.c);
+  if (turn !== 0) return turn;
+  if (a.fresh !== b.fresh) return Number(b.fresh) - Number(a.fresh);
+  return b.score - a.score;
+}
+
+/**
  * Verified identity is a tiebreaker, not a dimension.
  *
  * Kept small on purpose. A bigger bonus would let verification outrank a

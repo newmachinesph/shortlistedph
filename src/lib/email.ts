@@ -258,7 +258,9 @@ export const mail = {
     to: string,
     args: {
       token: string;
-      title: string;
+      // Named for what it must be: the candidate-safe label from
+      // candidateRoleLabel, never JobDescription.title.
+      roleLabel: string;
       budgetMin: number | null;
       budgetMax: number | null;
       hoursPerWeek: number | null;

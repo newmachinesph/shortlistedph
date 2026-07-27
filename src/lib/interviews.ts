@@ -214,6 +214,33 @@ export const CLOSED: InterviewStatus[] = ["declined", "cancelled"];
 const CREDIT_SPENT: InterviewStatus[] = ["paid", "scheduled"];
 
 /**
+ * Whether the interview credit spent on this interview was bought with money
+ * that has since been handed back.
+ *
+ * Refunding revokes only UNSPENT entitlements — a spent one is left alone
+ * because the work it bought cannot be un-done. An interview cancelled
+ * afterwards would otherwise return that credit to the balance, re-issuing a
+ * purchase that no longer exists.
+ *
+ * Lives here rather than in fulfillment.ts: that module imports payments.ts,
+ * which imports this one for the interview price, so the reverse import closes
+ * a cycle that breaks the build.
+ */
+async function wasInterviewCreditRefunded(interviewId: string): Promise<boolean> {
+  const spent = await db.entitlement.findFirst({
+    where: { spentOnInterviewId: interviewId },
+    select: { source: true },
+  });
+  if (!spent) return false;
+
+  const payment = await db.payment.findUnique({
+    where: { providerRef: spent.source },
+    select: { status: true },
+  });
+  return payment?.status === "refunded";
+}
+
+/**
  * States cancelInterview will accept. Exported so the admin UI offers the
  * action exactly where the API allows it, instead of restating the rule and
  * drifting from it.
@@ -265,7 +292,12 @@ export async function cancelInterview(args: {
     );
   }
 
-  const creditReturned = CREDIT_SPENT.includes(status);
+  // A credit whose purchase was refunded is not the employer's to get back.
+  // Without this check, buying a pack, confirming an interview, refunding the
+  // pack and then cancelling handed back a credit backed by money that had
+  // already gone home.
+  const creditReturned =
+    CREDIT_SPENT.includes(status) && !(await wasInterviewCreditRefunded(interview.id));
 
   await db.$transaction(async (tx) => {
     const { count } = await tx.interview.updateMany({

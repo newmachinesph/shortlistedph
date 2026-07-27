@@ -84,6 +84,14 @@ export default async function TalentServicesPage() {
             {AVAILABILITY[profile.availability] ?? profile.availability}
           </p>
           <p className="mt-1 text-sm text-ink-soft">{profile.committedHours}h/week committed</p>
+          {/* "Fully booked" is a pool filter, not a ranking penalty — this
+              page shows the state, so it has to show the consequence. */}
+          {profile.availability === "booked" && (
+            <p className="mt-4 rounded-xl bg-ember-soft p-3.5 text-xs leading-relaxed text-ember">
+              While you are fully booked, no job is ranked against your profile. Change it on your
+              profile when you have room again.
+            </p>
+          )}
           <p className="mt-4 rounded-xl bg-paper p-3.5 text-xs leading-relaxed text-ink-faint">
             You set your committed hours — nothing updates them for you. Whatever is left of a
             40-hour week is what we offer employers, so keep it current when a client ends.

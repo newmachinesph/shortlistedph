@@ -55,6 +55,11 @@ export async function createOrder(input: {
       purchase_units: [
         {
           reference_id: input.referenceId,
+          // PayPal copies custom_id onto the capture AND onto refund events;
+          // reference_id it does not. Without this a refund arriving before its
+          // capture has no resolvable payer, so the pre-capture refund record
+          // can only be logged rather than written (see markPaymentRefunded).
+          custom_id: input.referenceId,
           description: input.description,
           amount: { currency_code: input.currency, value: input.amount },
         },

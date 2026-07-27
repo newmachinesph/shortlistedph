@@ -16,6 +16,7 @@ type Conversion = {
   qualifiedAt: Date | null;
   commissions: {
     amount: unknown;
+    paymentId: string;
     payoutId: string | null;
     voidedAt: Date | null;
     voidedReason: string | null;
@@ -46,7 +47,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         referralId: true,
         qualifiedAt: true,
         commissions: {
-          select: { amount: true, payoutId: true, voidedAt: true, voidedReason: true },
+          select: {
+            amount: true,
+            paymentId: true,
+            payoutId: true,
+            voidedAt: true,
+            voidedReason: true,
+          },
         },
       },
     });
@@ -105,7 +112,21 @@ async function voidIt(conversion: Conversion, actorId: string, note?: string) {
 async function restore(conversion: Conversion, actorId: string, note?: string) {
   if (conversion.status !== "void") throw new HttpError(409, "Conversion is not void");
 
-  const revived = conversion.commissions.filter((c) => c.voidedReason === VOIDED_REASON).length;
+  const candidates = conversion.commissions.filter((c) => c.voidedReason === VOIDED_REASON);
+  // Reason alone is not enough to trust. A refund landing on an ALREADY-void
+  // conversion has no live row to stamp, so its rows can still read as
+  // admin-voided; reviving one pays out a purchase that was handed back. The
+  // payment's own status is the fact, so it decides.
+  const refunded = new Set(
+    (
+      await db.payment.findMany({
+        where: { providerRef: { in: candidates.map((c) => c.paymentId) }, status: "refunded" },
+        select: { providerRef: true },
+      })
+    ).map((p) => p.providerRef),
+  );
+  const revivable = candidates.filter((c) => !refunded.has(c.paymentId));
+  const revived = revivable.length;
   const live = conversion.commissions.filter((c) => c.voidedAt === null).length;
   // "Qualified" means this referral produced a paying company, so it only comes
   // back if money comes back with it. With nothing to restore the conversion
@@ -121,7 +142,11 @@ async function restore(conversion: Conversion, actorId: string, note?: string) {
       },
     }),
     db.referralCommission.updateMany({
-      where: { conversionId: conversion.id, voidedReason: VOIDED_REASON },
+      where: {
+        conversionId: conversion.id,
+        voidedReason: VOIDED_REASON,
+        paymentId: { in: revivable.map((c) => c.paymentId) },
+      },
       data: { voidedAt: null, voidedReason: null },
     }),
   ]);
@@ -131,7 +156,9 @@ async function restore(conversion: Conversion, actorId: string, note?: string) {
     restoredCommissions: revived,
     // Refund-voided rows stay dead — recorded here so nobody has to work out
     // later why the balance came back smaller than it went away.
-    keptVoided: conversion.commissions.filter((c) => c.voidedReason === REFUNDED_REASON).length,
+    keptVoided:
+      conversion.commissions.filter((c) => c.voidedReason === REFUNDED_REASON).length +
+      refunded.size,
     note,
   });
 

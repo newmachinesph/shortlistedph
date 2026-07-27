@@ -42,9 +42,14 @@ export async function POST(req: Request) {
     });
     if (count === 0) throw new HttpError(409, "This interview was cancelled — nothing to schedule");
 
+    // interview_scheduled, not interview_booked: the booked renderer reads
+    // `company`, which this event does not carry, so it rendered "Your
+    // interview with An employer is booked" and threw away the time — the only
+    // new fact in the event. interview_scheduled was already in the renderer
+    // with no writer at all.
     await notify({
       userId: interview.talentUserId,
-      type: "interview_booked",
+      type: "interview_scheduled",
       payload: { when: when.toISOString() },
     });
 

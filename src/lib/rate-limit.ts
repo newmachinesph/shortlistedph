@@ -20,10 +20,27 @@ type Window = { count: number; resetAt: number };
 
 const windows = new Map<string, Window>();
 
-/** Keep the map from growing without bound on a long-lived instance. */
+/**
+ * Keep the map from growing without bound on a long-lived instance.
+ *
+ * Sweeping only expired entries is not enough on its own: enough distinct live
+ * keys and nothing is evictable, so the map grows for the life of the process.
+ * Above a hard ceiling the oldest windows go regardless — losing a counter
+ * costs one caller some extra budget, holding every counter costs the instance.
+ */
+const SOFT_LIMIT = 5_000;
+const HARD_LIMIT = 20_000;
+
 function sweep(now: number) {
-  if (windows.size < 5_000) return;
+  if (windows.size < SOFT_LIMIT) return;
   for (const [key, w] of windows) if (w.resetAt <= now) windows.delete(key);
+  if (windows.size < HARD_LIMIT) return;
+  const overflow = windows.size - HARD_LIMIT;
+  let dropped = 0;
+  for (const key of windows.keys()) {
+    if (dropped++ >= overflow) break;
+    windows.delete(key);
+  }
 }
 
 export type Limit = { limit: number; windowMs: number };
@@ -68,10 +85,20 @@ export function rateLimit(name: keyof typeof LIMITS, identity: string): void {
 }
 
 /**
- * Caller identity for unauthenticated routes. Proxy headers are attacker-
- * controlled, so this is a throttling hint, never an authorisation input.
+ * Caller identity for unauthenticated routes. Still only a throttling hint,
+ * never an authorisation input.
+ *
+ * Take the LAST X-Forwarded-For entry, not the first. Each proxy appends the
+ * address it saw, so the rightmost entry is the one our own edge observed and
+ * the leftmost is whatever the client sent — reading it made the limiter
+ * bypassable by rotating a header, which is no limiter at all. Vercel's own
+ * header wins when present because it is not client-writable.
  */
 export function clientIp(req: Request): string {
-  const forwarded = req.headers.get("x-forwarded-for");
-  return forwarded?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+  const vercel = req.headers.get("x-vercel-forwarded-for");
+  if (vercel) return vercel.trim();
+
+  const chain = req.headers.get("x-forwarded-for")?.split(",") ?? [];
+  const nearest = chain[chain.length - 1]?.trim();
+  return nearest || req.headers.get("x-real-ip") || "unknown";
 }

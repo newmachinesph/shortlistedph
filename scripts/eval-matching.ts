@@ -149,13 +149,17 @@ async function main() {
       WHERE p."publishedAt" IS NOT NULL
         AND p.visibility = true
         AND p."dormantAt" IS NULL
+        AND p."openToOffers" = true
+        AND p.availability <> 'booked'
         AND p.embedding IS NOT NULL
         AND u.status = 'active'`,
   );
   console.log(`Pool: ${count} matchable profiles\n`);
 
   for (const jd of JOBS) {
-    const { scanned, eligible, eliminated } = await rankQualifiedForJd(jd);
+    const { scanned, eligible, eliminated: verdict } = await rankQualifiedForJd(jd);
+    // null = Stage 0 never ran (EVAL_HARD unset), which prints as no eliminations.
+    const eliminated = verdict ?? [];
 
     const byReason = new Map<string, number>();
     for (const e of eliminated) byReason.set(e.reason, (byReason.get(e.reason) ?? 0) + 1);
@@ -195,7 +199,8 @@ async function main() {
         `  ${i + 1}. ${String(r.score).padStart(3)}  ${headline.padEnd(60)} ` +
           `$${r.c.rateUsd ?? "?"}/hr ${r.c.yearsExperience}y  ` +
           `[sk ${r.dims.skills} rt ${r.dims.rate} ov ${r.dims.overlap} ex ${r.dims.experience}] ` +
-          `shown ${r.c.shortlistCount}${r.c.verifiedTier === "id_verified" ? " verified" : ""}`,
+          // Rotation cost is invites + placements, so print both halves.
+          `turns ${r.c.inviteCount}+${r.c.shortlistCount}${r.c.verifiedTier === "id_verified" ? " verified" : ""}`,
       );
     }
     console.log();
