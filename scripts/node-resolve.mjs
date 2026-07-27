@@ -41,23 +41,32 @@ function firstThatExists(url) {
   return null;
 }
 
+const stub = (file) => pathToFileURL(path.join(import.meta.dirname, "stubs", file)).href;
+
 /**
- * The mail templates are the one .tsx file lib/ pulls in, and Node strips types
- * but does not transform JSX, so they resolve to components that render to
- * nothing — see scripts/stubs/email-templates.mjs. Everything else about the
- * email module stays real. Nothing but the test runner loads this file (it is
- * opt-in via --import), so the substitution cannot reach the app.
+ * Modules that cannot be loaded outside Next, mapped to stand-ins.
+ *
+ * `@/emails/templates` is the only .tsx file lib/ pulls in, and Node strips
+ * types but does not transform JSX; the stub renders to nothing, while the
+ * email module itself, its transports and its best-effort error handling all
+ * stay real.
+ *
+ * `next/navigation` is the subtler one: it builds a React context at import
+ * time, and under react-server `react` has no createContext — so importing any
+ * lib module that merely MENTIONS redirect() (lib/admin.ts does) crashes the
+ * runner before the code under test runs at all.
  */
-const EMAIL_TEMPLATES = SRC + "emails/templates";
-const EMAIL_STUB = pathToFileURL(
-  path.join(import.meta.dirname, "stubs", "email-templates.mjs"),
-).href;
+const STUBS = new Map([
+  [SRC + "emails/templates", stub("email-templates.mjs")],
+  ["next/navigation", stub("next-navigation.mjs")],
+]);
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
     const aliased = specifier.startsWith("@/") ? SRC + specifier.slice(2) : specifier;
 
-    if (aliased === EMAIL_TEMPLATES) return { url: EMAIL_STUB, shortCircuit: true };
+    const stubbed = STUBS.get(aliased);
+    if (stubbed) return { url: stubbed, shortCircuit: true };
 
     // Only relative and aliased specifiers are ours to fix. Bare specifiers are
     // packages and must keep going through Node's normal resolution, or

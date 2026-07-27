@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { db } from "./db";
 import { mail } from "./email";
 import { sendConsentRequests } from "./consent";
+import { CANCELLABLE, cancelInterview } from "./interviews";
 import { buildSlate } from "./matching";
 import { notify } from "./notify";
 import { presignDownload } from "./r2";
@@ -218,6 +219,8 @@ export type EnforcementResult = {
   sessionsRevoked: number;
   unpublished: boolean;
   counterpartiesNotified: number;
+  /** Booked interviews closed out because a participant can no longer attend. */
+  interviewsCancelled: number;
 };
 
 /**
@@ -270,6 +273,24 @@ export async function applyUserStatus(args: {
       });
     }
 
+    // A ban has to reach every role the person holds, not just the talent one.
+    // An "active" Interviewer row IS the bookable pool (activeInterviewers in
+    // lib/interviews.ts), so a banned interviewer went on being chosen by
+    // employers and booked for calls they had no session to attend — one
+    // interview credit spent per booking.
+    //
+    // Paused, not revoked: revoked is the terminal verdict on someone's work as
+    // an interviewer, and an account suspension is not that judgment. Admin has
+    // an explicit un-pause. Deliberately NOT reversed when access is restored,
+    // for the same reason the talent profile stays unpublished — giving someone
+    // their login back is not the same as putting them in front of buyers again.
+    if (inactive) {
+      await tx.interviewer.updateMany({
+        where: { userId: target.id, status: "active" },
+        data: { status: "paused" },
+      });
+    }
+
     await tx.auditLog.create({
       data: {
         actorId: args.actorId,
@@ -288,6 +309,18 @@ export async function applyUserStatus(args: {
     return count;
   });
 
+  // Post-commit, and outside the transaction because cancelInterview opens its
+  // own. Every booked interview this person is party to — as the interviewer,
+  // the candidate or the buyer — is now a call that cannot happen: their
+  // sessions are gone and they have no way back in. Left booked, the employer's
+  // credit stays spent on a meeting nobody will attend, and the other two
+  // parties find out by showing up.
+  //
+  // cancelInterview is the existing path and refuses delivered work on its own,
+  // so a filed assessment is never erased and the interviewer keeps what they
+  // are owed. It also returns the credit and frees the ledger row.
+  const interviewsCancelled = inactive ? await cancelLiveInterviews(target.id, args.actorId) : 0;
+
   // Post-commit. notify() swallows its own failures — a bell icon that did not
   // light up must not undo a ban that did.
   for (const c of live) {
@@ -305,7 +338,38 @@ export async function applyUserStatus(args: {
     sessionsRevoked,
     unpublished: willUnpublish,
     counterpartiesNotified: live.length,
+    interviewsCancelled,
   };
+}
+
+/**
+ * Cancels every still-live interview the user is party to, in any of the three
+ * roles. Best-effort per interview: one that refuses to cancel (delivered work,
+ * or a concurrent state change) must not stop the others or undo the ban.
+ */
+async function cancelLiveInterviews(userId: string, actorId: string): Promise<number> {
+  const booked = await db.interview.findMany({
+    where: {
+      status: { in: [...CANCELLABLE] },
+      OR: [{ talentUserId: userId }, { interviewer: { userId } }, { employer: { userId } }],
+    },
+    select: { id: true },
+  });
+
+  let cancelled = 0;
+  for (const iv of booked) {
+    try {
+      await cancelInterview({
+        actorId,
+        interviewId: iv.id,
+        reason: "A participant's account was suspended",
+      });
+      cancelled++;
+    } catch (e) {
+      console.error(`[admin] could not cancel interview ${iv.id} after suspending ${userId}`, e);
+    }
+  }
+  return cancelled;
 }
 
 /** Whoever is on the other end of this user's still-open connections. */

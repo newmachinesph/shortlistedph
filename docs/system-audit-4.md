@@ -140,7 +140,16 @@ session handling and `role`/`status` being server-set; secrets.
   happen.
 - **Ratings have no aggregate consumer.** Both sides file into a system where
   the only reader is the person being rated.
-- **Banning a user leaves their `Interviewer` row active** and bookable.
+- ~~**Banning a user leaves their `Interviewer` row active** and bookable.~~
+  **Fixed and executed.** A suspension now pauses the `Interviewer` row (paused,
+  not revoked — revoked is a verdict on their work, which an account suspension
+  is not) and does not silently un-pause it on reactivation, matching the rule
+  the talent profile already followed. It also cancels every still-live
+  interview the person is party to in any of the three roles: their sessions are
+  gone, so the call cannot happen, and leaving it booked stranded both other
+  parties while the employer's credit stayed spent. `cancelInterview` does the
+  work, so delivered assessments are never erased and the credit and ledger row
+  both come back. Covered by `admin.dbtest.ts`.
 
 ## ROUND-3 FIXES THAT DO NOT WORK
 

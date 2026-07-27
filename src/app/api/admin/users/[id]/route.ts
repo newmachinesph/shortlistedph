@@ -68,11 +68,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return ok({
       ...result,
       // Said out loud so the operator never assumes reactivating put someone
-      // back in front of employers. Only the talent can republish.
+      // back in front of employers. Only the talent can republish, and an
+      // interviewer paused by a suspension needs an explicit un-pause.
       note:
         body.status === "active"
-          ? "Access restored. Any talent profile stays unpublished until the person republishes it themselves."
-          : undefined,
+          ? "Access restored. A talent profile stays unpublished until the person republishes it, and an interviewer paused by the suspension stays paused until you reactivate them."
+          : result.interviewsCancelled > 0
+            ? `${result.interviewsCancelled} booked interview(s) were cancelled — any interview credit spent has been returned to the employer.`
+            : undefined,
     });
   } catch (e) {
     return fail(e);
