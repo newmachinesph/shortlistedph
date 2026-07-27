@@ -64,10 +64,26 @@ export async function fulfillPurchase(input: {
     console.error(
       `[fulfillment] ${input.provider} ${input.providerRef}: paid ${input.currency} ${input.amount} for "${input.productId}" listed at ${product.currency} ${product.amount} — NOT granted`,
     );
-    await db.payment.upsert({
-      where: { providerRef: input.providerRef },
-      create: { ...row, status: "amount_mismatch" },
-      update: { status: "amount_mismatch" },
+    // Recorded as an AuditLog, NOT as a Payment row. Writing one here did two
+    // things wrong at once: "amount_mismatch" is not in payment_status_check,
+    // so the write threw 23514 and the provider retried the webhook forever;
+    // and had it succeeded it would have claimed this providerRef, so the SAME
+    // capture redelivered with a correct amount would collide on the unique
+    // index and be swallowed as "already processed" — money taken, nothing
+    // granted, permanently. A delivery we refuse must leave the id free for
+    // the delivery we would accept.
+    await db.auditLog.create({
+      data: {
+        actorId: input.userId,
+        action: "payment.amount_mismatch",
+        target: input.providerRef,
+        meta: {
+          provider: input.provider,
+          productId: input.productId,
+          paid: `${input.currency} ${input.amount}`,
+          listed: `${product.currency} ${product.amount}`,
+        },
+      },
     });
     return { granted: false, alreadyProcessed: false };
   }

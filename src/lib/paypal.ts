@@ -104,6 +104,12 @@ export async function captureOrder(orderId: string): Promise<CaptureResult> {
     headers: {
       Authorization: `Bearer ${await token()}`,
       "Content-Type": "application/json",
+      // Without this PayPal may answer with the MINIMAL representation, which
+      // omits the captured amount. Fulfilment verifies the paid amount against
+      // the catalog and fails closed, so a missing amount reads as an
+      // underpayment and the purchase is refused — for a payment that was
+      // perfectly valid.
+      Prefer: "return=representation",
     },
     cache: "no-store",
   });

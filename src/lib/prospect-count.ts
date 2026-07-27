@@ -1,6 +1,5 @@
 import "server-only";
 import { db } from "./db";
-import { FULL_WEEK_HOURS } from "./scoring";
 
 /**
  * How many published, active, matchable profiles roughly fit a role — shown to
@@ -71,14 +70,16 @@ export async function prospectCount(q: ProspectQuery): Promise<number> {
       conditions.push(`(p."rateUsd" is null or p."rateUsd" <= ${Number(q.budgetMax)})`);
     }
 
-    if (q.hoursPerWeek && q.hoursPerWeek > 0) {
-      // Same capacity arithmetic as freeHours (lib/scoring.ts), sharing its
-      // constant rather than restating 40 — the raw SQL cannot call the
-      // function, so the number at least comes from one place.
-      conditions.push(
-        `greatest(0, ${FULL_WEEK_HOURS} - p."committedHours") >= ${Number(q.hoursPerWeek)}`,
-      );
-    }
+    // hoursPerWeek deliberately does NOT narrow the count.
+    //
+    // The engine stopped gating on capacity when jdHardRequirements dropped its
+    // hoursPerWeekMin derivation: `committedHours` defaults to 0 and is guessed
+    // from resumes, so a hard floor eliminated most of the pool on a routine
+    // 40h brief. This query kept the gate after the engine dropped it, which
+    // meant the public funnel reported roughly nobody for exactly the briefs
+    // employers most often write — the opposite error, on the number the whole
+    // pre-signup funnel is sold on. Hours still shape the RANKING through
+    // scoreOverlap; they no longer decide who exists.
 
     let joinFilter = "";
     if (words.length > 0) {
