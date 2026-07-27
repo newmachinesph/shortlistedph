@@ -12,7 +12,8 @@
     "preflight": "node --experimental-strip-types scripts/preflight.ts",
     "backfill:facets": "node --experimental-strip-types scripts/backfill-facet-embeddings.ts",
     "seed:admin": "node --experimental-strip-types scripts/seed-admin.ts",
-    "seed:interviewers": "node --experimental-strip-types scripts/seed-interviewers.ts"
+    "seed:interviewers": "node --experimental-strip-types scripts/seed-interviewers.ts",
+    "smoke": "node --experimental-strip-types scripts/smoke-core-loop.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1090.0",

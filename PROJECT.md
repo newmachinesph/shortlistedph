@@ -62,10 +62,23 @@ Remove-Item Env:DATABASE_URL
 Four audit rounds and five fix waves; `docs/system-audit-4.md` is the live open
 list. Build, lint and typecheck green; 25 unit tests, all pure logic.
 
-**Verified by execution** (2026-07-27, first time the app was ever run): dev
-server boots, the re-activation flow works start to finish including real
-sign-in. Everything else in the codebase is still verified only by typechecking
-and reasoning — no other flow has been exercised against a browser.
+**Verified by execution** (2026-07-27, first time the app was ever run):
 
-Highest-value next step remains walking the employer and talent journeys
-against the running app.
+- The re-activation flow, start to finish including real sign-in.
+- **The core loop**, via `npm run smoke` — 43 checks, green. Talent signs up,
+  verifies, onboards, publishes (embeddings and canonical tools land); employer
+  signs up, briefs, publishes; the pool is scanned, a slate is built and the
+  candidate invited with score/dims/snapshot frozen at INVITE time; the slate
+  stays hidden from the employer until an admin approves; the candidate accepts
+  and the entry carries the frozen snapshot, not a fresh one. The consent page
+  is checked for the employer's name and raw title — the hidden-JD principle
+  asserted against what the candidate's browser actually receives.
+
+`scripts/smoke-core-loop.ts` needs a running dev app and a dev database. It
+purges its own accounts first, so runs are repeatable. `Slate` and
+`ProfileSnapshot` have to be deleted explicitly in that purge — they are
+`onDelete: Restrict` because they are delivered work, and having to name them
+is the guard proving itself.
+
+Still unexercised: money (PayPal/PayMongo unlock, refunds, entitlements),
+interviews, ratings, referral payouts. Everything there remains typecheck-only.
