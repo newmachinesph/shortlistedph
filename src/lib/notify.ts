@@ -267,7 +267,15 @@ export function renderNotification(
       return { text: `Your interview is scheduled${time}.`, href: `/${side}/interviews` };
     }
     case "interview_reported":
-      return { text: `The interview assessment is ready.`, href: "/employer/interviews" };
+      // Both sides get this now, so neither the wording nor the link may assume
+      // the employer. A talent following a hardcoded /employer/interviews would
+      // have been bounced off a page their role cannot open.
+      return side === "employer"
+        ? { text: `The interview assessment is ready.`, href: "/employer/interviews" }
+        : {
+            text: `Your interview assessment is ready — you can read it and download your recording.`,
+            href: "/talent/interviews",
+          };
     case "availability_check":
       return { text: `Still open to work? Confirm your availability.`, href: "/talent/profile" };
     default:

@@ -36,7 +36,12 @@ export async function POST(req: Request) {
     // filed for a foreign interview, nor for one with no recording yet.
     const interview = await db.interview.findFirst({
       where: { id: body.interviewId, interviewerId: interviewer.id, status: "recorded" },
-      select: { id: true, recordingKey: true, employer: { select: { userId: true } } },
+      select: {
+        id: true,
+        recordingKey: true,
+        talentUserId: true,
+        employer: { select: { userId: true } },
+      },
     });
     if (!interview) {
       throw new HttpError(409, "Upload the recording before filing the assessment");
@@ -64,11 +69,17 @@ export async function POST(req: Request) {
       db.interview.update({ where: { id: interview.id }, data: { status: "reported" } }),
     ]);
 
-    await notify({
-      userId: interview.employer.userId,
-      type: "interview_reported",
-      payload: {},
-    });
+    // Both parties, not just the buyer. The candidate sat the interview and
+    // agreed to be recorded; being the last to know an assessment of them
+    // exists — or never knowing — is not a defensible default. Best-effort:
+    // the report is filed and the interviewer is owed for it regardless.
+    for (const userId of [interview.employer.userId, interview.talentUserId]) {
+      try {
+        await notify({ userId, type: "interview_reported", payload: {} });
+      } catch (e) {
+        console.error("[assessment] notification failed", userId, e);
+      }
+    }
 
     return ok({ status: "reported" });
   } catch (e) {

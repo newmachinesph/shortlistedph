@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Video } from "lucide-react";
 import { db } from "@/lib/db";
 import { employerOrOnboard, requirePageUser } from "@/lib/queries";
-import { INTERVIEW_PRICE_USD, RECOMMENDATION_LABEL, type Recommendation } from "@/lib/interviews";
+import { INTERVIEW_PRICE_USD } from "@/lib/interviews";
+import { AssessmentCard } from "@/components/assessment-card";
 import { PRODUCTS } from "@/lib/payments";
 import { stamp } from "@/lib/notify";
 import { presignDownload } from "@/lib/r2";
@@ -33,21 +34,6 @@ const GROUPS: { title: string; statuses: string[] }[] = [
   { title: "Declined", statuses: ["declined"] },
   { title: "Cancelled", statuses: ["cancelled"] },
 ];
-
-function ScoreBar({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="w-32 shrink-0 text-xs text-ink-faint">{label}</span>
-      <span className="h-2 flex-1 overflow-hidden rounded-full bg-line">
-        <span
-          className="block h-full rounded-full bg-brand"
-          style={{ width: `${(value / 5) * 100}%` }}
-        />
-      </span>
-      <span className="w-8 shrink-0 text-right text-xs font-medium text-ink">{value}/5</span>
-    </div>
-  );
-}
 
 export default async function InterviewsPage({
   searchParams,
@@ -290,51 +276,14 @@ export default async function InterviewsPage({
                         </p>
                       )}
 
+                      {/* Same component the candidate's page renders, so the
+                          person the assessment is about reads exactly what you
+                          do. */}
                       {iv.status === "reported" && iv.assessment && (
-                        <div className="mt-4 border-t border-line pt-4">
-                          <span className="inline-flex rounded-full bg-brand-soft px-3 py-1 text-sm font-semibold text-brand">
-                            {RECOMMENDATION_LABEL[iv.assessment.recommendation as Recommendation] ??
-                              iv.assessment.recommendation}
-                          </span>
-
-                          <div className="mt-4 space-y-2">
-                            <ScoreBar label="Overall" value={iv.assessment.overall} />
-                            <ScoreBar label="Technical" value={iv.assessment.technical} />
-                            <ScoreBar label="Communication" value={iv.assessment.communication} />
-                            <ScoreBar label="English fluency" value={iv.assessment.englishFluency} />
-                          </div>
-
-                          <div className="mt-5 space-y-4">
-                            <div>
-                              <h4 className="text-xs font-medium uppercase tracking-wider text-ink-faint">
-                                Strengths
-                              </h4>
-                              <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-ink-soft">
-                                {iv.assessment.strengths}
-                              </p>
-                            </div>
-                            <div>
-                              <h4 className="text-xs font-medium uppercase tracking-wider text-ink-faint">
-                                Concerns
-                              </h4>
-                              <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-ink-soft">
-                                {iv.assessment.concerns}
-                              </p>
-                            </div>
-                            {iv.assessment.notes && (
-                              <div>
-                                <h4 className="text-xs font-medium uppercase tracking-wider text-ink-faint">
-                                  Notes
-                                </h4>
-                                <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-ink-soft">
-                                  {iv.assessment.notes}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="mt-5">
-                            {recordingUrls.has(iv.id) ? (
+                        <AssessmentCard
+                          assessment={iv.assessment}
+                          footer={
+                            recordingUrls.has(iv.id) ? (
                               <a
                                 href={recordingUrls.get(iv.id)}
                                 target="_blank"
@@ -347,9 +296,9 @@ export default async function InterviewsPage({
                               <p className="text-sm text-ink-faint">
                                 A recording of this interview is on file.
                               </p>
-                            ) : null}
-                          </div>
-                        </div>
+                            ) : null
+                          }
+                        />
                       )}
                     </div>
                   );

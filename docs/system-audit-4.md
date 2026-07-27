@@ -120,10 +120,17 @@ session handling and `role`/`status` being server-set; secrets.
 
 ## SYNERGY — producers without consumers
 
-- **Interview assessments die where they land.** Not in the dossier, not in
-  `maskEntry`, not in scoring, and **not to the candidate** — who consented to
-  being recorded under RA 10173 and has no route to their own recording or
-  assessment.
+- ~~**Interview assessments die where they land.**~~ **The candidate half is
+  fixed.** They now read the assessment on `/talent/interviews`, rendered by the
+  *same component* the employer's page uses so the two cannot drift, and they
+  can download their own recording through a scoped, audit-logged route beside
+  the admin one. `interview_reported` notifies both sides — it previously
+  notified only the employer, and hardcoded an `/employer/interviews` link a
+  talent could not open. Covered by `interviews.dbtest.ts`, including that
+  another candidate's interview is never fetched.
+  **Still open:** the assessment feeds nothing downstream — not the dossier, not
+  `maskEntry`, not scoring. A "strong yes" from a paid interviewer changes
+  nothing about how that candidate ranks next time.
 - **A confirmed hire changes nothing about capacity or rotation.** A candidate
   working 40h/week for someone else still scores as fully free and keeps
   receiving invitations they must decline — which round 3's rotation change now

@@ -1,42 +1,15 @@
 import type { Metadata } from "next";
 import { Building2, Clock, Mic, Video } from "lucide-react";
-import { db } from "@/lib/db";
 import { NOINDEX } from "@/lib/site";
-import { INTERVIEW_DURATION_MINUTES } from "@/lib/interviews";
+import { INTERVIEW_DURATION_MINUTES, talentInterviews } from "@/lib/interviews";
 import { requirePageUser, talentOrOnboard } from "@/lib/queries";
 import { stamp } from "@/lib/notify";
 import { InterviewConsent } from "@/components/interview-talent-consent";
+import { AssessmentCard } from "@/components/assessment-card";
 
 export const metadata: Metadata = { title: "Interviews", ...NOINDEX };
 
-type Row = {
-  id: string;
-  status: string;
-  scheduledAt: Date | null;
-  meetingUrl: string | null;
-  company: string;
-};
-
-async function load(userId: string): Promise<Row[]> {
-  const interviews = await db.interview.findMany({
-    where: { talentUserId: userId },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      status: true,
-      scheduledAt: true,
-      meetingUrl: true,
-      employer: { select: { companyName: true } },
-    },
-  });
-  return interviews.map((i) => ({
-    id: i.id,
-    status: i.status,
-    scheduledAt: i.scheduledAt,
-    meetingUrl: i.meetingUrl,
-    company: i.employer.companyName,
-  }));
-}
+type Row = Awaited<ReturnType<typeof talentInterviews>>[number];
 
 /** How a settled interview reads to the candidate — no interviewer identity, no price. */
 function settledLabel(row: Row): string {
@@ -50,7 +23,7 @@ function settledLabel(row: Row): string {
     case "recorded":
       return "Interview done. The assessment is being prepared.";
     case "reported":
-      return "Complete.";
+      return "Complete — your assessment and recording are below.";
     case "declined":
       return "You declined. No payment was taken.";
     case "cancelled":
@@ -63,7 +36,7 @@ function settledLabel(row: Row): string {
 export default async function TalentInterviewsPage() {
   const user = await requirePageUser("talent");
   await talentOrOnboard(user.id);
-  const rows = await load(user.id);
+  const rows = await talentInterviews(user.id);
 
   const pending = rows.filter((r) => r.status === "requested");
   const settled = rows.filter((r) => r.status !== "requested");
@@ -176,6 +149,27 @@ export default async function TalentInterviewsPage() {
                   >
                     <Video className="h-4 w-4" strokeWidth={1.75} /> Join the interview
                   </a>
+                )}
+
+                {/* Rendered by the same component the employer's page uses, so
+                    the candidate reads the assessment word for word as its
+                    buyer does — including the free-text notes. */}
+                {row.assessment && (
+                  <AssessmentCard
+                    assessment={row.assessment}
+                    footer={
+                      row.hasRecording ? (
+                        <a
+                          href={`/api/talent/interviews/${row.id}/recording`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex min-h-11 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium text-brand ring-1 ring-inset ring-brand/30 transition-colors hover:bg-brand-soft"
+                        >
+                          <Video className="h-4 w-4" strokeWidth={1.75} /> Download your recording
+                        </a>
+                      ) : null
+                    }
+                  />
                 )}
               </div>
             ))}

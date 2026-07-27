@@ -428,3 +428,41 @@ export async function interviewerPoolStats() {
       : 0;
   return { count: active.length, domains: domains.size, avgYears };
 }
+
+/**
+ * Everything the candidate is entitled to see about interviews of themselves.
+ *
+ * Lives here rather than inside the page so the access rule has one owner and
+ * can be tested: `talentUserId` is in the WHERE, never a post-fetch check, so
+ * another candidate's interview is not merely hidden — it is never fetched.
+ *
+ * The assessment and the recording are included because they are about this
+ * person. Both were reachable by the employer who bought them and by an admin,
+ * and by nobody else; the candidate consented to being recorded and could not
+ * read a word of the result. `recordingKey` is reduced to a boolean here — the
+ * object key never reaches the browser, the presigning route handles that.
+ */
+export async function talentInterviews(userId: string) {
+  const interviews = await db.interview.findMany({
+    where: { talentUserId: userId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      status: true,
+      scheduledAt: true,
+      meetingUrl: true,
+      assessment: true,
+      recordingKey: true,
+      employer: { select: { companyName: true } },
+    },
+  });
+  return interviews.map((i) => ({
+    id: i.id,
+    status: i.status,
+    scheduledAt: i.scheduledAt,
+    meetingUrl: i.meetingUrl,
+    company: i.employer.companyName,
+    assessment: i.assessment,
+    hasRecording: Boolean(i.recordingKey),
+  }));
+}
